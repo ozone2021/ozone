@@ -1,0 +1,72 @@
+---
+build_vars:
+    - name: SECRETS_FILE
+      type: file
+
+#    - name: ENV_FILE
+#      type: file
+
+    - name: SCRIPT_DIR #TODO should this be by default?
+      type: dir
+      value: ./script
+
+    - name: HELM_CHART
+      type: dir
+      value: # TODO
+
+    - name: HELM_VALUES_FILE
+      type: file
+
+environments:
+    - name: base
+      include:
+        - name: k8s/from_secret
+          with_vars:
+            - name: SECRETS_FILE
+              value: {{vars.SECRETS_FILE}}
+      runtime_vars:
+        - VAR_1
+        - VAR_2
+
+    - name: local
+      include:
+        - name: base
+#       - name: core/from_env_file
+#         with:
+#           - name: ENV_FILE
+#             value: {{vars.ENV_FILE}}
+
+    - name: git
+      include:
+        - name: git64
+
+builds:
+    - name: build-microservice-a
+      with_env:
+        - $ENV
+      function:
+
+    - name: build-all
+      with_env:
+        - $ENV
+      script:
+
+deploys:
+    - name: redeploy_helm_chart
+      using:
+        - name: helm
+          with:
+            - name: HELM_CHART
+              value: {{vars.HELM_CHART}}
+            - name: VALUES
+              value: {{vars.HELM_VALUES}}
+utilties:
+    - name: change_namespace
+      using: k8s/change_namespace
+      with_env:
+        - git
+      with_adaptations:
+        - source: GIT_BRANCH_64
+          target: SUBDOMAIN
+
+    - name: get_oauth_token
