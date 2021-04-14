@@ -1,6 +1,0 @@
-# gopkg.in/src-d/go-git.v4 v4.13.1
-## explicit
-# ozone-daemon-lib v1.0.0 => ../../ozone-daemon-lib
-## explicit
-ozone-daemon-lib/process-manager
-# ozone-daemon-lib => ../../ozone-daemon-lib

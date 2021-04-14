@@ -10,15 +10,14 @@ import (
 
 
 
-func Build(serviceName string, relativeDir string, file string) {
+func Build(serviceName string, relativeDir string, file string, varsMap map[string]string) {
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
 	}
 	cmdString := fmt.Sprintf("go build -o __OUTPUT__/executable %s/%s",
 		relativeDir,
-		file,
-	)
+		file)
 
 	query := &process_manager.ProcessCreateQuery{
 		serviceName,
@@ -26,7 +25,7 @@ func Build(serviceName string, relativeDir string, file string) {
 		ozoneWorkingDir,
 		cmdString,
 		true,
-		nil,
+		varsMap,
 	}
 
 	client, err := rpc.DialHTTP("tcp", ":8000")

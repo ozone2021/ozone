@@ -8,7 +8,7 @@ import (
 	process_manager "ozone-daemon-lib/process-manager"
 )
 
-func Build(serviceName string) {
+func Build(serviceName string, env map[string]string) {
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
@@ -21,7 +21,7 @@ func Build(serviceName string) {
 		ozoneWorkingDir,
 		cmdString,
 		false,
-		nil,
+		env,
 	}
 
 	client, err := rpc.DialHTTP("tcp", ":8000")
