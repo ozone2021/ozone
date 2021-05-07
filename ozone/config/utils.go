@@ -2,7 +2,7 @@ package config
 
 import "fmt"
 
-func VarsToMap(vars []Var) map[string]string {
+func VarsToMap(vars []*Var) map[string]string {
 	result := make(map[string]string)
 
 	for _, v := range vars {

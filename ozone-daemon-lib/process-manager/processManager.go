@@ -87,8 +87,22 @@ func (pm *ProcessManager) TempDirRequest(request *TempDirRequest, response *Temp
 	}
 	return nil
 }
+func (pm *ProcessManager) Test(request *int, reply *int) error {
+	log.Println("here")
+	return nil
+}
 
-func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *int) error {
+func deleteEmpty (s []string) []string {
+	var r []string
+	for _, str := range s {
+		if str != "" {
+			r = append(r, str)
+		}
+	}
+	return r
+}
+
+func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *error) error {
 	tempDir, ok := pm.directories[processQuery.OzoneWorkingDir]
 
 	if !ok {
@@ -98,13 +112,17 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *in
 	processWorkingDirectory := substituteOutput(processQuery.ProcessWorkingDir, tempDir)
 
 	cmdString := substituteOutput(processQuery.Cmd, tempDir)
+	log.Println("cmd is:")
+	log.Println(processQuery.Cmd)
 
 	cmdFields := strings.Fields(cmdString)
 	var argFields []string
 	if len(cmdFields) > 1 {
 		argFields = cmdFields[1:]
 	}
+	argFields = deleteEmpty(argFields)
 	cmd := exec.Command(cmdFields[0], argFields...)
+	cmd.Dir = processWorkingDirectory
 
 	// Create log file
 	logFileString := fmt.Sprintf("%s/%s-logs", tempDir, processQuery.Name)
@@ -115,73 +133,109 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *in
 		fmt.Println("log file doesn't exist")
 		logFile, err = os.Create(logFileString)
 		if err != nil {
+			reply = &err
 			fmt.Println(err)
+			return err
 		}
 	}
 	logFile, err = os.OpenFile(logFileString, os.O_WRONLY, os.ModeAppend)
 	if err != nil {
+		reply = &err
 		fmt.Println(err)
+		return err
 	}
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		fmt.Println(err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	multi := io.MultiReader(stdout, stderr)
-	//multi := io.MultiReader(stdout)
-	in := bufio.NewScanner(multi)
-	cmd.Dir = processWorkingDirectory
-
-	go handleLogs(in, logFile)
-
-	// Halt existing cmd for service if it exists
 	if !processQuery.Synchronous {
-		processMap, ok := pm.processes[processWorkingDirectory]
-		if ok {
-			process, ok := processMap[processQuery.Name]
-			if ok {
-				process.Cmd.Process.Kill()
-			}
-		}
+		pm.handleAsynchronous(processQuery.Name, cmd, logFile, processWorkingDirectory)
 	}
-	if processQuery.Synchronous {
-		err = cmd.Run()
-		if err != nil {
-			log.Fatalln(err)
-		}
-		fmt.Printf("SYNCHRONOUS \n")
-	} else {
-		err = cmd.Start()
-		if err != nil {
-			log.Fatalln(err)
-		}
-		fmt.Printf("NONBLOCKING \n")
-	}
+
 	fmt.Printf("Logs at:\n")
 	fmt.Printf("%s \n", logFileString)
 
+	if processQuery.Synchronous {
+		err = pm.handleAsynchronous(
+			processQuery.Name,
+			cmd,
+			logFile,
+			processWorkingDirectory,
+		)
+	} else {
+		err = pm.handleSynchronous(
+			cmd,
+			logFile,
+		)
+	}
+	if err != nil {
+		fmt.Println(err)
+		reply = &err
+		return err
+	}
+
+	return nil
+}
+
+func (pm *ProcessManager) handleSynchronous(cmd *exec.Cmd, logFile *os.File) error {
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("SYNCHRONOUS \n")
+
+	return nil
+}
+
+func (pm *ProcessManager) handleAsynchronous(
+	name string,
+	cmd *exec.Cmd,
+	logFile *os.File,
+	processWorkingDirectory string) error {
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil
+	}
+
+	multi := io.MultiReader(stdout, stderr)
+	in := bufio.NewScanner(multi)
+
+	go handleLogs(in, logFile)
+
+	processMap, ok := pm.processes[processWorkingDirectory]
+	if ok {
+		process, ok := processMap[name]
+		if ok {
+			process.Cmd.Process.Kill()
+		}
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("NONBLOCKING \n")
 
 	process := &OzoneProcess{
-		Cmd:  cmd,
-		Name: processQuery.Name,
+		Cmd:       cmd,
+		Name:      name,
 		StartTime: time.Now().Unix(),
 	}
 
-	if !processQuery.Synchronous {
-		_, ok := pm.processes[processWorkingDirectory]
-		if !ok {
-			pm.processes[processWorkingDirectory] = make(map[string]*OzoneProcess)
-		}
-		pm.processes[processWorkingDirectory][processQuery.Name] = process
+	_, ok = pm.processes[processWorkingDirectory]
+	if !ok {
+		pm.processes[processWorkingDirectory] = make(map[string]*OzoneProcess)
 	}
-	fmt.Printf("length: %d \n", len(pm.processes))
+	pm.processes[processWorkingDirectory][name] = process
+
 	return nil
 }
+
+
 
 func (pm *ProcessManager) ContextQuery(contextQuery *ContextQueryRequest, response *ContextQueryResponse) error {
 	if contextQuery.Context != "" {

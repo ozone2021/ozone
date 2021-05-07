@@ -10,41 +10,29 @@ import (
 )
 
 
-func getParams() []string {
+func getPushDockerImageParams() []string {
 	return []string{
-		"DOCKERFILE_DIR",
 		"FULL_TAG",
 		"SERVICE",
-		//"GITLAB_PROJECT_CODE",
-		//"BUILD_ARGS",
 	}
 }
 
 
-func BuildPushDockerContainer(varsMap map[string]string) error {
-	for _, arg := range getParams() {
+func PushDockerImage(varsMap map[string]string) error {
+	for _, arg := range getPushDockerImageParams() {
 		if err := config.ParamsOK(arg, varsMap); err != nil {
 			return err
 		}
 	}
 
-	dockerFileDir := varsMap["DOCKERFILE_DIR"]
-	serviceName := varsMap["SERVICE"]
 	tag := varsMap["FULL_TAG"]
-
-	buildArgs, ok := varsMap["BUILD_ARGS"]
-	if !ok {
-		buildArgs = ""
-	}
+	serviceName := varsMap["SERVICE"]
 
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
 	}
-	cmdString := fmt.Sprintf("docker build %s -t %s %s && docker push %s",
-		buildArgs,
-		tag,
-		dockerFileDir,
+	cmdString := fmt.Sprintf("docker push %s",
 		tag,
 	)
 
@@ -65,4 +53,6 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 	if err != nil {
 		log.Fatal("arith error:", err)
 	}
+
+	return nil
 }

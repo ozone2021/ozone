@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"github.com/flosch/pongo2/v4"
 	"github.com/spf13/cobra"
 	"log"
 	"net/rpc"
@@ -10,8 +11,9 @@ import (
 	process_manager "ozone-daemon-lib/process-manager"
 	"ozone-lib/buildables"
 	ozoneConfig "ozone-lib/config"
+	"ozone-lib/deployables/executable"
+	"ozone-lib/deployables/helm"
 	"ozone-lib/env"
-	"ozone-lib/executable"
 	_go "ozone-lib/go"
 )
 
@@ -19,21 +21,21 @@ func init() {
 	rootCmd.AddCommand(buildCmd)
 }
 
-func build(config *ozoneConfig.OzoneConfig, context string) {
+
+func build(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
 	fmt.Println("here3")
 	fmt.Println(context)
 
-	for _, b := range config.Builds {
+	for _, b := range builds {
 		buildVarsMap := ozoneConfig.VarsToMap(config.BuildVars)
 		fmt.Println(b.Name)
 		fmt.Println("-")
 		for _, es := range b.ContextSteps {
-			fmt.Println("ContextSteps")
 			if es.Context == context {
-				fmt.Println("Context")
 				for _, step := range es.Steps {
 					fmt.Printf("step %s", step.Type)
 					buildVarsMap["SERVICE"] = b.Service
+					buildVarsMap["DIR"] = b.Dir
 					varsMap, err := fetchEnvs(config, es.WithEnv, buildVarsMap)
 					if err != nil {
 						log.Fatalln(err)
@@ -49,9 +51,18 @@ func build(config *ozoneConfig.OzoneConfig, context string) {
 								"main.go",
 								varsMap,
 							)
-						case "buildPushDockerImage":
+						case "buildDockerImage":
 							fmt.Println("Building docker image.")
-							buildables.BuildPushDockerContainer(varsMap)
+							err := buildables.BuildPushDockerContainer(varsMap)
+							if err != nil {
+								panic(err)
+							}
+						case "pushDockerImage":
+							fmt.Println("Building docker image.")
+							err := buildables.PushDockerImage(varsMap)
+							if err != nil {
+								panic(err)
+							}
 						}
 					}
 				}
@@ -60,9 +71,32 @@ func build(config *ozoneConfig.OzoneConfig, context string) {
 	}
 }
 
+func convertMap(originalMap interface{}) pongo2.Context {
+	convertedMap := make(map[string]interface{})
+	for key, value := range originalMap.(map[string]string) {
+		convertedMap[key] = value
+	}
+
+	return convertedMap
+}
+
+func renderVars(input string, varsMap map[string]string) string {
+	//tpl, err := pongo2.FromString("Hello {{ name|capfirst }}!")
+	tpl, err := pongo2.FromString(input)
+	if err != nil {
+		panic(err)
+	}
+	context := convertMap(varsMap)
+	out, err := tpl.Execute(context)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
 func mergeMaps(base map[string]string, overwrite map[string]string) map[string]string {
 	for k, v := range overwrite {
-		base[k] = v
+		base[k] = renderVars(v, base)
 	}
 	return base
 }
@@ -128,12 +162,12 @@ func fetchEnvs(config *ozoneConfig.OzoneConfig, envList []string, varsMap map[st
 	return varsMap, nil
 }
 
-func deploy(config *ozoneConfig.OzoneConfig, context string) {
+func deploy(deploys []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
 	//varsMap := ozoneConfig.VarsToMap(config.BuildVars)
-	fmt.Println("here3")
+	fmt.Println("Deploys")
 	fmt.Println(context)
 
-	for _, b := range config.Deploys {
+	for _, b := range deploys {
 		fmt.Println(b.Name)
 		fmt.Println("-")
 		for _, es := range b.ContextSteps {
@@ -149,12 +183,17 @@ func deploy(config *ozoneConfig.OzoneConfig, context string) {
 				fmt.Println("Context")
 				for _, step := range es.Steps {
 					fmt.Printf("step %s", step.Type)
+					// TODO merge in step.WithVars into varsMap
+					varsMap = mergeMaps(varsMap, step.WithVars)
 					if step.Type == "builtin" {
-						fmt.Println("gogo")
 						switch step.Value {
 						case "executable":
 							fmt.Println("gogo")
 							executable.Build(b.Service, varsMap)
+						case "helm":
+							helm.Deploy(b.Service, varsMap)
+						default:
+							log.Fatalf("Builtin value not found: %s \n", step.Value)
 						}
 					}
 				}
@@ -162,8 +201,6 @@ func deploy(config *ozoneConfig.OzoneConfig, context string) {
 		}
 	}
 }
-
-
 
 func fetchContext(defaultContext string) (string, error) {
 	ozoneWorkingDir, err := os.Getwd()
@@ -189,6 +226,54 @@ func fetchContext(defaultContext string) (string, error) {
 	return response.Context, err
 }
 
+func isBuildable(name string, config *ozoneConfig.OzoneConfig) (bool, *ozoneConfig.Runnable) {
+	for _, b := range config.Builds {
+		if b.Name == name {
+			return true, b
+		}
+	}
+	return false, nil
+}
+
+func isDeployable(name string, config *ozoneConfig.OzoneConfig) bool {
+	for _, b := range config.Deploys {
+		if b.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+//func isTestable(name string, config *ozoneConfig.OzoneConfig) bool {
+//	for _, b := range config.Tests {
+//		if b.Name == name {
+//			return true
+//		}
+//	}
+//	return false
+//}
+
+func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozoneConfig.Runnable,[]*ozoneConfig.Runnable,[]*ozoneConfig.Runnable) {
+	var buildables []*ozoneConfig.Runnable
+	var deployables []*ozoneConfig.Runnable
+	var testables []*ozoneConfig.Runnable
+
+	for _, runnableName := range args {
+		if has, build := config.HasBuild(runnableName); has == true {
+			buildables = append(buildables, build)
+		}
+		if has, deploy := config.HasDeploy(runnableName); has == true {
+			deployables = append(deployables, deploy)
+		}
+		if has, test := config.HasTest(runnableName); has == true {
+			deployables = append(testables, test)
+		}
+		//if isTest
+	}
+
+	return buildables, deployables, testables
+}
+
 var buildCmd = &cobra.Command{
 	Use:   "b",
 	Long:  `List running processes`,
@@ -203,16 +288,18 @@ var buildCmd = &cobra.Command{
 		}
 
 		for _, arg := range args {
-			if config.HasRunnable(arg) {
+			if has, _ := config.FetchRunnable(arg); has == true {
 				continue
 			} else {
 				log.Fatalf("Config doesn't have runnable: %s \n", arg)
 			}
 		}
-		build(config, context)
-		deploy(config, context)
 
-		//_go.Build("microA", "micro-a", "main.go")
-		//
+		builds, deploys, _ := separateRunnables(args, config)
+
+		build(builds, config, context)
+		deploy(deploys, config, context)
+		//tests(tests, config, context)
+
 	},
 }
