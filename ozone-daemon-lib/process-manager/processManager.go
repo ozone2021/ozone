@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -30,13 +31,6 @@ type ContextQueryResponse struct {
 	Context string
 }
 
-type TempDirRequest struct {
-	WorkingDirectory string
-}
-type TempDirResponse struct {
-	TempDir		string
-}
-
 type ProcessCreateQuery struct {
 	Name              string
 	ProcessWorkingDir string
@@ -48,6 +42,14 @@ type ProcessCreateQuery struct {
 
 type DebugQuery struct {
 	OzoneWorkingDir   string
+}
+
+type DirQuery struct {
+	OzoneWorkingDir   string
+}
+
+type StringReply struct {
+	Body string
 }
 
 // map[string]process  to map directory Name to the processes
@@ -79,12 +81,11 @@ func substituteOutput(input string, tempDir string) string {
 	return result
 }
 
-func (pm *ProcessManager) TempDirRequest(request *TempDirRequest, response *TempDirResponse) error {
-	log.Printf("Request %s \n", request.WorkingDirectory)
-	tempDir, ok := pm.directories[request.WorkingDirectory]
-	if ok {
-		response.TempDir = tempDir
-	}
+func (pm *ProcessManager) TempDirRequest(request *DirQuery, response *StringReply) error {
+	log.Printf("Request %s \n", request.OzoneWorkingDir)
+	tempDir := pm.createTempDirIfNotExists(request.OzoneWorkingDir)
+	log.Println(tempDir)
+	response.Body = tempDir
 	return nil
 }
 func (pm *ProcessManager) Test(request *int, reply *int) error {
@@ -102,13 +103,62 @@ func deleteEmpty (s []string) []string {
 	return r
 }
 
-func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *error) error {
-	tempDir, ok := pm.directories[processQuery.OzoneWorkingDir]
+func (pm *ProcessManager) Halt(haltQuery *DirQuery, reply *error) error {
+	dir := haltQuery.OzoneWorkingDir
+	for _, process := range pm.processes[dir] {
+		pgid, err := syscall.Getpgid(process.Cmd.Process.Pid)
+		if err != nil {
+			reply = &err
+			return err
+		}
 
-	if !ok {
-		tempDir = createTempDir()
-		pm.directories[processQuery.OzoneWorkingDir] =  tempDir
+		syscall.Kill(-pgid, 15)  // note the minus sign
+		process.Cmd.Wait()
 	}
+	pm.processes[dir] = make(map[string]*OzoneProcess)
+
+	return nil
+}
+
+
+func (pm *ProcessManager) Status(dirQuery *DirQuery, reply *StringReply) error {
+	dir := dirQuery.OzoneWorkingDir
+
+	if len(pm.processes[dir]) == 0 {
+		reply.Body = fmt.Sprintf("No processes running for this workspace.")
+		return nil
+	}
+
+	reply.Body = fmt.Sprintf("Service \tStatus \n\n", reply.Body)
+	for name, process := range pm.processes[dir] {
+		running := process.Cmd.ProcessState.ExitCode() == -1
+		runningString := "running"
+		if !running {
+			runningString = fmt.Sprintf("exited code: %d", process.Cmd.ProcessState.ExitCode())
+		}
+		reply.Body = fmt.Sprintf("%s%s\t%s\n", reply.Body, name, runningString)
+	}
+	fmt.Println(reply.Body)
+	return nil
+}
+
+func (pm *ProcessManager) createTempDirIfNotExists(ozoneWorkingDir string) string {
+	dirName, ok := pm.directories[ozoneWorkingDir]
+	if ok {
+		return dirName
+	}
+
+	dirName, err := ioutil.TempDir("/tmp/", "ozone-")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pm.directories[ozoneWorkingDir] = dirName
+	return dirName
+}
+
+func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *error) error {
+	tempDir := pm.createTempDirIfNotExists(processQuery.OzoneWorkingDir)
 	processWorkingDirectory := substituteOutput(processQuery.ProcessWorkingDir, tempDir)
 
 	cmdString := substituteOutput(processQuery.Cmd, tempDir)
@@ -122,21 +172,15 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 	}
 	argFields = deleteEmpty(argFields)
 	cmd := exec.Command(cmdFields[0], argFields...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Dir = processWorkingDirectory
 
 	// Create log file
 	logFileString := fmt.Sprintf("%s/%s-logs", tempDir, processQuery.Name)
-	var _, err = os.Stat(logFileString)
-
-	var logFile *os.File
-	if os.IsNotExist(err) {
-		fmt.Println("log file doesn't exist")
-		logFile, err = os.Create(logFileString)
-		if err != nil {
-			reply = &err
-			fmt.Println(err)
-			return err
-		}
+	err, logFile := CreateLogFileIfNotExists(logFileString)
+	if err != nil {
+		reply = &err
+		return err
 	}
 	logFile, err = os.OpenFile(logFileString, os.O_WRONLY, os.ModeAppend)
 	if err != nil {
@@ -172,6 +216,20 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 	}
 
 	return nil
+}
+
+func CreateLogFileIfNotExists(logFileString string) (error, *os.File) {
+	_, err := os.Stat(logFileString)
+
+	var logFile *os.File
+	if os.IsNotExist(err) {
+		logFile, err = os.Create(logFileString)
+		if err != nil {
+			return err, nil
+		}
+	}
+	fmt.Println("Created log file")
+	return nil, logFile
 }
 
 func (pm *ProcessManager) handleSynchronous(cmd *exec.Cmd, logFile *os.File) error {
@@ -252,7 +310,8 @@ func handleLogs(in *bufio.Scanner, logFile *os.File) {
 	for in.Scan() {
 		fmt.Printf("SCANNED::  %s \n", in.Text())
 		if len(in.Bytes()) != 0 {
-			_, err := logFile.WriteString(in.Text())
+			logLine := fmt.Sprintf("%s\n", in.Text())
+			_, err := logFile.WriteString(logLine)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -263,16 +322,6 @@ func handleLogs(in *bufio.Scanner, logFile *os.File) {
 			}
 		}
 	}
-}
-
-func createTempDir() string {
-	dirName, err := ioutil.TempDir("/tmp/", "ozone-")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(dirName)
-	return dirName
 }
 
 func (pm *ProcessManager) Debug(processQuery *ProcessCreateQuery, reply *int) error {

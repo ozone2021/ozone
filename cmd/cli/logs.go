@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"log"
-	"net/rpc"
 	"os"
 	"os/exec"
 	process_manager "ozone-daemon-lib/process-manager"
+	process_manager_client "ozone-daemon-lib/process-manager-client"
 	ozoneConfig "ozone-lib/config"
 )
 
@@ -15,32 +15,18 @@ func init() {
 	rootCmd.AddCommand(logsCmd)
 }
 
-func fetchTempDir() string {
-	ozoneWorkingDir, err := os.Getwd()
-	if err != nil {
-		log.Println(err)
-	}
-
-	request := process_manager.TempDirRequest{
-		ozoneWorkingDir,
-	}
-
-	var response process_manager.TempDirResponse
-
-	client, err := rpc.DialHTTP("tcp", ":8000")
-	if err != nil {
-		log.Fatal("dialing:", err)
-	}
-	defer client.Close()
-	err = client.Call("ProcessManager.TempDirRequest", request, &response)
-
-	return response.TempDir
-}
-
 func logs(service string) {
-	tempDir := fetchTempDir()
+	err, tempDir := process_manager_client.FetchTempDir()
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	logsPath := fmt.Sprintf("%s/%s-logs", tempDir, service)
+	process_manager.CreateLogFileIfNotExists(logsPath)
+
+
 	log.Println("---")
 	log.Println(logsPath)
 	log.Println("---")

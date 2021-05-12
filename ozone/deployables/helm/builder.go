@@ -6,9 +6,10 @@ import (
 	"net/rpc"
 	"os"
 	process_manager "ozone-daemon-lib/process-manager"
+	"ozone-lib/config"
 )
 
-func getParams() []string {
+func getHelmParams() []string {
 	return []string{
 		"INSTALL_NAME",
 		"FULL_TAG",
@@ -19,7 +20,13 @@ func getParams() []string {
 	}
 }
 
-func Deploy(serviceName string, env map[string]string) {
+func Deploy(serviceName string, env map[string]string) error {
+	for _, arg := range getHelmParams() {
+		if err := config.ParamsOK(arg, env); err != nil {
+			return err
+		}
+	}
+
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
@@ -82,5 +89,7 @@ func Deploy(serviceName string, env map[string]string) {
 	err = client.Call("ProcessManager.AddProcess", query, reply)
 	if err != nil {
 		log.Fatal("arith error:", err)
+		return err
 	}
+	return nil
 }

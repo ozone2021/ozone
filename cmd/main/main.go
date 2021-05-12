@@ -4,16 +4,6 @@ import (
 	"cli"
 )
 
-func checkErr(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-func createLocalAuxFolder() {
-
-}
-
 func main() {
 
 	//dirPath := "../../"

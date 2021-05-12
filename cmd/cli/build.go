@@ -11,6 +11,7 @@ import (
 	process_manager "ozone-daemon-lib/process-manager"
 	"ozone-lib/buildables"
 	ozoneConfig "ozone-lib/config"
+	"ozone-lib/deployables/docker"
 	"ozone-lib/deployables/executable"
 	"ozone-lib/deployables/helm"
 	"ozone-lib/env"
@@ -55,13 +56,13 @@ func build(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, cont
 							fmt.Println("Building docker image.")
 							err := buildables.BuildPushDockerContainer(varsMap)
 							if err != nil {
-								panic(err)
+								log.Fatalln(err)
 							}
 						case "pushDockerImage":
 							fmt.Println("Building docker image.")
 							err := buildables.PushDockerImage(varsMap)
 							if err != nil {
-								panic(err)
+								log.Fatalln(err)
 							}
 						}
 					}
@@ -84,12 +85,12 @@ func renderVars(input string, varsMap map[string]string) string {
 	//tpl, err := pongo2.FromString("Hello {{ name|capfirst }}!")
 	tpl, err := pongo2.FromString(input)
 	if err != nil {
-		panic(err)
+		log.Fatalln(err)
 	}
 	context := convertMap(varsMap)
 	out, err := tpl.Execute(context)
 	if err != nil {
-		panic(err)
+		log.Fatalln(err)
 	}
 	return out
 }
@@ -171,7 +172,7 @@ func deploy(deploys []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, co
 		fmt.Println(b.Name)
 		fmt.Println("-")
 		for _, es := range b.ContextSteps {
-			fmt.Println("ContextSteps")
+			fmt.Printf("Context: %s \n", context)
 			if es.Context == context {
 			 	buildVars := ozoneConfig.VarsToMap(config.BuildVars)
 				varsMap, err := fetchEnvs(config, es.WithEnv, buildVars)
@@ -184,14 +185,19 @@ func deploy(deploys []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, co
 				for _, step := range es.Steps {
 					fmt.Printf("step %s", step.Type)
 					// TODO merge in step.WithVars into varsMap
-					varsMap = mergeMaps(varsMap, step.WithVars)
+					stepVars := mergeMaps(varsMap, step.WithVars)
 					if step.Type == "builtin" {
 						switch step.Value {
 						case "executable":
 							fmt.Println("gogo")
-							executable.Build(b.Service, varsMap)
+							executable.Build(b.Service, stepVars)
 						case "helm":
-							helm.Deploy(b.Service, varsMap)
+							helm.Deploy(b.Service, stepVars)
+						case "runDockerImage":
+							err := docker.Build(b.Service, stepVars)
+							if err != nil {
+								log.Fatalln(err)
+							}
 						default:
 							log.Fatalf("Builtin value not found: %s \n", step.Value)
 						}
