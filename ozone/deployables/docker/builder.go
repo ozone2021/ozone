@@ -1,12 +1,12 @@
 package docker
 
 import (
-    "fmt"
+	"fmt"
 	"log"
 	"net/rpc"
 	"os"
 	process_manager "ozone-daemon-lib/process-manager"
-	"ozone-lib/config"
+	"ozone-lib/utils"
 )
 
 func getDockerRunParams() []string {
@@ -26,7 +26,7 @@ func VarsMapToDockerEnvString(varsMap map[string]string) string {
 
 func Build(serviceName string, env map[string]string) error {
 	for _, arg := range getDockerRunParams() {
-		if err := config.ParamsOK(arg, env); err != nil {
+		if err := utils.ParamsOK(arg, env); err != nil {
 			return err
 		}
 	}

@@ -6,7 +6,7 @@ import (
 	"net/rpc"
 	"os"
 	process_manager "ozone-daemon-lib/process-manager"
-	"ozone-lib/config"
+	"ozone-lib/utils"
 )
 
 
@@ -23,7 +23,7 @@ func getParams() []string {
 
 func BuildPushDockerContainer(varsMap map[string]string) error {
 	for _, arg := range getParams() {
-		if err := config.ParamsOK(arg, varsMap); err != nil {
+		if err := utils.ParamsOK(arg, varsMap); err != nil {
 			return err
 		}
 	}

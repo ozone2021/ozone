@@ -8,7 +8,7 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "ozone",
-	Short: "Environment and build management, localhost orchestrator",
+	Short: "Environment and run management, localhost orchestrator",
 	Long: ``,
 }
 

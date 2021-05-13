@@ -129,7 +129,7 @@ func (pm *ProcessManager) Status(dirQuery *DirQuery, reply *StringReply) error {
 		return nil
 	}
 
-	reply.Body = fmt.Sprintf("Service \tStatus \n\n", reply.Body)
+	reply.Body = fmt.Sprintf("Service \tStatus \n\n")
 	for name, process := range pm.processes[dir] {
 		running := process.Cmd.ProcessState.ExitCode() == -1
 		runningString := "running"

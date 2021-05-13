@@ -14,9 +14,10 @@ type k8sSecret struct {
 
 
 
-func FromSecret(varsMap map[string]string) (map[string]string, error) {
+func FromSecret(varsParamMap map[string]string) (map[string]string, error) {
+	varsMap := make(map[string]string)
 
-	secretFile, ok := varsMap["SECRET_FILE"]
+	secretFile, ok := varsParamMap["SECRET_FILE"]
 	if ok && secretFile != "" {
 		expandedSecretFile, err := homedir.Expand(secretFile)
 		if err != nil {

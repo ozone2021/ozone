@@ -1,9 +1,12 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
+	"ozone-lib/env"
 )
 
 type RunnableType int
@@ -59,12 +62,12 @@ type Runnable struct {
 }
 
 type OzoneConfig struct {
-	ContextInfo		ContextInfo		`yaml:"context"`
-	BuildVars 		[]*Var 			`yaml:"build_vars"`
-	Environments	[]*Environment	`yaml:"environments"`
-	Builds			[]*Runnable		`yaml:"builds"`
-	Deploys			[]*Runnable		`yaml:"deploys"`
-	Tests			[]*Runnable		`yaml:"tests"`
+	ContextInfo		ContextInfo			`yaml:"context"`
+	BuildVars 		map[string]string	`yaml:"build_vars"`
+	Environments	[]*Environment		`yaml:"environments"`
+	Builds			[]*Runnable			`yaml:"builds"`
+	Deploys			[]*Runnable			`yaml:"deploys"`
+	Tests			[]*Runnable			`yaml:"tests"`
 }
 
 func(config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
@@ -110,6 +113,77 @@ func(config *OzoneConfig) ListHasRunnableOfType(name string, runnables []*Runnab
 	}
 	return false, nil
 }
+
+func(config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) (map[string]string, error) {
+	nameFound := false
+	varsMap := make(map[string]string)
+	for _, e := range config.Environments {
+		if e.Name == envName {
+			nameFound = true
+			if len(e.Includes) != 0 {
+				for _, incl := range e.Includes {
+					var inclVarsMap map[string]string
+					var err error
+					if incl.Type == "builtin" {
+						inclParamVarsMap := MergeMaps(VarsToMap(incl.WithVars), scopeMap)
+						inclVarsMap, err = config.fetchBuiltinEnvFromInclude(incl.Name, inclParamVarsMap)
+						if err != nil {
+							return nil, err
+						}
+					} else {
+						inclVarsMap, err = config.fetchEnv(incl.Name, scopeMap)
+						if err != nil {
+							return nil, err
+						}
+					}
+
+					varsMap = RenderNoMerge(inclVarsMap, scopeMap)
+				}
+			}
+			varsMap = MergeMaps(varsMap, VarsToMap(e.WithVars))
+		}
+	}
+	if nameFound == false {
+		return nil, errors.New(fmt.Sprintf("Environment %s not found \n", envName))
+	}
+
+	return varsMap, nil
+}
+
+func(config *OzoneConfig) fetchBuiltinEnvFromInclude(envName string, varsMap map[string]string) (map[string]string, error) {
+	var err error
+	fromIncludeMap := make(map[string]string)
+
+	switch envName {
+	case "env/from_k8s_secret":
+		fromIncludeMap, err = env.FromSecret(varsMap)
+	case "env/from_env_file":
+		fromIncludeMap, err = env.FromEnvFile(varsMap)
+	case "env/docker_submodule_git_hash":
+		fromIncludeMap, err = env.FromGitSubmoduleBranchHash(varsMap)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return fromIncludeMap, nil
+}
+
+func(config *OzoneConfig) FetchEnvs(envList []string, scope map[string]string) (map[string]string, error) {
+	varsMap := make(map[string]string)
+
+	for _, env := range envList {
+		env = renderVars(env, scope)
+		fetchedMap, err := config.fetchEnv(env, scope)
+		if err != nil {
+			return nil, err
+		}
+		varsMap = MergeMaps(varsMap, fetchedMap)
+	}
+	return varsMap, nil
+}
+
 
 func ReadConfig() *OzoneConfig {
 	ozoneConfig := OzoneConfig{}

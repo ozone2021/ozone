@@ -1,12 +1,12 @@
 package helm
 
 import (
-    "fmt"
+	"fmt"
 	"log"
 	"net/rpc"
 	"os"
 	process_manager "ozone-daemon-lib/process-manager"
-	"ozone-lib/config"
+	"ozone-lib/utils"
 )
 
 func getHelmParams() []string {
@@ -22,7 +22,7 @@ func getHelmParams() []string {
 
 func Deploy(serviceName string, env map[string]string) error {
 	for _, arg := range getHelmParams() {
-		if err := config.ParamsOK(arg, env); err != nil {
+		if err := utils.ParamsOK(arg, env); err != nil {
 			return err
 		}
 	}

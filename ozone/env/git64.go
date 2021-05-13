@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"gopkg.in/src-d/go-git.v4"
-	"ozone-lib/config"
+	"ozone-lib/utils"
 )
 
 func getParams() []string {
@@ -17,7 +17,7 @@ func getParams() []string {
 
 func FromGitSubmoduleBranchHash(varsParamMap map[string]string) (map[string]string, error) {
 	for _, arg := range getParams() {
-		if err := config.ParamsOK(arg, varsParamMap); err != nil {
+		if err := utils.ParamsOK(arg, varsParamMap); err != nil {
 			return nil, err
 		}
 	}

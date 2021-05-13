@@ -3,6 +3,7 @@ module ozone-lib
 go 1.14
 
 require (
+	github.com/flosch/pongo2/v4 v4.0.2
 	github.com/joho/godotenv v1.3.0
 	github.com/mitchellh/go-homedir v1.1.0
 	gopkg.in/src-d/go-git.v4 v4.13.1
