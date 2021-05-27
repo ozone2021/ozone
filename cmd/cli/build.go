@@ -2,11 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"github.com/common-nighthawk/go-figure"
 	"github.com/spf13/cobra"
 	"log"
-	"net/rpc"
-	"os"
-	process_manager "ozone-daemon-lib/process-manager"
 	"ozone-lib/buildables"
 	ozoneConfig "ozone-lib/config"
 	"ozone-lib/deployables/docker"
@@ -21,64 +19,80 @@ func init() {
 }
 
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
-	fmt.Println("here3")
-	fmt.Println(context)
-
 	for _, b := range builds {
+		figure.NewFigure(b.Name, "doom", true).Print()
+
 		scope := config.BuildVars
 		scope["CONTEXT"] = context
 		scope["SERVICE"] = b.Service
 		scope["DIR"] = b.Dir
-		fmt.Println(b.Name)
-		fmt.Println("-")
-		for _, cs := range b.ContextSteps {
-			match, err := regexp.Match(cs.Context, []byte(context))
+
+		err := runIndividual(b, context, config, scope)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+}
+
+func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.OzoneConfig, scope map[string]string) error {
+	for _, dependencyName := range b.Depends {
+		exists, dependency := config.FetchRunnable(dependencyName)
+
+		if !exists {
+			log.Fatalf("Depencdency %s on build %s doesn't exist", dependencyName, b.Name)
+		}
+
+		runIndividual(dependency, context, config, scope)
+	}
+
+	for _, cs := range b.ContextSteps {
+		match, err := regexp.Match(cs.Context, []byte(context))
+		if err != nil {
+			return err
+		}
+		if match {
+			contextStepVars, err := config.FetchEnvs(cs.WithEnv, scope)
 			if err != nil {
-				log.Fatalln(err)
-				return
+				return err
 			}
-			if match {
-				contextStepVars, err := config.FetchEnvs(cs.WithEnv, scope)
+			//scope = ozoneConfig.MergeMaps(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
+			for _, step := range cs.Steps {
+				fmt.Printf("step %s", step.Type)
+
+				stepVars := ozoneConfig.MergeMaps(contextStepVars, step.WithVars)
+
 				if err != nil {
-					log.Fatalln(err)
-					return
+					return err
 				}
-				//scope = ozoneConfig.MergeMaps(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
-				for _, step := range cs.Steps {
-					fmt.Printf("step %s", step.Type)
-
-					stepVars := ozoneConfig.MergeMaps(contextStepVars, step.WithVars)
-
-					if err != nil {
-						log.Fatalln(err)
-					}
-					if step.Type == "builtin" {
-						fmt.Println("gogo")
-						switch runType {
-						case ozoneConfig.BuildType:
-							runBuildable(step, b, stepVars)
-						case ozoneConfig.DeployType:
-							runDeployables(step, b, stepVars)
+				if step.Type == "builtin" {
+					switch b.Type {
+					case ozoneConfig.BuildType:
+						runBuildable(step, b, stepVars)
+					case ozoneConfig.DeployType:
+						runDeployables(step, b, stepVars)
 						//case ozoneConfig.TestTypeType:
 						//	runTestables(step, b, stepVars)
-						}
 					}
 				}
 			}
 		}
 	}
+	return nil
 }
 
 func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
 	switch step.Value {
 	case "go":
 		fmt.Println("gogo")
-		_go.Build(
+		err := _go.Build(
 			r.Service,
 			"micro-a",
 			"main.go",
 			varsMap,
 		)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	case "buildDockerImage":
 		fmt.Println("Building docker image.")
 		err := buildables.BuildPushDockerContainer(varsMap)
@@ -100,6 +114,8 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map
 		case "executable":
 			fmt.Println("gogo")
 			executable.Build(r.Service, varsMap)
+
+			fmt.Println("after")
 		case "helm":
 			helm.Deploy(r.Service, varsMap)
 		case "runDockerImage":
@@ -147,30 +163,6 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map
 //	}
 //}
 
-func fetchContext(defaultContext string) (string, error) {
-	ozoneWorkingDir, err := os.Getwd()
-	if err != nil {
-		log.Println(err)
-	}
-
-	request := process_manager.ContextQueryRequest{
-		ozoneWorkingDir,
-		"",
-		defaultContext,
-	}
-
-	var response process_manager.ContextQueryResponse
-
-	client, err := rpc.DialHTTP("tcp", ":8000")
-	if err != nil {
-		log.Fatal("dialing:", err)
-	}
-	defer client.Close()
-	err = client.Call("ProcessManager.ContextQuery", request, &response)
-
-	return response.Context, err
-}
-
 func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozoneConfig.Runnable,[]*ozoneConfig.Runnable,[]*ozoneConfig.Runnable) {
 	var buildables []*ozoneConfig.Runnable
 	var deployables []*ozoneConfig.Runnable
@@ -196,15 +188,8 @@ var buildCmd = &cobra.Command{
 	Use:   "b",
 	Long:  `List running processes`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Building...")
-
-		config := ozoneConfig.ReadConfig()
-		context, err := fetchContext(config.ContextInfo.Default)
-
-		if err != nil {
-			log.Fatal("FetchContext error:", err)
-		}
-
+		contextBanner := fmt.Sprintf("context::: %s", context)
+		figure.NewFigure(contextBanner, "doom", true).Print()
 		for _, arg := range args {
 			if has, _ := config.FetchRunnable(arg); has == true {
 				continue

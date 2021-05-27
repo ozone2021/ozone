@@ -22,14 +22,6 @@ type OzoneProcess struct {
 	StartTime	int64
 }
 
-type ContextQueryRequest struct {
-	Directory string
-	Context string
-	DefaultContext string
-}
-type ContextQueryResponse struct {
-	Context string
-}
 
 type ProcessCreateQuery struct {
 	Name              string
@@ -42,6 +34,11 @@ type ProcessCreateQuery struct {
 
 type DebugQuery struct {
 	OzoneWorkingDir   string
+}
+
+type ContextSetQuery struct {
+	OzoneWorkingDir 	string
+	Context				string
 }
 
 type DirQuery struct {
@@ -120,6 +117,20 @@ func (pm *ProcessManager) Halt(haltQuery *DirQuery, reply *error) error {
 	return nil
 }
 
+func (pm *ProcessManager) FetchContext(dirQuery *DirQuery, reply *StringReply) error {
+	context, ok := pm.contexts[dirQuery.OzoneWorkingDir]
+
+	if ok {
+		reply.Body = context
+	}
+	return nil
+}
+
+func (pm *ProcessManager) SetContext(contextSetQuery *ContextSetQuery, reply *StringReply) error {
+	pm.contexts[contextSetQuery.OzoneWorkingDir] = contextSetQuery.Context
+
+	return nil
+}
 
 func (pm *ProcessManager) Status(dirQuery *DirQuery, reply *StringReply) error {
 	dir := dirQuery.OzoneWorkingDir
@@ -189,31 +200,36 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 		return err
 	}
 
-	if !processQuery.Synchronous {
-		pm.handleAsynchronous(processQuery.Name, cmd, logFile, processWorkingDirectory)
-	}
+	//if !processQuery.Synchronous {
+	//	pm.handleAsynchronous(processQuery.Name, cmd, logFile, processWorkingDirectory)
+	//}
 
 	fmt.Printf("Logs at:\n")
 	fmt.Printf("%s \n", logFileString)
 
 	if processQuery.Synchronous {
+		fmt.Println("sync")
+		err = pm.handleSynchronous(
+			cmd,
+			logFile,
+		)
+	} else {
+		fmt.Println("Async")
 		err = pm.handleAsynchronous(
 			processQuery.Name,
 			cmd,
 			logFile,
 			processWorkingDirectory,
 		)
-	} else {
-		err = pm.handleSynchronous(
-			cmd,
-			logFile,
-		)
 	}
 	if err != nil {
+		fmt.Println("error")
 		fmt.Println(err)
 		reply = &err
 		return err
 	}
+
+	fmt.Println("return nil")
 
 	return nil
 }
@@ -235,11 +251,12 @@ func CreateLogFileIfNotExists(logFileString string) (error, *os.File) {
 func (pm *ProcessManager) handleSynchronous(cmd *exec.Cmd, logFile *os.File) error {
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
+	fmt.Printf("SYNCHRONOUS \n")
 	err := cmd.Run()
 	if err != nil {
+		fmt.Println("errorhandleSynchronous")
 		return err
 	}
-	fmt.Printf("SYNCHRONOUS \n")
 
 	return nil
 }
@@ -289,19 +306,6 @@ func (pm *ProcessManager) handleAsynchronous(
 		pm.processes[processWorkingDirectory] = make(map[string]*OzoneProcess)
 	}
 	pm.processes[processWorkingDirectory][name] = process
-
-	return nil
-}
-
-
-
-func (pm *ProcessManager) ContextQuery(contextQuery *ContextQueryRequest, response *ContextQueryResponse) error {
-	if contextQuery.Context != "" {
-		pm.contexts[contextQuery.Directory] = contextQuery.Context
-	} else {
-		pm.contexts[contextQuery.Directory] = contextQuery.DefaultContext
-	}
-	response.Context = pm.contexts[contextQuery.Directory]
 
 	return nil
 }

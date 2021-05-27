@@ -3,14 +3,14 @@ package _go
 import (
 	"fmt"
 	"log"
-	"net/rpc"
 	"os"
 	"ozone-daemon-lib/process-manager"
+	process_manager_client "ozone-daemon-lib/process-manager-client"
 )
 
 
 
-func Build(serviceName string, relativeDir string, file string, varsMap map[string]string) {
+func Build(serviceName string, relativeDir string, file string, varsMap map[string]string) error {
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
@@ -28,12 +28,8 @@ func Build(serviceName string, relativeDir string, file string, varsMap map[stri
 		varsMap,
 	}
 
-	client, err := rpc.DialHTTP("tcp", ":8000")
-	if err != nil {
-		log.Fatal("dialing:", err)
+	if err := process_manager_client.AddProcess(query); err != nil{
+		return err
 	}
-	err = client.Call("ProcessManager.AddProcess", query, nil)
-	if err != nil {
-		log.Fatal("arith error:", err)
-	}
+	return nil
 }

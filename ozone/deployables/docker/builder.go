@@ -39,7 +39,7 @@ func Build(serviceName string, env map[string]string) error {
 	containerImage := env["FULL_TAG"]
 	envString := VarsMapToDockerEnvString(env)
 
-	cmdString := fmt.Sprintf("docker run --rm --user root  -p 5432:5432 %s %s",
+	cmdString := fmt.Sprintf("docker run --rm --user root --network host -d -p 5432:5432 %s %s",
 		envString,
 		containerImage,
 	)
@@ -49,7 +49,7 @@ func Build(serviceName string, env map[string]string) error {
 		ozoneWorkingDir,
 		ozoneWorkingDir,
 		cmdString,
-		false,
+		true,
 		env,
 	}
 

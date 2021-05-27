@@ -44,11 +44,49 @@ func FetchTempDir() (error, string) {
     //defer client.Close()
     //err = client.Call("ProcessManager.TempDirRequest", request, &response)
 
-    if err = call("TempDirRequest", &request, &reply); err != nil {
+    if err := call("TempDirRequest", &request, &reply); err != nil {
         return err, ""
     }
 
     return nil, reply.Body
+}
+
+func AddProcess(query *process_manager.ProcessCreateQuery) error {
+    var errReply error
+
+    if err := call("AddProcess", query, &errReply); err != nil {
+        return err
+    }
+
+    return errReply
+}
+
+func SetContext(dir string, context string, ) error {
+    query := process_manager.ContextSetQuery{
+        OzoneWorkingDir: dir,
+        Context: context,
+    }
+    var reply process_manager.StringReply
+
+    if err := call("SetContext", &query, &reply); err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func FetchContext(dir string) (string, error) {
+    query := &process_manager.DirQuery{
+        OzoneWorkingDir: dir,
+    }
+    var reply process_manager.StringReply
+
+    err := call("FetchContext", &query, &reply)
+    if err != nil {
+        return "", err
+    }
+
+    return reply.Body, nil
 }
 
 func Status() (error, string) {
@@ -78,6 +116,7 @@ func call(name string, query interface{}, reply interface{}) error {
     }
 
     rpcName := fmt.Sprintf("ProcessManager.%s", name)
+    defer client.Close()
     err = client.Call(rpcName, query, reply)
     if err != nil {
         log.Fatal("transport error:", err) // TODO daemon not running error?

@@ -56,6 +56,7 @@ type Runnable struct {
 	Name        	string			`yaml:"name"`
 	Service			string			`yaml:"service"`
 	Dir         	string			`yaml:"dir"`
+	Depends			[]string		`yaml:"depends_on"`
 	WithEnv     	[]string      	`yaml:"with_env"`
 	ContextSteps	[]*ContextStep 	`yaml:"context_steps"`
 	Type			RunnableType
@@ -82,6 +83,15 @@ func(config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
 	}
 
 	return false, nil
+}
+
+func(config *OzoneConfig) HasContext(name string) bool {
+	for _, c := range config.ContextInfo.List {
+		if name == c {
+			return true
+		}
+	}
+	return false
 }
 
 func(config *OzoneConfig) HasBuild(name string) (bool, *Runnable) {
