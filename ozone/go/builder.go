@@ -25,6 +25,7 @@ func Build(serviceName string, relativeDir string, file string, varsMap map[stri
 		ozoneWorkingDir,
 		cmdString,
 		true,
+		false,
 		varsMap,
 	}
 

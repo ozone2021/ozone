@@ -63,6 +63,7 @@ type Runnable struct {
 }
 
 type OzoneConfig struct {
+	ProjectName		string				`yaml:"project"`
 	ContextInfo		ContextInfo			`yaml:"context"`
 	BuildVars 		map[string]string	`yaml:"build_vars"`
 	Environments	[]*Environment		`yaml:"environments"`

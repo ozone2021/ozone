@@ -29,6 +29,7 @@ type ProcessCreateQuery struct {
 	OzoneWorkingDir   string
 	Cmd               string
 	Synchronous		  bool
+	IgnoreError		  bool
 	Env               map[string]string
 }
 
@@ -212,6 +213,7 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 		err = pm.handleSynchronous(
 			cmd,
 			logFile,
+			processQuery.IgnoreError,
 		)
 	} else {
 		fmt.Println("Async")
@@ -220,6 +222,7 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 			cmd,
 			logFile,
 			processWorkingDirectory,
+			processQuery.IgnoreError,
 		)
 	}
 	if err != nil {
@@ -248,15 +251,16 @@ func CreateLogFileIfNotExists(logFileString string) (error, *os.File) {
 	return nil, logFile
 }
 
-func (pm *ProcessManager) handleSynchronous(cmd *exec.Cmd, logFile *os.File) error {
+func (pm *ProcessManager) handleSynchronous(cmd *exec.Cmd, logFile *os.File, ignoreErr bool) error {
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	fmt.Printf("SYNCHRONOUS \n")
 	err := cmd.Run()
-	if err != nil {
+	if err != nil && !ignoreErr {
 		fmt.Println("errorhandleSynchronous")
 		return err
 	}
+	cmd.Wait()
 
 	return nil
 }
@@ -265,7 +269,8 @@ func (pm *ProcessManager) handleAsynchronous(
 	name string,
 	cmd *exec.Cmd,
 	logFile *os.File,
-	processWorkingDirectory string) error {
+	processWorkingDirectory string,
+	ignoreErr bool) error {
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -290,7 +295,7 @@ func (pm *ProcessManager) handleAsynchronous(
 	}
 
 	err = cmd.Start()
-	if err != nil {
+	if err != nil && !ignoreErr {
 		return err
 	}
 	fmt.Printf("NONBLOCKING \n")

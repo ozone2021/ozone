@@ -53,6 +53,7 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 		ozoneWorkingDir,
 		cmdString,
 		true,
+		false,
 		varsMap,
 	}
 

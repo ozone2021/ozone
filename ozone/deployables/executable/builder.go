@@ -21,6 +21,7 @@ func Build(serviceName string, env map[string]string) {
 		ozoneWorkingDir,
 		cmdString,
 		false,
+		false,
 		env,
 	}
 

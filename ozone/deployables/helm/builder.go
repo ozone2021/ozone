@@ -77,6 +77,7 @@ func Deploy(serviceName string, env map[string]string) error {
 		ozoneWorkingDir,
 		cmdString,
 		true,
+		false,
 		env,
 	}
 

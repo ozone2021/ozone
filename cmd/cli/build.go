@@ -23,6 +23,7 @@ func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, contex
 		figure.NewFigure(b.Name, "doom", true).Print()
 
 		scope := config.BuildVars
+		scope["PROJECT"] = config.ProjectName // TODO sanitize for docker network create
 		scope["CONTEXT"] = context
 		scope["SERVICE"] = b.Service
 		scope["DIR"] = b.Dir
@@ -59,7 +60,8 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 			for _, step := range cs.Steps {
 				fmt.Printf("step %s", step.Type)
 
-				stepVars := ozoneConfig.MergeMaps(contextStepVars, step.WithVars)
+				stepVars := ozoneConfig.RenderNoMerge(step.WithVars, scope)
+				stepVars = ozoneConfig.MergeMaps(contextStepVars, step.WithVars)
 
 				if err != nil {
 					return err
