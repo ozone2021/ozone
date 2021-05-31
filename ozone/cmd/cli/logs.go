@@ -2,12 +2,12 @@ package cli
 
 import (
 	"fmt"
+	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
+	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
 	"os/exec"
-	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
-	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
 )
 
 func init() {

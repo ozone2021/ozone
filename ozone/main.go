@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/JamesArthurHolland/ozone/cmd/cli"
+	"github.com/JamesArthurHolland/ozone/ozone/cmd/cli"
 )
 
 func main() {
