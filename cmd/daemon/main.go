@@ -1,7 +1,7 @@
 package main
 
 import (
-	"ozone-daemon-lib/process-manager"
+	"github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
 )
 
 func main() {

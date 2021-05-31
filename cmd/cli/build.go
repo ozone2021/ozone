@@ -2,15 +2,15 @@ package cli
 
 import (
 	"fmt"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/buildables"
+	ozoneConfig "github.com/JamesArthurHolland/ozone/ozone-lib/config"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/docker"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/executable"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/helm"
+	_go "github.com/JamesArthurHolland/ozone/ozone-lib/go"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/spf13/cobra"
 	"log"
-	"ozone-lib/buildables"
-	ozoneConfig "ozone-lib/config"
-	"ozone-lib/deployables/docker"
-	"ozone-lib/deployables/executable"
-	"ozone-lib/deployables/helm"
-	_go "ozone-lib/go"
 	"regexp"
 )
 

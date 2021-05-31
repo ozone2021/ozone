@@ -2,10 +2,10 @@ package _go
 
 import (
 	"fmt"
+	"github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
+	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
 	"log"
 	"os"
-	"ozone-daemon-lib/process-manager"
-	process_manager_client "ozone-daemon-lib/process-manager-client"
 )
 
 

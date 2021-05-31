@@ -1,4 +1,4 @@
-package ozone
+package ozone_lib
 
 import "fmt"
 

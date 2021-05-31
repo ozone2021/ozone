@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"gopkg.in/src-d/go-git.v4"
-	"ozone-lib/utils"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
 )
 
 func getParams() []string {

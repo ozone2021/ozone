@@ -5,8 +5,8 @@ import (
 	"log"
 	"net/rpc"
 	"os"
-	process_manager "ozone-daemon-lib/process-manager"
-	"ozone-lib/utils"
+	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
 )
 
 func getHelmParams() []string {

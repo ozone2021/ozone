@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"log"
-	process_manager_client "ozone-daemon-lib/process-manager-client"
+	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
 )
 
 func init() {

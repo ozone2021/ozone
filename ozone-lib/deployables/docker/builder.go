@@ -2,11 +2,11 @@ package docker
 
 import (
 	"fmt"
+	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
+	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
 	"log"
 	"os"
-	process_manager "ozone-daemon-lib/process-manager"
-	process_manager_client "ozone-daemon-lib/process-manager-client"
-	"ozone-lib/utils"
 )
 
 func getDockerRunParams() []string {

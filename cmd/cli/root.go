@@ -2,11 +2,11 @@ package cli
 
 import (
 	"fmt"
+	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
+	ozoneConfig "github.com/JamesArthurHolland/ozone/ozone-lib/config"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
-	process_manager_client "ozone-daemon-lib/process-manager-client"
-	ozoneConfig "ozone-lib/config"
 )
 
 var rootCmd = &cobra.Command{

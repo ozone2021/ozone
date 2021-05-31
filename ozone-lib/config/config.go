@@ -6,7 +6,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
-	"ozone-lib/env"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/env"
 )
 
 type RunnableType int

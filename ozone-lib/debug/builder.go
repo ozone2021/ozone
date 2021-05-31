@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/rpc"
 	"os"
-	process_manager "ozone-daemon-lib/process-manager"
+	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
 )
 
 func Build() {
