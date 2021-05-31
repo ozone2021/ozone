@@ -1,8 +1,12 @@
 # ozone
 Environment variable management.
 
+
+1. `mkdir /tmp/ozone`
+2. run daemon
+3. use ozone
 ## ozone-daemon docker 
-`docker run --user root --rm -v /var/run/docker.sock:/var/run/docker.sock -d -t -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon`   
+`docker run --user root --rm -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon`   
 
 `docker exec -it (docker run -v /var/run/docker.sock:/var/run/docker.sock --network host -d ozone-daemon) /bin/sh`   
 

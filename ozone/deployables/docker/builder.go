@@ -99,7 +99,7 @@ func Build(serviceName string, env map[string]string) error {
 	port := env["PORT"]
 	envString := VarsMapToDockerEnvString(env)
 
-	cmdString := fmt.Sprintf("docker run --rm -v __OUTPUT__:__OUTPUT__ --network %s -p %s:%s --name %s -listen=:8081 %s %s",
+	cmdString := fmt.Sprintf("docker run --rm -v /tmp/ozone:__OUTPUT__ --network %s -p %s:%s --name %s -listen=:8081 %s %s",
 		network,
 		port,
 		port,

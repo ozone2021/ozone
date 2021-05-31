@@ -160,7 +160,7 @@ func (pm *ProcessManager) createTempDirIfNotExists(ozoneWorkingDir string) strin
 		return dirName
 	}
 
-	dirName, err := ioutil.TempDir("/tmp/", "ozone-")
+	dirName, err := ioutil.TempDir("/tmp/ozone/", "ozone-")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 
 	cmdString := substituteOutput(processQuery.Cmd, tempDir)
 	log.Println("cmd is:")
-	log.Println(processQuery.Cmd)
+	log.Println(cmdString)
 
 	cmdFields := strings.Fields(cmdString)
 	var argFields []string
