@@ -4,9 +4,8 @@ import (
 	"fmt"
 	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
-	"log"
-	"net/rpc"
 	"os"
+	"os/exec"
 )
 
 
@@ -26,34 +25,31 @@ func PushDockerImage(varsMap map[string]string) error {
 	}
 
 	tag := varsMap["FULL_TAG"]
-	serviceName := varsMap["SERVICE"]
-
-	ozoneWorkingDir, err := os.Getwd()
-	if err != nil {
-		log.Println(err)
-	}
 	cmdString := fmt.Sprintf("docker push %s",
 		tag,
 	)
-
-	query := &process_manager.ProcessCreateQuery{
-		serviceName,
-		ozoneWorkingDir,
-		ozoneWorkingDir,
-		cmdString,
-		true,
-		false,
-		varsMap,
-	}
-
-	client, err := rpc.DialHTTP("tcp", ":8000")
+	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
+	cmd := exec.Command(cmdFields[0], argFields...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
+	err := cmd.Run()
 	if err != nil {
-		log.Fatal("dialing:", err)
+		fmt.Println("build docker err")
+		return err
 	}
-	err = client.Call("ProcessManager.AddProcess", query, nil)
-	if err != nil {
-		log.Fatal("arith error:", err)
-	}
+	cmd.Wait()
+
+	//query := &process_manager.ProcessCreateQuery{
+	//	serviceName,
+	//	ozoneWorkingDir,
+	//	ozoneWorkingDir,
+	//	cmdString,
+	//	true,
+	//	false,
+	//	varsMap,
+	//}
+	//
+	//process_manager_client.AddProcess(query)
 
 	return nil
 }

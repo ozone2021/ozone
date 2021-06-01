@@ -35,15 +35,15 @@ type Include struct {
 }
 
 type Environment struct {
-	Name 			string			`yaml:"name"`
-	WithVars		[]*Var			`yaml:"with_vars"`
-	Includes		[]*Include		`yaml:"include"`
+	Name 			string				`yaml:"name"`
+	WithVars		map[string]string	`yaml:"with_vars"`
+	Includes		[]*Include			`yaml:"include"`
 }
 
 type Step struct {
-	Type			string					`yaml:"type"`
-	Value			string					`yaml:"value"`
-	WithVars		map[string]string		`yaml:"with_vars"`
+	Type     string            `yaml:"type"`
+	Name     string            `yaml:"name"`
+	WithVars map[string]string `yaml:"with_vars"`
 }
 
 type ContextStep struct {
@@ -56,7 +56,7 @@ type Runnable struct {
 	Name        	string			`yaml:"name"`
 	Service			string			`yaml:"service"`
 	Dir         	string			`yaml:"dir"`
-	Depends			[]string		`yaml:"depends_on"`
+	Depends			[]*Step			`yaml:"depends_on"`
 	WithEnv     	[]string      	`yaml:"with_env"`
 	ContextSteps	[]*ContextStep 	`yaml:"context_steps"`
 	Type			RunnableType
@@ -151,7 +151,7 @@ func(config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) (
 					varsMap = RenderNoMerge(inclVarsMap, scopeMap)
 				}
 			}
-			varsMap = MergeMaps(varsMap, VarsToMap(e.WithVars))
+			varsMap = MergeMaps(varsMap, e.WithVars)
 		}
 	}
 	if nameFound == false {

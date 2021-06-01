@@ -15,35 +15,50 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(buildCmd)
+	rootCmd.AddCommand(runCmd)
 }
 
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
+	topLevelScope := ozoneConfig.CopyMap(config.BuildVars)
+	topLevelScope["PROJECT"] = config.ProjectName // TODO sanitize for docker network create
+	topLevelScope["CONTEXT"] = context
+
 	for _, b := range builds {
 		figure.NewFigure(b.Name, "doom", true).Print()
 
-		scope := config.BuildVars
-		scope["PROJECT"] = config.ProjectName // TODO sanitize for docker network create
-		scope["CONTEXT"] = context
-		scope["SERVICE"] = b.Service
-		scope["DIR"] = b.Dir
-
-		err := runIndividual(b, context, config, scope)
+		err := runIndividual(b, context, config, topLevelScope)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
 }
 
-func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.OzoneConfig, scope map[string]string) error {
-	for _, dependencyName := range b.Depends {
-		exists, dependency := config.FetchRunnable(dependencyName)
+func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.OzoneConfig, topLevelScope map[string]string) error {
+	buildScope := ozoneConfig.CopyMap(topLevelScope)
+	if b.Service != "" {
+		buildScope["SERVICE"] = b.Service
+	}
+	if b.Dir != "" {
+		buildScope["DIR"] = b.Dir
+	}
+
+	buildScope = ozoneConfig.RenderNoMerge(buildScope, topLevelScope)
+
+	runnableVars, err := config.FetchEnvs(b.WithEnv, buildScope)
+	if err != nil {
+		return err
+	}
+
+	for _, dependency := range b.Depends {
+		exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
 
 		if !exists {
-			log.Fatalf("Depencdency %s on build %s doesn't exist", dependencyName, b.Name)
+			log.Fatalf("Depencdency %s on build %s doesn't exist", dependency.Name, b.Name)
 		}
 
-		runIndividual(dependency, context, config, scope)
+		dependencyScope := ozoneConfig.MergeMaps(buildScope, runnableVars)
+		dependencyScope = ozoneConfig.MergeMaps(dependencyScope, dependency.WithVars)
+		runIndividual(dependencyRunnable, context, config, dependencyScope)
 	}
 
 	for _, cs := range b.ContextSteps {
@@ -52,16 +67,17 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 			return err
 		}
 		if match {
-			contextStepVars, err := config.FetchEnvs(cs.WithEnv, scope)
+			contextStepVars, err := config.FetchEnvs(cs.WithEnv, buildScope)
+			contextStepVars = ozoneConfig.MergeMaps(runnableVars, contextStepVars)
 			if err != nil {
 				return err
 			}
 			//scope = ozoneConfig.MergeMaps(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
 			for _, step := range cs.Steps {
-				fmt.Printf("step %s", step.Type)
+				fmt.Printf("step %s", step.Name)
 
-				stepVars := ozoneConfig.RenderNoMerge(step.WithVars, scope)
-				stepVars = ozoneConfig.MergeMaps(contextStepVars, step.WithVars)
+				stepVars := ozoneConfig.MergeMaps(step.WithVars, buildScope)
+				stepVars = ozoneConfig.MergeMaps(contextStepVars, stepVars)
 
 				if err != nil {
 					return err
@@ -83,7 +99,7 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 }
 
 func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
-	switch step.Value {
+	switch step.Name {
 	case "go":
 		fmt.Println("gogo")
 		err := _go.Build(
@@ -112,7 +128,7 @@ func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[s
 
 func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
 	if step.Type == "builtin" {
-		switch step.Value {
+		switch step.Name {
 		case "executable":
 			fmt.Println("gogo")
 			executable.Build(r.Service, varsMap)
@@ -121,12 +137,12 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map
 		case "helm":
 			helm.Deploy(r.Service, varsMap)
 		case "runDockerImage":
-			err := docker.Build(r.Service, varsMap)
+			err := docker.Build(varsMap)
 			if err != nil {
 				log.Fatalln(err)
 			}
 		default:
-			log.Fatalf("Builtin value not found: %s \n", step.Value)
+			log.Fatalf("Builtin value not found: %s \n", step.Name)
 		}
 	}
 }
@@ -186,8 +202,8 @@ func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozone
 	return buildables, deployables, testables
 }
 
-var buildCmd = &cobra.Command{
-	Use:   "b",
+var runCmd = &cobra.Command{
+	Use:   "r",
 	Long:  `List running processes`,
 	Run: func(cmd *cobra.Command, args []string) {
 		contextBanner := fmt.Sprintf("context::: %s", context)

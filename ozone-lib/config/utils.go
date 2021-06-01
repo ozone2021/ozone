@@ -45,9 +45,22 @@ func RenderNoMerge(base map[string]string, scope map[string]string) map[string]s
 	return base
 }
 
-func MergeMaps(base map[string]string, overwrite map[string]string) map[string]string {
-	for k, v := range overwrite {
-		base[k] = renderVars(v, base)
+func CopyMap(toCopy map[string]string) map[string]string {
+	newMap := make(map[string]string)
+	for k,v := range toCopy {
+		newMap[k] = v
 	}
+	return newMap
+}
+
+func MergeMaps(base map[string]string, overwrite map[string]string) map[string]string {
+	if base == nil {
+		return CopyMap(overwrite)
+	}
+
+	for k, v := range overwrite {
+		base[k] = v
+	}
+	base = RenderNoMerge(base, base)
 	return base
 }

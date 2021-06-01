@@ -14,6 +14,7 @@ func getDockerRunParams() []string {
 		"FULL_TAG",
 		"PORT",
 		"NETWORK",
+		"SERVICE",
 		//"BUILD_ARGS",
 	}
 }
@@ -79,7 +80,7 @@ func DeleteContainerIfExists(serviceName string, env map[string]string) error {
 
 
 
-func Build(serviceName string, env map[string]string) error {
+func Build(env map[string]string) error {
 	for _, arg := range getDockerRunParams() {
 		if err := utils.ParamsOK(arg, env); err != nil {
 			return err
@@ -91,6 +92,7 @@ func Build(serviceName string, env map[string]string) error {
 		log.Println(err)
 	}
 
+	serviceName := env["SERVICE"]
 	CreateNetworkIfNotExists(serviceName, env)
 	DeleteContainerIfExists(serviceName, env)
 
@@ -99,12 +101,12 @@ func Build(serviceName string, env map[string]string) error {
 	port := env["PORT"]
 	envString := VarsMapToDockerEnvString(env)
 
-	cmdString := fmt.Sprintf("docker run --rm -v /tmp/ozone:__OUTPUT__ --network %s -p %s:%s --name %s -listen=:8081 %s %s",
+	cmdString := fmt.Sprintf("docker run --rm -d -t -v __OUTPUT__:__OUTPUT__ --network %s %s -p %s:%s --name %s %s",
 		network,
+		envString,
 		port,
 		port,
 		serviceName,
-		envString,
 		containerImage,
 	)
 

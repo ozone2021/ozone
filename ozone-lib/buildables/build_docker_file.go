@@ -2,11 +2,11 @@ package buildables
 
 import (
 	"fmt"
-	"log"
-	"net/rpc"
-	"os"
 	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
+	"log"
+	"os"
+	"os/exec"
 )
 
 
@@ -29,7 +29,6 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 	}
 
 	dockerFileDir := varsMap["DIR"]
-	serviceName := varsMap["SERVICE"]
 	tag := varsMap["FULL_TAG"]
 
 	buildArgs, ok := varsMap["BUILD_ARGS"]
@@ -37,34 +36,36 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 		buildArgs = ""
 	}
 
-	ozoneWorkingDir, err := os.Getwd()
-	if err != nil {
-		log.Println(err)
-	}
-	cmdString := fmt.Sprintf("docker build -t %s %s %s && docker push %s",
+	cmdString := fmt.Sprintf("docker build -t %s %s %s",
 		tag,
 		buildArgs,
 		dockerFileDir,
-		tag, )
+	)
 
-	query := &process_manager.ProcessCreateQuery{
-		serviceName,
-		ozoneWorkingDir,
-		ozoneWorkingDir,
-		cmdString,
-		true,
-		false,
-		varsMap,
-	}
+	log.Printf("Build cmd is: %s", cmdString)
 
-	client, err := rpc.DialHTTP("tcp", ":8000")
+	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
+	cmd := exec.Command(cmdFields[0], argFields...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
+	err := cmd.Run()
 	if err != nil {
-		log.Fatal("dialing:", err)
+		fmt.Println("build docker err")
+		return err
 	}
-	err = client.Call("ProcessManager.AddProcess", query, nil)
-	if err != nil {
-		log.Fatal("arith error:", err)
-	}
+	cmd.Wait()
+
+	//query := &process_manager.ProcessCreateQuery{
+	//	serviceName,
+	//	"/",
+	//	ozoneWorkingDir,
+	//	cmdString,
+	//	true,
+	//	false,
+	//	varsMap,
+	//}
+	//
+	//process_manager_client.AddProcess(query)
 
 	return nil
 }

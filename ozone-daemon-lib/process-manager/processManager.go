@@ -169,6 +169,16 @@ func (pm *ProcessManager) createTempDirIfNotExists(ozoneWorkingDir string) strin
 	return dirName
 }
 
+func CommandFromFields(cmdString string) ([]string, []string) {
+	cmdFields := strings.Fields(cmdString)
+	var argFields []string
+	if len(cmdFields) > 1 {
+		argFields = cmdFields[1:]
+	}
+	argFields = deleteEmpty(argFields)
+	return cmdFields, argFields
+}
+
 func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *error) error {
 	tempDir := pm.createTempDirIfNotExists(processQuery.OzoneWorkingDir)
 	processWorkingDirectory := substituteOutput(processQuery.ProcessWorkingDir, tempDir)
@@ -177,13 +187,9 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 	log.Println("cmd is:")
 	log.Println(cmdString)
 
-	cmdFields := strings.Fields(cmdString)
-	var argFields []string
-	if len(cmdFields) > 1 {
-		argFields = cmdFields[1:]
-	}
-	argFields = deleteEmpty(argFields)
+	cmdFields, argFields := CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
+
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Dir = processWorkingDirectory
 
