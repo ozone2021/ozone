@@ -101,7 +101,7 @@ func Build(env map[string]string) error {
 	port := env["PORT"]
 	envString := VarsMapToDockerEnvString(env)
 
-	cmdString := fmt.Sprintf("docker run --rm -d -t -v __OUTPUT__:__OUTPUT__ --network %s %s -p %s:%s --name %s %s",
+	cmdString := fmt.Sprintf("docker run --rm -t -v __OUTPUT__:__OUTPUT__ --network %s %s -p %s:%s --name %s %s",
 		network,
 		envString,
 		port,

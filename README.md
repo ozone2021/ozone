@@ -19,3 +19,5 @@ Environment variable management.
 // TODO command to add registry.local to host ip
 
 curl https://registry.local/v2/_catalog -k
+
+go get -u github.com/JamesArthurHolland/ozone/ozone
