@@ -3,6 +3,8 @@ package process_manager
 import (
 	"bufio"
 	"fmt"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/cache"
+	"github.com/TwinProduction/go-color"
 	"io"
 	"io/ioutil"
 	"log"
@@ -42,27 +44,48 @@ type ContextSetQuery struct {
 	Context				string
 }
 
+type IgnoreQuery struct {
+	OzoneWorkingDir 	string
+	Service			 	string
+}
+
 type DirQuery struct {
 	OzoneWorkingDir   string
+}
+
+type CacheUpdateQuery struct {
+	OzoneWorkingDir 		string
+	Service					string
+	OzoneFileAndDirHash 	string
 }
 
 type StringReply struct {
 	Body string
 }
 
+type BoolReply struct {
+	Body bool
+}
+
 // map[string]process  to map directory Name to the processes
 type ProcessManager struct {
+	cache		*cache.Cache
+	ignores		map[string][]string
 	contexts	map[string]string
 	directories	map[string]string // maps working directory to temp dir
 	processes 	map[string]map[string]*OzoneProcess
 }
 
 func New() *ProcessManager {
+	cache := cache.New()
 	contexts := make(map[string]string)
+	ignores := make(map[string][]string)
 	directories := make(map[string]string)
 	processes := make(map[string]map[string]*OzoneProcess)
 	return &ProcessManager{
+		cache: cache,
 		contexts: contexts,
+		ignores: ignores,
 		processes: processes,
 		directories: directories,
 	}
@@ -77,6 +100,12 @@ func substituteOutput(input string, tempDir string) string {
 	result = strings.ReplaceAll(result, "__OUTPUT__", outputFolder)
 
 	return result
+}
+
+func (pm *ProcessManager) UpdateCache(request *CacheUpdateQuery, response *BoolReply) error {
+	didUpdate := pm.cache.Update(request.OzoneWorkingDir, request.Service, request.OzoneFileAndDirHash)
+	response.Body = didUpdate
+	return nil
 }
 
 func (pm *ProcessManager) TempDirRequest(request *DirQuery, response *StringReply) error {
@@ -118,6 +147,45 @@ func (pm *ProcessManager) Halt(haltQuery *DirQuery, reply *error) error {
 	return nil
 }
 
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func remove(s []string, i int) []string {
+	s[len(s)-1], s[i] = s[i], s[len(s)-1]
+	return s[:len(s)-1]
+}
+
+func (pm *ProcessManager) serviceIsIgnored(service, ozoneWorkingDirectory string) bool {
+	_, ok := pm.ignores[ozoneWorkingDirectory]
+	if ok && contains(pm.ignores[ozoneWorkingDirectory], service) {
+		return true
+	}
+	return false
+}
+
+func (pm *ProcessManager) Ignore(query *IgnoreQuery, reply *error) error {
+	ozoneWorkingDirectory := query.OzoneWorkingDir
+	_, ok := pm.ignores[ozoneWorkingDirectory]
+	if !ok {
+		pm.ignores[ozoneWorkingDirectory] = []string{query.Service}
+	} else if contains(pm.ignores[ozoneWorkingDirectory], query.Service) {
+		for k, v := range pm.ignores[ozoneWorkingDirectory] {
+			if v == query.Service {
+				pm.ignores[ozoneWorkingDirectory] = remove(pm.ignores[ozoneWorkingDirectory], k)
+			} else {
+				pm.ignores[ozoneWorkingDirectory] = append(pm.ignores[ozoneWorkingDirectory], query.Service)
+			}
+		}
+	}
+	return nil
+}
+
 func (pm *ProcessManager) FetchContext(dirQuery *DirQuery, reply *StringReply) error {
 	context, ok := pm.contexts[dirQuery.OzoneWorkingDir]
 
@@ -135,8 +203,9 @@ func (pm *ProcessManager) SetContext(contextSetQuery *ContextSetQuery, reply *St
 
 func (pm *ProcessManager) Status(dirQuery *DirQuery, reply *StringReply) error {
 	dir := dirQuery.OzoneWorkingDir
+	fmt.Printf("Status for %s \n", dir)
 
-	if len(pm.processes[dir]) == 0 {
+	if len(pm.processes[dir]) == 0 && len(pm.ignores[dir]) == 0 {
 		reply.Body = fmt.Sprintf("No processes running for this workspace.")
 		return nil
 	}
@@ -144,11 +213,16 @@ func (pm *ProcessManager) Status(dirQuery *DirQuery, reply *StringReply) error {
 	reply.Body = fmt.Sprintf("Service \tStatus \n\n")
 	for name, process := range pm.processes[dir] {
 		running := process.Cmd.ProcessState.ExitCode() == -1
-		runningString := "running"
+		runningString := color.Ize(color.Green,"running")
 		if !running {
 			runningString = fmt.Sprintf("exited code: %d", process.Cmd.ProcessState.ExitCode())
 		}
-		reply.Body = fmt.Sprintf("%s%s\t%s\n", reply.Body, name, runningString)
+		reply.Body = fmt.Sprintf("%s%s\t\t%s\n", reply.Body, name, runningString)
+	}
+
+	for _, name := range pm.ignores[dir] {
+		colourOutput := color.Ize(color.Red, "ignored")
+		reply.Body = fmt.Sprintf("%s%s\t\t%s", reply.Body, name, colourOutput)
 	}
 	fmt.Println(reply.Body)
 	return nil
@@ -180,6 +254,9 @@ func CommandFromFields(cmdString string) ([]string, []string) {
 }
 
 func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *error) error {
+	if pm.serviceIsIgnored(processQuery.Name, processQuery.OzoneWorkingDir) {
+		return nil
+	}
 	tempDir := pm.createTempDirIfNotExists(processQuery.OzoneWorkingDir)
 	processWorkingDirectory := substituteOutput(processQuery.ProcessWorkingDir, tempDir)
 
@@ -227,7 +304,7 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 			processQuery.Name,
 			cmd,
 			logFile,
-			processWorkingDirectory,
+			processQuery.OzoneWorkingDir,
 			processQuery.IgnoreError,
 		)
 	}
@@ -275,7 +352,7 @@ func (pm *ProcessManager) handleAsynchronous(
 	name string,
 	cmd *exec.Cmd,
 	logFile *os.File,
-	processWorkingDirectory string,
+	ozoneWorkingDirectory string,
 	ignoreErr bool) error {
 
 	stdout, err := cmd.StdoutPipe()
@@ -292,7 +369,7 @@ func (pm *ProcessManager) handleAsynchronous(
 
 	go handleLogs(in, logFile)
 
-	processMap, ok := pm.processes[processWorkingDirectory]
+	processMap, ok := pm.processes[ozoneWorkingDirectory]
 	if ok {
 		process, ok := processMap[name]
 		if ok {
@@ -312,11 +389,11 @@ func (pm *ProcessManager) handleAsynchronous(
 		StartTime: time.Now().Unix(),
 	}
 
-	_, ok = pm.processes[processWorkingDirectory]
+	_, ok = pm.processes[ozoneWorkingDirectory]
 	if !ok {
-		pm.processes[processWorkingDirectory] = make(map[string]*OzoneProcess)
+		pm.processes[ozoneWorkingDirectory] = make(map[string]*OzoneProcess)
 	}
-	pm.processes[processWorkingDirectory][name] = process
+	pm.processes[ozoneWorkingDirectory][name] = process
 
 	return nil
 }

@@ -89,19 +89,47 @@ func FetchContext(dir string) (string, error) {
     return reply.Body, nil
 }
 
-func Status() (error, string) {
-    ozoneWorkingDir, err := os.Getwd()
-    if err != nil {
-        log.Println(err)
+func Ignore(ozoneWorkingDir, serviceName string) error {
+    query := process_manager.IgnoreQuery{
+        OzoneWorkingDir: ozoneWorkingDir,
+        Service: serviceName,
     }
 
+    var errReply error
+    err := call("Ignore", &query, &errReply)
+
+    if err != nil {
+        return err
+    }
+    if errReply != nil {
+        return errReply
+    }
+
+    return nil
+}
+
+func CacheUpdate(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
+    query := process_manager.CacheUpdateQuery{
+        OzoneWorkingDir:     ozoneWorkingDir,
+        Service:             service,
+        OzoneFileAndDirHash: ozoneFileAndDirHash,
+    }
+    reply := process_manager.BoolReply{}
+
+    if err := call("UpdateCache", &query, &reply); err != nil {
+        log.Println(err)
+    }
+    return reply.Body
+}
+
+func Status(ozoneWorkingDir string) (error, string) {
     query := process_manager.DirQuery{
         OzoneWorkingDir: ozoneWorkingDir,
     }
     reply := process_manager.StringReply{
         Body: "",
     }
-    if err = call("Status", &query, &reply); err != nil {
+    if err := call("Status", &query, &reply); err != nil {
         return err, ""
     }
     return nil, reply.Body
@@ -110,6 +138,7 @@ func Status() (error, string) {
 func call(name string, query interface{}, reply interface{}) error {
     gob.Register(&process_manager.DirQuery{})
     gob.Register(&process_manager.StringReply{})
+    gob.Register(&process_manager.BoolReply{})
     client, err := rpc.DialHTTP("tcp", ":8000")
     if err != nil {
         log.Fatal("dialing:", err)

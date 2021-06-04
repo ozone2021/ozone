@@ -15,7 +15,7 @@ var statusCmd = &cobra.Command{
 	Use:   "s",
 	Long:  `Status of all services in current directory`,
 	Run: func(cmd *cobra.Command, args []string) {
-		err, status := process_manager_client.Status()
+		err, status := process_manager_client.Status(ozoneWorkingDir)
 		if err != nil {
 			log.Fatalln(err)
 			return

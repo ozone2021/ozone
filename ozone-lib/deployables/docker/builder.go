@@ -55,7 +55,7 @@ func CreateNetworkIfNotExists(serviceName string, env map[string]string) error {
 }
 
 func DeleteContainerIfExists(serviceName string, env map[string]string) error {
-	cmdString := fmt.Sprintf("docker kill %s",
+	cmdString := fmt.Sprintf("docker rm -f %s",
 		serviceName,
 	)
 

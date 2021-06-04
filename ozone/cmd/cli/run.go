@@ -2,7 +2,9 @@ package cli
 
 import (
 	"fmt"
+	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/buildables"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/cache"
 	ozoneConfig "github.com/JamesArthurHolland/ozone/ozone-lib/config"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/docker"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/executable"
@@ -11,11 +13,47 @@ import (
 	"github.com/common-nighthawk/go-figure"
 	"github.com/spf13/cobra"
 	"log"
+	"path"
 	"regexp"
 )
 
 func init() {
 	rootCmd.AddCommand(runCmd)
+}
+
+func isCached(buildScope map[string]string) bool {
+	serviceName := buildScope["SERVICE"]
+	buildName := buildScope["NAME"]
+	dir := buildScope["DIR"]
+
+	if serviceName == "" {
+		log.Printf("WARNING: No servicename set on build '%s'.\n", buildName)
+		return false
+	}
+	if dir == "" {
+		log.Printf("WARNING: No dir set on build '%s'.\n", buildName)
+		return false
+	}
+
+	buildDirFullPath := path.Join(ozoneWorkingDir, dir)
+	lastEditTime, err := cache.FileLastEdit(buildDirFullPath)
+
+	if err != nil {
+		return false
+	}
+
+	ozonefilePath := path.Join(ozoneWorkingDir, "Ozonefile")
+
+	ozonefileEditTime, err := cache.FileLastEdit(ozonefilePath)
+
+	if err != nil {
+		return false
+	}
+
+	hash := cache.Hash(ozonefileEditTime, lastEditTime)
+
+	log.Printf("Hash is %s \n", hash)
+	return process_manager_client.CacheUpdate(ozoneWorkingDir, serviceName, hash)
 }
 
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
@@ -24,8 +62,6 @@ func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, contex
 	topLevelScope["CONTEXT"] = context
 
 	for _, b := range builds {
-		figure.NewFigure(b.Name, "doom", true).Print()
-
 		err := runIndividual(b, context, config, topLevelScope)
 		if err != nil {
 			log.Fatalln(err)
@@ -41,8 +77,14 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 	if b.Dir != "" {
 		buildScope["DIR"] = b.Dir
 	}
-
+	buildScope["NAME"] = b.Name
 	buildScope = ozoneConfig.RenderNoMerge(buildScope, topLevelScope)
+
+	if isCached(buildScope) {
+		log.Printf("Info: build %s is cached. \n", b.Name)
+		return nil
+	}
+	figure.NewFigure(b.Name, "doom", true).Print()
 
 	runnableVars, err := config.FetchEnvs(b.WithEnv, buildScope)
 	if err != nil {
