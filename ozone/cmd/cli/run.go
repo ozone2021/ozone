@@ -22,11 +22,12 @@ func init() {
 }
 
 func checkCacheShouldRun(buildScope map[string]string) bool {
+	serviceName := buildScope["SERVICE"]
 	buildName := buildScope["NAME"]
 	dir := buildScope["DIR"]
 
-	if buildName == "" {
-		log.Printf("Error: No name set on build.\n")
+	if serviceName == "" {
+		log.Printf("WARNING: No servicename set on build '%s'.\n", buildName)
 		return true
 	}
 	if dir == "" {
@@ -52,7 +53,7 @@ func checkCacheShouldRun(buildScope map[string]string) bool {
 	hash := cache.Hash(ozonefileEditTime, lastEditTime)
 
 	log.Printf("Hash is %s \n", hash)
-	return process_manager_client.CacheUpdate(ozoneWorkingDir, buildName, hash)
+	return process_manager_client.CacheUpdate(ozoneWorkingDir, serviceName, hash)
 }
 
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {

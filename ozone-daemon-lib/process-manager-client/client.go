@@ -108,10 +108,10 @@ func Ignore(ozoneWorkingDir, serviceName string) error {
     return nil
 }
 
-func CacheUpdate(ozoneWorkingDir string, runnable string, ozoneFileAndDirHash string) bool {
+func CacheUpdate(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
     query := process_manager.CacheUpdateQuery{
         OzoneWorkingDir:     ozoneWorkingDir,
-        Runnable:            runnable,
+        Service:             service,
         OzoneFileAndDirHash: ozoneFileAndDirHash,
     }
     reply := process_manager.BoolReply{}
