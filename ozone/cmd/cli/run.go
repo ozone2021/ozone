@@ -21,25 +21,25 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
-func cacheUpdate(buildScope map[string]string) bool {
+func checkCacheShouldRun(buildScope map[string]string) bool {
 	serviceName := buildScope["SERVICE"]
 	buildName := buildScope["NAME"]
 	dir := buildScope["DIR"]
 
 	if serviceName == "" {
 		log.Printf("WARNING: No servicename set on build '%s'.\n", buildName)
-		return false
+		return true
 	}
 	if dir == "" {
 		log.Printf("WARNING: No dir set on build '%s'.\n", buildName)
-		return false
+		return true
 	}
 
 	buildDirFullPath := path.Join(ozoneWorkingDir, dir)
 	lastEditTime, err := cache.FileLastEdit(buildDirFullPath)
 
 	if err != nil {
-		return false
+		return true
 	}
 
 	ozonefilePath := path.Join(ozoneWorkingDir, "Ozonefile")
@@ -47,7 +47,7 @@ func cacheUpdate(buildScope map[string]string) bool {
 	ozonefileEditTime, err := cache.FileLastEdit(ozonefilePath)
 
 	if err != nil {
-		return false
+		return true
 	}
 
 	hash := cache.Hash(ozonefileEditTime, lastEditTime)
