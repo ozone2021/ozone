@@ -54,9 +54,9 @@ type DirQuery struct {
 }
 
 type CacheUpdateQuery struct {
-	OzoneWorkingDir 		string
-	Service					string
-	OzoneFileAndDirHash 	string
+	OzoneWorkingDir     string
+	Runnable            string
+	OzoneFileAndDirHash string
 }
 
 type StringReply struct {
@@ -103,7 +103,7 @@ func substituteOutput(input string, tempDir string) string {
 }
 
 func (pm *ProcessManager) UpdateCache(request *CacheUpdateQuery, response *BoolReply) error {
-	didUpdate := pm.cache.Update(request.OzoneWorkingDir, request.Service, request.OzoneFileAndDirHash)
+	didUpdate := pm.cache.Update(request.OzoneWorkingDir, request.Runnable, request.OzoneFileAndDirHash)
 	response.Body = didUpdate
 	return nil
 }
@@ -210,7 +210,7 @@ func (pm *ProcessManager) Status(dirQuery *DirQuery, reply *StringReply) error {
 		return nil
 	}
 
-	reply.Body = fmt.Sprintf("Service \tStatus \n\n")
+	reply.Body = fmt.Sprintf("Runnable \tStatus \n\n")
 	for name, process := range pm.processes[dir] {
 		running := process.Cmd.ProcessState.ExitCode() == -1
 		runningString := color.Ize(color.Green,"running")

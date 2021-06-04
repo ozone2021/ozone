@@ -12,7 +12,7 @@ type Cache struct {
 }
 
 type CacheEntry struct {
-    ServiceName         string
+    RunnableName         string
     Hash                string
 }
 
@@ -24,14 +24,14 @@ func New() *Cache {
     }
 }
 
-func (cache *Cache) find(ozoneWorkingDir string, serviceName string) *CacheEntry {
+func (cache *Cache) find(ozoneWorkingDir string, runnableName string) *CacheEntry {
     entries, ok := cache.entries[ozoneWorkingDir]
 
     if !ok {
         return nil
     }
     for _, ce := range entries {
-        if ce.ServiceName == serviceName {
+        if ce.RunnableName == runnableName {
             return ce
         }
     }
@@ -43,14 +43,14 @@ func remove(s []*CacheEntry, i int) []*CacheEntry {
     return s[:len(s)-1]
 }
 
-func (cache *Cache) Update(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
-    if ce := cache.find(ozoneWorkingDir, service); ce != nil {
+func (cache *Cache) Update(ozoneWorkingDir string, runnable string, ozoneFileAndDirHash string) bool {
+    if ce := cache.find(ozoneWorkingDir, runnable); ce != nil {
         if ce.Hash == ozoneFileAndDirHash {
             return false
         }
     }
     cacheEntry := CacheEntry{
-        ServiceName: service,
+        RunnableName: runnable,
         Hash: ozoneFileAndDirHash,
     }
     cache.entries[ozoneWorkingDir] = append(cache.entries[ozoneWorkingDir], &cacheEntry)
