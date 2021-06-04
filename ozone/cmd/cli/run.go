@@ -80,7 +80,7 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 	buildScope["NAME"] = b.Name
 	buildScope = ozoneConfig.RenderNoMerge(buildScope, topLevelScope)
 
-	if b.Type == ozoneConfig.BuildType && isCached(buildScope) {
+	if isCached(buildScope) {
 		log.Printf("Info: build %s is cached. \n", b.Name)
 		return nil
 	}
