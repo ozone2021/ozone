@@ -3,7 +3,9 @@ FROM golang:1.16.4-alpine3.13 AS build-env
 WORKDIR /go/src/app
 COPY . .
 
-RUN cd ozone/cmd/daemon && go build -o /go/src/app/ozone_daemon
+RUN apk update; apk add gcc musl-dev
+
+RUN cd ozone/cmd/daemon && go build -gcflags "all=-N -l" -o /go/src/app/ozone_daemon
 
 # final stage
 FROM alpine:3.13

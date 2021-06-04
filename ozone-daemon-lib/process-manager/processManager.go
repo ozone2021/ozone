@@ -3,7 +3,7 @@ package process_manager
 import (
 	"bufio"
 	"fmt"
-	"github.com/JamesArthurHolland/ozone/ozone-lib/cache"
+	"github.com/JamesArthurHolland/ozone/ozone-daemon-lib/cache"
 	"github.com/TwinProduction/go-color"
 	"io"
 	"io/ioutil"

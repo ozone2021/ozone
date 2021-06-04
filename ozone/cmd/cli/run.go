@@ -2,9 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"github.com/JamesArthurHolland/ozone/ozone-daemon-lib/cache"
 	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/buildables"
-	"github.com/JamesArthurHolland/ozone/ozone-lib/cache"
 	ozoneConfig "github.com/JamesArthurHolland/ozone/ozone-lib/config"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/docker"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/executable"
@@ -21,7 +21,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
-func isCached(buildScope map[string]string) bool {
+func cacheUpdate(buildScope map[string]string) bool {
 	serviceName := buildScope["SERVICE"]
 	buildName := buildScope["NAME"]
 	dir := buildScope["DIR"]
@@ -80,7 +80,7 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 	buildScope["NAME"] = b.Name
 	buildScope = ozoneConfig.RenderNoMerge(buildScope, topLevelScope)
 
-	if isCached(buildScope) {
+	if cacheUpdate(buildScope) == false {
 		log.Printf("Info: build %s is cached. \n", b.Name)
 		return nil
 	}
