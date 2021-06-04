@@ -47,6 +47,9 @@ func (cache *Cache) Update(ozoneWorkingDir string, service string, ozoneFileAndD
     if ce := cache.find(ozoneWorkingDir, service); ce != nil {
         if ce.Hash == ozoneFileAndDirHash {
             return false
+        } else {
+            ce.Hash = ozoneFileAndDirHash
+            return true
         }
     }
     cacheEntry := CacheEntry{
