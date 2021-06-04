@@ -13,6 +13,7 @@ var haltCmd = &cobra.Command{
 	Use:   "h",
 	Long:  `Halts all services in current directory`,
 	Run: func(cmd *cobra.Command, args []string) {
-		process_manager_client.Halt()
+		service := args[0]
+		process_manager_client.Halt(service)
 	},
 }

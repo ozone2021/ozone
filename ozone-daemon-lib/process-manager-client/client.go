@@ -9,14 +9,15 @@ import (
     process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
 )
 
-func Halt() error {
+func Halt(service string) error {
     ozoneWorkingDir, err := os.Getwd()
     if err != nil {
         log.Println(err)
     }
 
-    query := process_manager.DirQuery{
+    query := process_manager.HaltQuery{
         ozoneWorkingDir,
+        service,
     }
     var reply error
 

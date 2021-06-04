@@ -23,7 +23,7 @@ func logs(service string) {
 	}
 
 	logsPath := fmt.Sprintf("%s/%s-logs", tempDir, service)
-	process_manager.CreateLogFileIfNotExists(logsPath)
+	process_manager.CreateLogFileTempDirIfNotExists(logsPath)
 
 	cmd := exec.Command("tail", "-f", logsPath)
 	cmd.Stdout = os.Stdout
