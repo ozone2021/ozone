@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
 	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/spf13/cobra"
 	"log"
@@ -23,7 +22,6 @@ func logs(service string) {
 	}
 
 	logsPath := fmt.Sprintf("%s/%s-logs", tempDir, service)
-	process_manager.CreateLogFileTempDirIfNotExists(logsPath)
 
 	cmd := exec.Command("tail", "-f", logsPath)
 	cmd.Stdout = os.Stdout
