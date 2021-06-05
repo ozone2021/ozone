@@ -2,6 +2,7 @@ package process_manager
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"github.com/JamesArthurHolland/ozone/ozone-daemon-lib/cache"
 	"github.com/TwinProduction/go-color"
@@ -13,7 +14,9 @@ import (
 	"net/rpc"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
+	"text/tabwriter"
 	"time"
 )
 
@@ -21,6 +24,7 @@ type OzoneProcess struct {
 	Cmd			*exec.Cmd
 	Name		string
 	StartTime	int64
+	Port		int64
 }
 
 
@@ -46,6 +50,17 @@ func New() *ProcessManager {
 		processes: processes,
 		directories: directories,
 	}
+}
+
+func substituteOutput(input string, tempDir string) string {
+	result := input
+	//outputFolder := fmt.Sprintf("%s/%s", tempDir, query.Name)
+	outputFolder := fmt.Sprintf("%s", tempDir)
+
+	result = strings.ReplaceAll(result, "__TEMP__", tempDir)
+	result = strings.ReplaceAll(result, "__OUTPUT__", outputFolder)
+
+	return result
 }
 
 func (pm *ProcessManager) UpdateCache(request *CacheUpdateQuery, response *BoolReply) error {
@@ -85,7 +100,7 @@ func (pm *ProcessManager) Halt(haltQuery *HaltQuery, reply *error) error {
 			)
 			cmdFields, argFields := CommandFromFields(cmdString)
 			cmd := exec.Command(cmdFields[0], argFields...)
-			logFile, err := pm.setUpLogging(haltQuery.OzoneWorkingDir, process.Name)
+			logFile, _, err := pm.setUpLogging(haltQuery.OzoneWorkingDir, process.Name)
 			if err != nil {
 				reply = &err
 				return err
@@ -170,15 +185,20 @@ func (pm *ProcessManager) Status(dirQuery *DirQuery, reply *StringReply) error {
 		return nil
 	}
 
-	reply.Body = fmt.Sprintf("Service \tStatus \n\n")
+	buf := new(bytes.Buffer)
+	writer := tabwriter.NewWriter(buf, 10, 8, 2, '\t', tabwriter.AlignRight)
+	fmt.Fprintln(writer, "service\tstatus\tport")
 	for name, process := range pm.processes[dir] {
 		running := process.Cmd.ProcessState.ExitCode() == -1
 		runningString := color.Ize(color.Green,"running")
 		if !running {
 			runningString = fmt.Sprintf("exited code: %d", process.Cmd.ProcessState.ExitCode())
 		}
-		reply.Body = fmt.Sprintf("%s%s\t\t%s\n", reply.Body, name, runningString)
+		portString := strconv.FormatInt(process.Port, 10)
+		fmt.Fprintf(writer, "%s\t%s\t:%s\n", name, runningString, portString)
 	}
+	writer.Flush()
+	reply.Body = buf.String()
 
 	for _, name := range pm.ignores[dir] {
 		colourOutput := color.Ize(color.Red, "ignored")
@@ -221,14 +241,15 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 	log.Println("cmd is:")
 	log.Println(cmdString)
 
-	cmdFields, argFields := CommandFromFields(cmdString)
-	cmd := exec.Command(cmdFields[0], argFields...)
-
-	logFile, err := pm.setUpLogging(processQuery.OzoneWorkingDir, processQuery.Name)
+	logFile, tempDir, err := pm.setUpLogging(processQuery.OzoneWorkingDir, processQuery.Name)
 	if err != nil {
 		reply = &err
 		return err
 	}
+
+	cmdString = substituteOutput(cmdString, tempDir)
+	cmdFields, argFields := CommandFromFields(cmdString)
+	cmd := exec.Command(cmdFields[0], argFields...)
 
 	if processQuery.Synchronous {
 		fmt.Println("sync")
@@ -243,6 +264,7 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 			processQuery.Name,
 			cmd,
 			logFile,
+			processQuery.Env,
 			processQuery.OzoneWorkingDir,
 			processQuery.IgnoreError,
 		)
@@ -257,19 +279,19 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 	return nil
 }
 
-func (pm *ProcessManager) setUpLogging(ozoneWorkingDir string, serviceName string) (*os.File, error) {
+func (pm *ProcessManager) setUpLogging(ozoneWorkingDir string, serviceName string) (*os.File, string, error) {
 	tempDir := pm.createTempDirIfNotExists(ozoneWorkingDir)
 	logFileString := fmt.Sprintf("%s/%s-logs", tempDir, serviceName)
 	fmt.Printf("Logs at:\n")
 	fmt.Printf("%s \n", logFileString)
-	file, err := CreateLogFileTempDirIfNotExists(serviceName, logFileString)
+	file, err := CreateLogFileTempDirIfNotExists(logFileString)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return file, nil
+	return file, tempDir, nil
 }
 
-func CreateLogFileTempDirIfNotExists(serviceName string, logFileString string) (*os.File, error) {
+func CreateLogFileTempDirIfNotExists(logFileString string) (*os.File, error) {
 	_, err := os.Stat(logFileString)
 
 	var logFile *os.File
@@ -305,6 +327,7 @@ func (pm *ProcessManager) handleAsynchronous(
 	name string,
 	cmd *exec.Cmd,
 	logFile *os.File,
+	env map[string]string,
 	ozoneWorkingDirectory string,
 	ignoreErr bool) error {
 
@@ -336,10 +359,15 @@ func (pm *ProcessManager) handleAsynchronous(
 	}
 	fmt.Printf("NONBLOCKING \n")
 
+	port, err := strconv.ParseInt(env["PORT"], 10, 64)
+	if err != nil {
+		return err
+	}
 	process := &OzoneProcess{
 		Cmd:       cmd,
 		Name:      name,
 		StartTime: time.Now().Unix(),
+		Port: 		port,
 	}
 
 	_, ok = pm.processes[ozoneWorkingDirectory]
