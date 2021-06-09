@@ -33,7 +33,7 @@ type DirQuery struct {
     OzoneWorkingDir   string
 }
 
-type CacheUpdateQuery struct {
+type CacheQuery struct {
     OzoneWorkingDir 		string
     Service					string
     OzoneFileAndDirHash 	string

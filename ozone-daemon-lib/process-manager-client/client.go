@@ -110,7 +110,7 @@ func Ignore(ozoneWorkingDir, serviceName string) error {
 }
 
 func CacheUpdate(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
-    query := process_manager.CacheUpdateQuery{
+    query := process_manager.CacheQuery{
         OzoneWorkingDir:     ozoneWorkingDir,
         Service:             service,
         OzoneFileAndDirHash: ozoneFileAndDirHash,
@@ -118,6 +118,20 @@ func CacheUpdate(ozoneWorkingDir string, service string, ozoneFileAndDirHash str
     reply := process_manager.BoolReply{}
 
     if err := call("UpdateCache", &query, &reply); err != nil {
+        log.Println(err)
+    }
+    return reply.Body
+}
+
+func CacheCheck(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
+    query := process_manager.CacheQuery{
+        OzoneWorkingDir:     ozoneWorkingDir,
+        Service:             service,
+        OzoneFileAndDirHash: ozoneFileAndDirHash,
+    }
+    reply := process_manager.BoolReply{}
+
+    if err := call("CheckCache", &query, &reply); err != nil {
         log.Println(err)
     }
     return reply.Body

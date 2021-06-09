@@ -27,16 +27,27 @@ func New() *Cache {
 func (cache *Cache) find(ozoneWorkingDir string, serviceName string) *CacheEntry {
     entries, ok := cache.entries[ozoneWorkingDir]
 
-    if !ok {
-        return nil
-    }
-    for _, ce := range entries {
-        if ce.ServiceName == serviceName {
-            return ce
+    if ok {
+        for _, ce := range entries {
+            if ce.ServiceName == serviceName {
+                return ce
+            }
         }
     }
+
     return nil
 }
+
+func (cache *Cache) Check(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
+    if ce := cache.find(ozoneWorkingDir, service); ce != nil {
+        if ce.Hash == ozoneFileAndDirHash {
+            return true
+        }
+    }
+    return false
+}
+
+
 
 func remove(s []*CacheEntry, i int) []*CacheEntry {
     s[len(s)-1], s[i] = s[i], s[len(s)-1]
@@ -45,12 +56,8 @@ func remove(s []*CacheEntry, i int) []*CacheEntry {
 
 func (cache *Cache) Update(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
     if ce := cache.find(ozoneWorkingDir, service); ce != nil {
-        if ce.Hash == ozoneFileAndDirHash {
-            return false
-        } else {
-            ce.Hash = ozoneFileAndDirHash
-            return true
-        }
+        ce.Hash = ozoneFileAndDirHash
+        return true
     }
     cacheEntry := CacheEntry{
         ServiceName: service,

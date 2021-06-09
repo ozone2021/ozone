@@ -21,25 +21,37 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 }
 
-func checkCacheShouldRun(buildScope map[string]string) bool {
+func checkCache(buildScope map[string]string) bool {
+	hash, err := getBuildHash(buildScope)
+	if err != nil {
+		log.Fatalln(err)
+		return false
+	}
+
+	serviceName := buildScope["SERVICE"]
+	log.Printf("Hash is %s \n", hash)
+	return process_manager_client.CacheCheck(ozoneWorkingDir, serviceName, hash)
+}
+
+func getBuildHash(buildScope map[string]string) (string, error) {
 	serviceName := buildScope["SERVICE"]
 	buildName := buildScope["NAME"]
 	dir := buildScope["DIR"]
 
 	if serviceName == "" {
 		log.Printf("WARNING: No servicename set on build '%s'.\n", buildName)
-		return true
+		return "", nil
 	}
 	if dir == "" {
 		log.Printf("WARNING: No dir set on build '%s'.\n", buildName)
-		return true
+		return "", nil
 	}
 
 	buildDirFullPath := path.Join(ozoneWorkingDir, dir)
 	lastEditTime, err := cache.FileLastEdit(buildDirFullPath)
 
 	if err != nil {
-		return true
+		return "", err
 	}
 
 	ozonefilePath := path.Join(ozoneWorkingDir, "Ozonefile")
@@ -47,13 +59,11 @@ func checkCacheShouldRun(buildScope map[string]string) bool {
 	ozonefileEditTime, err := cache.FileLastEdit(ozonefilePath)
 
 	if err != nil {
-		return true
+		return "", err
 	}
 
 	hash := cache.Hash(ozonefileEditTime, lastEditTime)
-
-	log.Printf("Hash is %s \n", hash)
-	return process_manager_client.CacheUpdate(ozoneWorkingDir, serviceName, hash)
+	return hash, nil
 }
 
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
@@ -81,7 +91,7 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 	buildScope["NAME"] = b.Name
 	buildScope = ozoneConfig.RenderNoMerge(buildScope, topLevelScope)
 
-	if b.Type == ozoneConfig.BuildType && checkCacheShouldRun(buildScope) == false {
+	if b.Type == ozoneConfig.BuildType && checkCache(buildScope) == true {
 		log.Printf("Info: build %s is cached. \n", b.Name)
 		return nil
 	}
@@ -138,7 +148,21 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 			}
 		}
 	}
+	// TODO update cache
+	updateCache(buildScope)
+
 	return nil
+}
+
+func updateCache(buildScope map[string]string) {
+	hash, err := getBuildHash(buildScope)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	serviceName := buildScope["SERVICE"]
+	log.Printf("Cache updated for %s \n", serviceName)
+	process_manager_client.CacheUpdate(ozoneWorkingDir, serviceName, hash)
 }
 
 func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
