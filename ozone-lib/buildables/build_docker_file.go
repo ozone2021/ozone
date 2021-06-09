@@ -54,6 +54,7 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
+	cmd.Dir = dockerBuildDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
 	err := cmd.Run()
