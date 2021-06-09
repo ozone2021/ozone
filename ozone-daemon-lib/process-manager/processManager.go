@@ -238,16 +238,16 @@ func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *er
 		return nil
 	}
 	cmdString := processQuery.Cmd
-	log.Println("cmd is:")
-	log.Println(cmdString)
 
 	logFile, tempDir, err := pm.setUpLogging(processQuery.OzoneWorkingDir, processQuery.Name)
 	if err != nil {
 		reply = &err
 		return err
 	}
-
 	cmdString = substituteOutput(cmdString, tempDir)
+	log.Println("cmd is:")
+	log.Println(cmdString)
+
 	cmdFields, argFields := CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
 

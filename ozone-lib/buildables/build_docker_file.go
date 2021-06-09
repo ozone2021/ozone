@@ -28,7 +28,7 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 		}
 	}
 
-	dockerFileDir := varsMap["DIR"]
+	dockerBuildDir := varsMap["DIR"]
 	tag := varsMap["FULL_TAG"]
 
 	buildArgs, ok := varsMap["BUILD_ARGS"]
@@ -36,10 +36,18 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 		buildArgs = ""
 	}
 
-	cmdString := fmt.Sprintf("docker build -t %s %s %s",
+	dockerfilePath, ok := varsMap["DOCKERFILE"]
+	if ok {
+		dockerfilePath = fmt.Sprintf("-f %s", dockerfilePath)
+	} else {
+		dockerfilePath = ""
+	}
+
+	cmdString := fmt.Sprintf("docker build -t %s %s %s %s",
 		tag,
 		buildArgs,
-		dockerFileDir,
+		dockerBuildDir,
+		dockerfilePath,
 	)
 
 	log.Printf("Build cmd is: %s", cmdString)
