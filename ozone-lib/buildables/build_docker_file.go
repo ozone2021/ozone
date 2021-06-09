@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 )
 
 
@@ -29,6 +30,7 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 	}
 
 	dockerBuildDir := varsMap["DIR"]
+	fullBuildPath := path.Join(varsMap["OZONE_WORKING_DIR"], dockerBuildDir)
 	tag := varsMap["FULL_TAG"]
 
 	buildArgs, ok := varsMap["BUILD_ARGS"]
@@ -54,7 +56,7 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
-	cmd.Dir = dockerBuildDir
+	cmd.Dir = fullBuildPath
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
 	err := cmd.Run()

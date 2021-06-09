@@ -60,6 +60,7 @@ func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, contex
 	topLevelScope := ozoneConfig.CopyMap(config.BuildVars)
 	topLevelScope["PROJECT"] = config.ProjectName // TODO sanitize for docker network create
 	topLevelScope["CONTEXT"] = context
+	topLevelScope["OZONE_WORKING_DIR"] = ozoneWorkingDir
 
 	for _, b := range builds {
 		err := runIndividual(b, context, config, topLevelScope)
