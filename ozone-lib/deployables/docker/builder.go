@@ -82,7 +82,7 @@ func DeleteContainerIfExists(serviceName string, env map[string]string) error {
 
 func Build(env map[string]string) error {
 	for _, arg := range getDockerRunParams() {
-		if err := utils.ParamsOK(arg, env); err != nil {
+		if err := utils.ParamsOK("DeployDocker", arg, env); err != nil {
 			return err
 		}
 	}

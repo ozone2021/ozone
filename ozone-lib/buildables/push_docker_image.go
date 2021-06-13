@@ -19,7 +19,7 @@ func getPushDockerImageParams() []string {
 
 func PushDockerImage(varsMap map[string]string) error {
 	for _, arg := range getPushDockerImageParams() {
-		if err := utils.ParamsOK(arg, varsMap); err != nil {
+		if err := utils.ParamsOK("PushDockerImage", arg, varsMap); err != nil {
 			return err
 		}
 	}

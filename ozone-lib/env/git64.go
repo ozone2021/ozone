@@ -17,7 +17,7 @@ func getParams() []string {
 
 func FromGitSubmoduleBranchHash(varsParamMap map[string]string) (map[string]string, error) {
 	for _, arg := range getParams() {
-		if err := utils.ParamsOK(arg, varsParamMap); err != nil {
+		if err := utils.ParamsOK("FromGitSubmoduleBranchHash", arg, varsParamMap); err != nil {
 			return nil, err
 		}
 	}
