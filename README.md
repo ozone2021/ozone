@@ -23,4 +23,4 @@ curl https://registry.local/v2/_catalog -k
 go get -u github.com/JamesArthurHolland/ozone/ozone
 
 `Build debug ozone container`
-docker rm -f ozone-daemon && docker build . -t ozone-daemon --progress plain ; docker exec -it (docker run --user root --rm -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon) /bin/sh
+docker rm -f ozone-daemon && docker build . -t ozone-daemon --progress plain ; docker exec -it (docker run --user root --restart=always --rm -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon) /bin/sh

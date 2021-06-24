@@ -12,7 +12,6 @@ import (
 
 func getParams() []string {
 	return []string{
-		"DIR",
 		"FULL_TAG",
 		"SERVICE",
 		//"GITLAB_PROJECT_CODE",
@@ -28,7 +27,7 @@ func BuildPushDockerContainer(varsMap map[string]string) error {
 		}
 	}
 
-	dockerBuildDir := varsMap["DIR"]
+	dockerBuildDir := varsMap["OZONE_WORKING_DIR"]
 	cmdCallDir := varsMap["OZONE_WORKING_DIR"]
 	tag := varsMap["FULL_TAG"]
 
