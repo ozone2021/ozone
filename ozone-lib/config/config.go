@@ -220,6 +220,7 @@ func ReadConfig() *OzoneConfig {
 		b.Type = TestType
 	}
 
+	ozoneConfig.BuildVars["PROJECT"] = ozoneConfig.ProjectName
 	ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
 
 

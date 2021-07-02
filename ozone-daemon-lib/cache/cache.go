@@ -38,13 +38,11 @@ func (cache *Cache) find(ozoneWorkingDir string, serviceName string) *CacheEntry
     return nil
 }
 
-func (cache *Cache) Check(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
+func (cache *Cache) Check(ozoneWorkingDir string, service string) (string) {
     if ce := cache.find(ozoneWorkingDir, service); ce != nil {
-        if ce.Hash == ozoneFileAndDirHash {
-            return true
-        }
+        return ce.Hash
     }
-    return false
+    return ""
 }
 
 

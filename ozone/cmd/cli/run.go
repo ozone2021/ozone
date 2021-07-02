@@ -30,7 +30,8 @@ func checkCache(buildScope map[string]string) bool {
 
 	serviceName := buildScope["SERVICE"]
 	log.Printf("Hash is %s \n", hash)
-	return process_manager_client.CacheCheck(ozoneWorkingDir, serviceName, hash)
+	cachedHash := process_manager_client.CacheCheck(ozoneWorkingDir, serviceName)
+	return cachedHash == hash
 }
 
 func getBuildHash(buildScope map[string]string) (string, error) {
@@ -47,7 +48,7 @@ func getBuildHash(buildScope map[string]string) (string, error) {
 		return "", nil
 	}
 
-	buildDirFullPath := path.Join(ozoneWorkingDir, dir)
+ 	buildDirFullPath := path.Join(ozoneWorkingDir, dir)
 	lastEditTime, err := cache.FileLastEdit(buildDirFullPath)
 
 	if err != nil {
@@ -68,7 +69,6 @@ func getBuildHash(buildScope map[string]string) (string, error) {
 
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
 	topLevelScope := ozoneConfig.CopyMap(config.BuildVars)
-	topLevelScope["PROJECT"] = config.ProjectName // TODO sanitize for docker network create
 	topLevelScope["CONTEXT"] = context
 	topLevelScope["OZONE_WORKING_DIR"] = ozoneWorkingDir
 
@@ -149,7 +149,9 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 		}
 	}
 	// TODO update cache
-	updateCache(buildScope)
+	if b.Type == ozoneConfig.BuildType {
+		updateCache(buildScope)
+	}
 
 	return nil
 }

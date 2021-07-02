@@ -9,34 +9,84 @@ Ozone can:
  - cache (ignore) directories that haven't changed since the last build, for faster build times.
 
 
-### Markdown
+### *Installation*
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+You will need the ozone daemon running, and also the ozone client.
 
+#### *Daemon*
+You can either:
+##### Run from docker hub...
+`docker run --user root --restart=always -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone2021/ozone-daemon:latest`
+ TODO does ozone folder need created in TMP?
+##### ...or build locally
+`docker rm -f ozone-daemon; docker build . -t ozone-daemon --progress plain; docker run --user root --restart=always -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon`
+
+The daemon runs on port 8000. This isn't open to configuration, as of yet.
+
+The daemon is used to keep track of cache hashs to tell whether or not any runnable needs to run again.
+
+`docker logs ozone-daemon -f` is a useful way to keep track on what's going on.
+
+#### *Client*
+
+Easy:   
+`go get -u github.com/JamesArthurHolland/ozone/cmd/main`
+
+
+## Using Ozone
+
+Ozone is for making environment management easier. The best way to learn is by doing, so there is a test repo which we will also use for the tutorial.
 ```markdown
-Syntax highlighted code block
+git clone git@github.com:JamesArthurHolland/ozone-test.git
 
-# Header 1
-## Header 2
-### Header 3
+cd ozone-test
 
-- Bulleted
-- List
+git checkout -b tutorial/1-simple-runnable
 
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
 ```
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+# Getting started
 
-### Jekyll Themes
+## A simple runnable
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/JamesArthurHolland/ozone/settings/pages). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+The Ozonefile is supposed to be a full specification of how your project runs, including all of the environments.
 
-### Support or Contact
+Have you ever joined a team, tried to run the project locally, and it fails with some unhelpful message?
 
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
+This is the bane of interpretated language developer's lives, and why I prefer golang to nodejs/ruby/python. 
+
+More times than enough, this error is because of environment variables. Which don't exist on your fresh machine, due to 
+the .env file the other developer is using not being checked in (.gitignore). Using ENV variables in code without checking their 
+existence at program startup only compounds this already unadulterated chaos. Developers need to then read through code to find which 
+ENV var they need to make it work. Future versions of Ozone will provide a startup bottleneck that checks for all the defined required variables 
+before a program runs.
+
+An Ozonefile decouples the environment providing mechanism (k8s secrets file / .env files) from the build command. In a 
+similar fashion to GNU Make, the best practice for Ozonefiles is to create an "all" runnable. Runnables are similar to 
+targets in Make.
+
+##### Runnables have 3 types, and build in the following order:
+1. builds
+2. deploys
+3. tests
+
+The only thing that distinguishes the 3 types is their order of execution.
+
+We can run:
+
+`ozone r d-micro-a b-micro-a`
+
+And the b-micro-a runnable will run first, as it is a build.
+
+Run:
+
+`ozone r all`
+
+If you look at the Ozonefile, you will see that `all` will run the same runnables as the previous command.
+
+The cache mechanism saved the combined hash of the Ozonefile and the given directory.
+
+Caching is only used for build stages, this is because the caching of environment variable files hasn't yet been 
+implemented, so whenever variables are changed, the system cannot tell, so deploys are run each time to remedy this.
+
+

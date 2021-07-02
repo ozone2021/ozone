@@ -64,9 +64,8 @@ func substituteOutput(input string, tempDir string) string {
 }
 
 
-func (pm *ProcessManager) CheckCache(request *CacheQuery, response *BoolReply) error {
-	found := pm.cache.Check(request.OzoneWorkingDir, request.Service, request.OzoneFileAndDirHash)
-	response.Body = found
+func (pm *ProcessManager) CheckCache(request *CacheQuery, response *StringReply) error {
+	response.Body = pm.cache.Check(request.OzoneWorkingDir, request.Service)
 	return nil
 }
 

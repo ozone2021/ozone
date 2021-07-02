@@ -123,17 +123,14 @@ func CacheUpdate(ozoneWorkingDir string, service string, ozoneFileAndDirHash str
     return reply.Body
 }
 
-func CacheCheck(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
+func CacheCheck(ozoneWorkingDir string, service string) (string) {
     query := process_manager.CacheQuery{
         OzoneWorkingDir:     ozoneWorkingDir,
         Service:             service,
-        OzoneFileAndDirHash: ozoneFileAndDirHash,
     }
-    reply := process_manager.BoolReply{}
+    reply := process_manager.StringReply{}
 
-    if err := call("CheckCache", &query, &reply); err != nil {
-        log.Println(err)
-    }
+    call("CheckCache", &query, &reply)
     return reply.Body
 }
 
