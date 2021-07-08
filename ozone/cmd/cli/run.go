@@ -10,11 +10,12 @@ import (
 	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/executable"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/helm"
 	_go "github.com/JamesArthurHolland/ozone/ozone-lib/go"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/utilities"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/spf13/cobra"
 	"log"
 	"path"
-	"regexp"
 )
 
 func init() {
@@ -27,6 +28,10 @@ func checkCache(buildScope map[string]string) bool {
 		log.Fatalln(err)
 		return false
 	}
+	if hash == "" {
+		return false
+	}
+
 
 	serviceName := buildScope["SERVICE"]
 	log.Printf("Hash is %s \n", hash)
@@ -111,26 +116,28 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 
 		dependencyScope := ozoneConfig.MergeMaps(buildScope, runnableVars)
 		dependencyScope = ozoneConfig.MergeMaps(dependencyScope, dependency.WithVars)
-		runIndividual(dependencyRunnable, context, config, dependencyScope)
-	}
-
-	for _, cs := range b.ContextSteps {
-		match, err := regexp.Match(cs.Context, []byte(context))
+		err := runIndividual(dependencyRunnable, context, config, dependencyScope)
 		if err != nil {
 			return err
 		}
+	}
+
+	for _, cs := range b.ContextSteps {
+		match := utils.ContextInPattern(context, cs.Context)
 		if match {
 			contextStepVars, err := config.FetchEnvs(cs.WithEnv, buildScope)
 			contextStepVars = ozoneConfig.MergeMaps(runnableVars, contextStepVars)
+			contextStepBuildScope := ozoneConfig.MergeMaps(buildScope, contextStepVars)
 			if err != nil {
 				return err
 			}
 			//scope = ozoneConfig.MergeMaps(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
 			for _, step := range cs.Steps {
-				fmt.Printf("step %s", step.Name)
 
-				stepVars := ozoneConfig.MergeMaps(step.WithVars, buildScope)
+				stepVars := ozoneConfig.MergeMaps(step.WithVars, contextStepBuildScope)
 				stepVars = ozoneConfig.MergeMaps(contextStepVars, stepVars)
+
+				fmt.Printf("step %s", step.Name)
 
 				if err != nil {
 					return err
@@ -186,6 +193,11 @@ func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[s
 		if err != nil {
 			log.Fatalln(err)
 		}
+	case "bashScript":
+		err := utilities.RunBashScript(varsMap)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	case "pushDockerImage":
 		fmt.Println("Building docker image.")
 		err := buildables.PushDockerImage(varsMap)
@@ -207,6 +219,11 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map
 			helm.Deploy(r.Service, varsMap)
 		case "runDockerImage":
 			err := docker.Build(varsMap)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		case "bashScript":
+			err := utilities.RunBashScript(varsMap)
 			if err != nil {
 				log.Fatalln(err)
 			}

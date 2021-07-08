@@ -33,7 +33,7 @@ Easy:
 `go get -u github.com/JamesArthurHolland/ozone/cmd/main`
 
 
-## Using Ozone
+# Getting started
 
 Ozone is for making environment management easier. The best way to learn is by doing, so there is a test repo which we will also use for the tutorial.
 ```markdown
@@ -41,13 +41,16 @@ git clone git@github.com:JamesArthurHolland/ozone-test.git
 
 cd ozone-test
 
-git checkout -b tutorial/1-simple-runnable
+# For linux
+git checkout -b tutorial/1-simple-runnable-ubuntu
 
+# For mac
+git checkout -b tutorial/1-simple-runnable-macos
 ```
+Docker's host network mode works on ubuntu but not on mac, so this is why the `NETWORK` is set to the project name in 
+the mac version.
 
-# Getting started
-
-## A simple runnable
+## 1. A simple runnable
 
 The Ozonefile is supposed to be a full specification of how your project runs, including all of the environments.
 
@@ -84,8 +87,48 @@ Run:
 
 If you look at the Ozonefile, you will see that `all` will run the same runnables as the previous command.
 
-The cache mechanism saved the combined hash of the Ozonefile and the given directory.
+The caching mechanism saved the combined hash of the Ozonefile and the given directory.
+
+The "dir" and "service" attributes must be set for this to work.
 
 Caching is only used for build stages, this is because the caching of environment variable files hasn't yet been 
 implemented, so whenever variables are changed, the system cannot tell, so deploys are run each time to remedy this.
 
+#### Status
+`ozone s`
+Shows the port service and port
+
+#### Logs
+
+Plans to multiplex logs in future, for now you can use the docker logs of the container. The container is named after 
+service.
+
+`docker logs micro-a -f`
+
+## 2. Different contexts
+
+```
+# For linux
+git checkout -b tutorial/2-different-contexts-ubuntu
+
+# For mac
+git checkout -b tutorial/2-different-contexts-macos
+```
+
+A context is similar to what normally developers would call "environments", however in Ozone, environments refer to 
+blocks of environment variables. To distinguish between them, we have the term "context".
+
+To view the current context,
+
+`ozone c`
+
+This will default to the defined default in the Ozonefile, if there is no context saved in memory in the daemon.
+
+To set a different context:
+
+`ozone c local-k8s`
+
+This relies on you having a k8s cluster setup, with a docker registry running inside it, with the ingress address 
+`registry.local` pointing at it.
+
+Running `ozone r all` now, you will see the different context flash up.

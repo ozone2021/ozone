@@ -2,11 +2,11 @@ package helm
 
 import (
 	"fmt"
-	"log"
-	"net/rpc"
-	"os"
 	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
+	"log"
+	"os"
+	"os/exec"
 )
 
 func getHelmParams() []string {
@@ -40,6 +40,7 @@ func Deploy(serviceName string, env map[string]string) error {
 
 	containerPort, ok := env["CONTAINER_PORT"]
 	if ok {
+		utils.WarnIfNullVar(serviceName, containerPort,"CONTAINER_PORT")
 		containerPort = fmt.Sprintf("--set service.containerPort=%s", containerPort)
 	} else {
 		containerPort = ""
@@ -47,6 +48,7 @@ func Deploy(serviceName string, env map[string]string) error {
 
 	servicePort, ok := env["SERVICE_PORT"]
 	if ok {
+		utils.WarnIfNullVar(serviceName, servicePort,"SERVICE_PORT")
 		servicePort = fmt.Sprintf("--set service.servicePort=%s", servicePort)
 	} else {
 		servicePort = ""
@@ -59,9 +61,17 @@ func Deploy(serviceName string, env map[string]string) error {
 		namespace = ""
 	}
 
-	cmdString := fmt.Sprintf("helm upgrade -i %s %s --set host=%s.%s --set image.fullTag=%s --set service.name=%s %s %s %s",
+	valuesFile, ok := env["VALUES_FILE"]
+	if ok {
+		valuesFile = fmt.Sprintf("-f %s", valuesFile)
+	} else {
+		valuesFile = ""
+	}
+
+	cmdString := fmt.Sprintf("helm upgrade -i %s %s %s --set host=%s.%s --set image.fullTag=%s --set service.name=%s %s %s %s",
 		installName,
 		chartDir,
+		valuesFile,
 		k8sServiceName,
 		domain,
 		tag,
@@ -71,26 +81,39 @@ func Deploy(serviceName string, env map[string]string) error {
 		namespace,
 	)
 
-	query := &process_manager.ProcessCreateQuery{
-		serviceName,
-		ozoneWorkingDir,
-		ozoneWorkingDir,
-		cmdString,
-		true,
-		false,
-		env,
-	}
+	log.Printf("Helm cmd is: %s", cmdString)
 
-	var reply *error
-
-	client, err := rpc.DialHTTP("tcp", ":8000")
-	if err != nil {
-		log.Fatal("dialing:", err)
-	}
-	err = client.Call("ProcessManager.AddProcess", query, reply)
-	if err != nil {
-		log.Fatal("arith error:", err)
+	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
+	cmd := exec.Command(cmdFields[0], argFields...)
+	cmd.Dir = ozoneWorkingDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
+	if err := cmd.Run(); err != nil {
+		fmt.Println("build docker err")
 		return err
 	}
+	cmd.Wait()
+	//query := &process_manager.ProcessCreateQuery{
+	//	serviceName,
+	//	ozoneWorkingDir,
+	//	ozoneWorkingDir,
+	//	cmdString,
+	//	true,
+	//	false,
+	//	env,
+	//}
+	//
+	//var reply *error
+	//
+	//client, err := rpc.DialHTTP("tcp", ":8000")
+	//if err != nil {
+	//	log.Fatal("dialing:", err)
+	//}
+	//err = client.Call("ProcessManager.AddProcess", query, reply)
+	//if err != nil {
+	//	log.Println(cmdString)
+	//	log.Fatal("helm error:", err)
+	//	return err
+	//}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/spf13/cobra"
+	"log"
 )
 
 func init() {
@@ -15,11 +16,24 @@ var contextCmd = &cobra.Command{
 	Long:  `Show context or change context`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		givenContext := args[0]
+		if len(args) == 0 {
+			currentContext, err := process_manager_client.FetchContext(ozoneWorkingDir)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if currentContext == "" {
+				currentContext = config.ContextInfo.Default
+			}
 
-		if givenContext == "" {
-			fmt.Println(context)
+			for _, context := range config.ContextInfo.List {
+				if context == currentContext {
+					fmt.Printf("%s \t\t*\n", currentContext)
+				} else {
+					fmt.Println(context)
+				}
+			}
 		} else {
+			givenContext := args[0]
 			// TODO check context is in
 			if config.HasContext(givenContext) {
 				process_manager_client.SetContext(ozoneWorkingDir, givenContext)
