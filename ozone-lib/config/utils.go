@@ -57,10 +57,10 @@ func MergeMaps(base map[string]string, overwrite map[string]string) map[string]s
 	if base == nil {
 		return CopyMap(overwrite)
 	}
-
+	newMap := CopyMap(base)
 	for k, v := range overwrite {
-		base[k] = v
+		newMap[k] = v
 	}
-	base = RenderNoMerge(base, base)
-	return base
+	newMap = RenderNoMerge(newMap, newMap)
+	return newMap
 }
