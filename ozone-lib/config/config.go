@@ -22,16 +22,10 @@ type ContextInfo struct {
 	List			[]string		`yaml:"list"`
 }
 
-type Var struct {
-	Name 			string			`yaml:"name"`
-	VarType			string			`yaml:"type"`
-	Value 			string			`yaml:"value"`
-}
-
 type Include struct {
-	Name 			string			`yaml:"name"`
-	WithVars		[]*Var			`yaml:"with_vars"`
-	Type			string			`yaml:"type"`
+	Name 			string				`yaml:"name"`
+	WithVars		map[string]string	`yaml:"with_vars"`
+	Type			string				`yaml:"type"`
 }
 
 type Environment struct {
@@ -136,7 +130,7 @@ func(config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) (
 					var inclVarsMap map[string]string
 					var err error
 					if incl.Type == "builtin" {
-						inclParamVarsMap := MergeMaps(VarsToMap(incl.WithVars), scopeMap)
+						inclParamVarsMap := MergeMaps(incl.WithVars, scopeMap)
 						inclVarsMap, err = config.fetchBuiltinEnvFromInclude(incl.Name, inclParamVarsMap)
 						if err != nil {
 							return nil, err
@@ -170,8 +164,10 @@ func(config *OzoneConfig) fetchBuiltinEnvFromInclude(envName string, varsMap map
 		fromIncludeMap, err = env.FromSecret(varsMap)
 	case "env/from_env_file":
 		fromIncludeMap, err = env.FromEnvFile(varsMap)
-	case "env/docker_submodule_git_hash":
-		fromIncludeMap, err = env.FromGitSubmoduleBranchHash(varsMap)
+	case "env/git_directory_branch_hash":
+		fromIncludeMap, err = env.FromGitDirBranchNameHash(varsMap)
+	case "env/git_submodule_commit_hash":
+		fromIncludeMap, err = env.GitSubmoduleHash(varsMap)
 	}
 
 	if err != nil {
