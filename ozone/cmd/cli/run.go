@@ -137,7 +137,7 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 				stepVars := ozoneConfig.MergeMaps(step.WithVars, contextStepBuildScope)
 				stepVars = ozoneConfig.MergeMaps(contextStepVars, stepVars)
 
-				fmt.Printf("step %s", step.Name)
+				fmt.Printf("step %s \n", step.Name)
 
 				if err != nil {
 					return err

@@ -25,7 +25,9 @@ func RunBashScript(env map[string]string) error {
     for k, v := range env {
         cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
     }
-    _, err := cmd.Output()
+    output, err := cmd.Output()
+
+    fmt.Println(string(output))
 
     if err != nil {
         return err

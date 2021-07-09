@@ -68,9 +68,8 @@ func Deploy(serviceName string, env map[string]string) error {
 		valuesFile = ""
 	}
 
-	cmdString := fmt.Sprintf("helm upgrade -i %s %s %s --set host=%s.%s --set image.fullTag=%s --set service.name=%s %s %s %s",
+	cmdString := fmt.Sprintf("helm upgrade -i %s %s --set host=%s.%s --set image.fullTag=%s --set service.name=%s %s %s %s %s",
 		installName,
-		chartDir,
 		valuesFile,
 		k8sServiceName,
 		domain,
@@ -79,6 +78,7 @@ func Deploy(serviceName string, env map[string]string) error {
 		containerPort,
 		servicePort,
 		namespace,
+		chartDir,
 	)
 
 	log.Printf("Helm cmd is: %s", cmdString)
