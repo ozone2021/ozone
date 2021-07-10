@@ -29,10 +29,11 @@ func renderVars(input string, varsMap map[string]string) string {
 }
 
 func RenderNoMerge(base map[string]string, scope map[string]string) map[string]string {
+	newMap := CopyMap(base)
 	for k, v := range base {
-		base[k] = renderVars(v, scope)
+		newMap[k] = renderVars(v, scope)
 	}
-	return base
+	return newMap
 }
 
 func CopyMap(toCopy map[string]string) map[string]string {

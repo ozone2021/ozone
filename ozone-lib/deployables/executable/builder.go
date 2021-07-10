@@ -8,10 +8,10 @@ import (
 	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
 )
 
-func Build(serviceName string, env map[string]string) {
+func Build(serviceName string, env map[string]string) error {
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
-		log.Println(err)
+		return err
 	}
 	cmdString := fmt.Sprintf("__OUTPUT__/executable")
 
@@ -28,9 +28,12 @@ func Build(serviceName string, env map[string]string) {
 	client, err := rpc.DialHTTP("tcp", ":8000")
 	if err != nil {
 		log.Fatal("dialing:", err)
+		return err
 	}
 	err = client.Call("ProcessManager.AddProcess", query, nil)
 	if err != nil {
 		log.Fatal("arith error:", err)
+		return err
 	}
+	return nil
 }

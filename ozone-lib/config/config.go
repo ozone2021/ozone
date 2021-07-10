@@ -142,10 +142,12 @@ func(config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) (
 						}
 					}
 
-					varsMap = RenderNoMerge(inclVarsMap, scopeMap)
+					inclVarsRendered := RenderNoMerge(inclVarsMap, scopeMap)
+					varsMap = MergeMaps(varsMap, inclVarsRendered)
 				}
 			}
-			varsMap = MergeMaps(varsMap, e.WithVars)
+			renderedEnvVars := RenderNoMerge(e.WithVars, scopeMap)
+			varsMap = MergeMaps(varsMap, renderedEnvVars)
 		}
 	}
 	if nameFound == false {
@@ -188,6 +190,7 @@ func(config *OzoneConfig) FetchEnvs(envList []string, scope map[string]string) (
 		}
 		varsMap = MergeMaps(varsMap, fetchedMap)
 	}
+	varsMap = RenderNoMerge(varsMap, scope)
 	return varsMap, nil
 }
 

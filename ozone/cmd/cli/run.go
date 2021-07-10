@@ -209,26 +209,23 @@ func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[s
 
 func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
 	if step.Type == "builtin" {
+		var err error
 		switch step.Name {
 		case "executable":
 			fmt.Println("gogo")
-			executable.Build(r.Service, varsMap)
-
+			err = executable.Build(r.Service, varsMap)
 			fmt.Println("after")
 		case "helm":
-			helm.Deploy(r.Service, varsMap)
+			err = helm.Deploy(r.Service, varsMap)
 		case "runDockerImage":
-			err := docker.Build(varsMap)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			err = docker.Build(varsMap)
 		case "bashScript":
-			err := utilities.RunBashScript(varsMap)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			err = utilities.RunBashScript(varsMap)
 		default:
 			log.Fatalf("Builtin value not found: %s \n", step.Name)
+		}
+		if err != nil {
+			log.Fatalln(err)
 		}
 	}
 }

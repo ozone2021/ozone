@@ -15,6 +15,7 @@ func getHelmParams() []string {
 		"FULL_TAG",
 		"K8S_SERVICE",
 		"CHART_DIR",
+		"DOMAIN",
 		//"GITLAB_PROJECT_CODE",
 		//"BUILD_ARGS",
 	}
@@ -36,6 +37,7 @@ func Deploy(serviceName string, env map[string]string) error {
 	chartDir := env["CHART_DIR"]
 	k8sServiceName := env["K8S_SERVICE"]
 	domain := env["DOMAIN"]
+	subdomain := env["SUBDOMAIN"]
 	tag := env["FULL_TAG"]
 
 	containerPort, ok := env["CONTAINER_PORT"]
@@ -68,10 +70,11 @@ func Deploy(serviceName string, env map[string]string) error {
 		valuesFile = ""
 	}
 
-	cmdString := fmt.Sprintf("helm upgrade --recreate-pods -i %s %s --set host=%s.%s --set image.fullTag=%s --set service.name=%s %s %s %s %s",
+	cmdString := fmt.Sprintf("helm upgrade --recreate-pods -i %s %s --set ingress.hosts[0].host=%s.%s%s --set image.fullTag=%s --set service.name=%s %s %s %s %s",
 		installName,
 		valuesFile,
 		k8sServiceName,
+		subdomain,
 		domain,
 		tag,
 		k8sServiceName,

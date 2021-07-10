@@ -5,17 +5,14 @@ import (
 	"fmt"
 	"gopkg.in/src-d/go-git.v4"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
+	"strings"
 )
 
 func FromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string, error) {
-	for _, arg := range []string{
-		"DIR",
-	} {
-		if err := utils.ParamsOK("FromGitDirBranchNameHash", arg, varsParamMap); err != nil {
-			return nil, err
-		}
+	dirPath := varsParamMap["ROOT_DIR"]
+	if dirPath == "" {
+		dirPath = "./"
 	}
-	dirPath := varsParamMap["DIR"]
 
 	varsMap := make(map[string]string)
 
@@ -32,7 +29,9 @@ func FromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string
 
 	git64Hash := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString([]byte(branchName))
 
-	varsMap["NAMESPACE"] = git64Hash
+	namespace := strings.ToLower(git64Hash)[:12]
+	varsMap["NAMESPACE"] = namespace
+	varsMap["SUBDOMAIN"] = fmt.Sprintf("%s.", namespace)
 
 	return varsMap, nil
 }
