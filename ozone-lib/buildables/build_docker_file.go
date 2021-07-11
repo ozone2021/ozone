@@ -21,9 +21,9 @@ func getParams() []string {
 }
 
 
-func BuildPushDockerContainer(varsMap map[string]string) error {
+func BuildDockerContainer(varsMap map[string]string) error {
 	for _, arg := range getParams() {
-		if err := utils.ParamsOK("BuildPushDockerContainer", arg, varsMap); err != nil {
+		if err := utils.ParamsOK("BuildDockerContainer", arg, varsMap); err != nil {
 			return err
 		}
 	}

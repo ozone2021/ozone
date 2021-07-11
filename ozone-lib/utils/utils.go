@@ -3,6 +3,7 @@ package utils
 import (
     "fmt"
     "log"
+    "os"
     "strings"
 )
 
@@ -28,4 +29,14 @@ func ContextInPattern(context, pattern string) bool {
         }
     }
     return false
+}
+
+func OSEnvToVarsMap() map[string]string {
+    newMap := make(map[string]string)
+    for _, kvString := range os.Environ() {
+        parts := strings.Split(kvString, "=")
+        key, value := parts[0], parts[1]
+        newMap[key] = value
+    }
+    return newMap
 }

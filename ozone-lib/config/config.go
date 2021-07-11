@@ -3,18 +3,21 @@ package config
 import (
 	"errors"
 	"fmt"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/env"
+	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
-	"github.com/JamesArthurHolland/ozone/ozone-lib/env"
 )
 
 type RunnableType int
 
 const (
-	BuildType 	RunnableType = iota
-	DeployType 	RunnableType = iota
-	TestType	RunnableType = iota
+	PreUtilityType 	RunnableType = iota
+	BuildType 		RunnableType = iota
+	DeployType 		RunnableType = iota
+	TestType		RunnableType = iota
+	PostUtilityType	RunnableType = iota
 )
 
 type ContextInfo struct {
@@ -61,12 +64,17 @@ type OzoneConfig struct {
 	ContextInfo		ContextInfo			`yaml:"context"`
 	BuildVars 		map[string]string	`yaml:"build_vars"`
 	Environments	[]*Environment		`yaml:"environments"`
+	PreUtilities	[]*Runnable			`yaml:"pre_utilities"`
 	Builds			[]*Runnable			`yaml:"builds"`
 	Deploys			[]*Runnable			`yaml:"deploys"`
 	Tests			[]*Runnable			`yaml:"tests"`
+	PostUtilities	[]*Runnable			`yaml:"post_utilities"`
 }
 
 func(config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
+	if has, runnable := config.HasPreUtility(name); has == true {
+		return true, runnable
+	}
 	if has, runnable := config.HasBuild(name); has == true {
 		return true, runnable
 	}
@@ -74,6 +82,9 @@ func(config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
 		return true, runnable
 	}
 	if has, runnable := config.HasTest(name); has == true {
+		return true, runnable
+	}
+	if has, runnable := config.HasPostUtility(name); has == true {
 		return true, runnable
 	}
 
@@ -89,6 +100,10 @@ func(config *OzoneConfig) HasContext(name string) bool {
 	return false
 }
 
+func(config *OzoneConfig) HasPreUtility(name string) (bool, *Runnable) {
+	return config.ListHasRunnableOfType(name, config.PreUtilities, PreUtilityType)
+}
+
 func(config *OzoneConfig) HasBuild(name string) (bool, *Runnable) {
 	return config.ListHasRunnableOfType(name, config.Builds, BuildType)
 }
@@ -99,6 +114,10 @@ func(config *OzoneConfig) HasDeploy(name string) (bool, *Runnable) {
 
 func(config *OzoneConfig) HasTest(name string) (bool, *Runnable) {
 	return config.ListHasRunnableOfType(name, config.Tests, TestType)
+}
+
+func(config *OzoneConfig) HasPostUtility(name string) (bool, *Runnable) {
+	return config.ListHasRunnableOfType(name, config.PostUtilities, PostUtilityType)
 }
 
 func(config *OzoneConfig) DeploysHasService(service string) bool {
@@ -209,6 +228,9 @@ func ReadConfig() *OzoneConfig {
 		log.Fatalf("error: %v", err)
 	}
 
+	for _, b := range ozoneConfig.PreUtilities {
+		b.Type = PreUtilityType
+	}
 	for _, b := range ozoneConfig.Builds {
 		b.Type = BuildType
 	}
@@ -218,8 +240,13 @@ func ReadConfig() *OzoneConfig {
 	for _, b := range ozoneConfig.Tests {
 		b.Type = TestType
 	}
+	for _, b := range ozoneConfig.PostUtilities {
+		b.Type = PostUtilityType
+	}
 
 	ozoneConfig.BuildVars["PROJECT"] = ozoneConfig.ProjectName
+	osEnv := utils.OSEnvToVarsMap()
+	ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, osEnv)
 	ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
 
 

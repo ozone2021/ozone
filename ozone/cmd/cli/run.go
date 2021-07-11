@@ -20,9 +20,15 @@ import (
 
 func init() {
 	rootCmd.AddCommand(runCmd)
+	runCmd.PersistentFlags().StringP("context", "c", "", fmt.Sprintf("context (default is %s)", config.ContextInfo.Default))
+	runCmd.PersistentFlags().BoolP("detached", "d", false, "detached is for running headless, without docker daemon (caching etc)")
+
 }
 
 func checkCache(buildScope map[string]string) bool {
+	if headless == true {
+		return false
+	}
 	hash, err := getBuildHash(buildScope)
 	if err != nil {
 		log.Fatalln(err)
@@ -111,7 +117,7 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 		exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
 
 		if !exists {
-			log.Fatalf("Depencdency %s on build %s doesn't exist", dependency.Name, b.Name)
+			log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, b.Name)
 		}
 
 		dependencyScope := ozoneConfig.MergeMaps(buildScope, runnableVars)
@@ -144,19 +150,23 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 				}
 				if step.Type == "builtin" {
 					switch b.Type {
+					case ozoneConfig.PreUtilityType:
+						runUtility(step, b, stepVars)
 					case ozoneConfig.BuildType:
 						runBuildable(step, b, stepVars)
 					case ozoneConfig.DeployType:
 						runDeployables(step, b, stepVars)
-						//case ozoneConfig.TestTypeType:
-						//	runTestables(step, b, stepVars)
+					case ozoneConfig.TestType:
+						runTestable(step, b, stepVars)
+					case ozoneConfig.PostUtilityType:
+						runUtility(step, b, stepVars)
 					}
 				}
 			}
 		}
 	}
 	// TODO update cache
-	if b.Type == ozoneConfig.BuildType {
+	if headless == false && b.Type == ozoneConfig.BuildType {
 		updateCache(buildScope)
 	}
 
@@ -189,7 +199,7 @@ func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[s
 		}
 	case "buildDockerImage":
 		fmt.Println("Building docker image.")
-		err := buildables.BuildPushDockerContainer(varsMap)
+		err := buildables.BuildDockerContainer(varsMap)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -206,6 +216,32 @@ func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[s
 		}
 	}
 }
+
+func runTestable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
+	switch step.Name {
+	case "bashScript":
+		err := utilities.RunBashScript(varsMap)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	default:
+		log.Fatalf("Testable value not found: %s \n", step.Name)
+	}
+}
+
+func runUtility(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
+	switch step.Name {
+	case "bashScript":
+		err := utilities.RunBashScript(varsMap)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	default:
+		log.Fatalf("Utility value not found: %s \n", step.Name)
+	}
+}
+
+
 
 func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
 	if step.Type == "builtin" {
@@ -264,12 +300,17 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map
 //	}
 //}
 
-func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozoneConfig.Runnable,[]*ozoneConfig.Runnable,[]*ozoneConfig.Runnable) {
+func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozoneConfig.Runnable, []*ozoneConfig.Runnable,[]*ozoneConfig.Runnable,[]*ozoneConfig.Runnable, []*ozoneConfig.Runnable) {
+	var preUtilities []*ozoneConfig.Runnable
 	var buildables []*ozoneConfig.Runnable
 	var deployables []*ozoneConfig.Runnable
 	var testables []*ozoneConfig.Runnable
+	var postUtilities []*ozoneConfig.Runnable
 
 	for _, runnableName := range args {
+		if has, utility := config.HasPreUtility(runnableName); has == true {
+			preUtilities = append(preUtilities, utility)
+		}
 		if has, build := config.HasBuild(runnableName); has == true {
 			buildables = append(buildables, build)
 		}
@@ -279,16 +320,42 @@ func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozone
 		if has, test := config.HasTest(runnableName); has == true {
 			deployables = append(testables, test)
 		}
-		//if isTest
+		if has, utility := config.HasPostUtility(runnableName); has == true {
+			postUtilities = append(postUtilities, utility)
+		}
 	}
 
-	return buildables, deployables, testables
+	return preUtilities, buildables, deployables, testables, postUtilities
 }
 
 var runCmd = &cobra.Command{
 	Use:   "r",
 	Long:  `List running processes`,
 	Run: func(cmd *cobra.Command, args []string) {
+		headless, _ = cmd.Flags().GetBool("detached")
+
+		contextFlag, _ := cmd.Flags().GetString("context")
+		if contextFlag == "" {
+			if headless == true {
+				log.Fatalln("--context must be set if --headless mode used")
+			} else {
+				var err error
+				context, err = process_manager_client.FetchContext(ozoneWorkingDir)
+				if err != nil {
+					log.Fatalln("FetchContext error:", err)
+				}
+			}
+		} else if contextFlag != "" {
+			if !config.HasContext(contextFlag) {
+				log.Fatalf("Context %s doesn't exist in Ozonefile", contextFlag)
+			}
+			context = contextFlag
+		}
+		if context == "" {
+			context = config.ContextInfo.Default
+		}
+
+
 		contextBanner := fmt.Sprintf("context::: %s", context)
 		figure.NewFigure(contextBanner, "doom", true).Print()
 		for _, arg := range args {
@@ -299,10 +366,13 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		builds, deploys, _ := separateRunnables(args, config)
+		preUtilities, builds, deploys, tests, postUtilities := separateRunnables(args, config)
 
+		run(preUtilities, config, context, ozoneConfig.PreUtilityType)
 		run(builds, config, context, ozoneConfig.BuildType)
 		run(deploys, config, context, ozoneConfig.DeployType)
+		run(tests, config, context, ozoneConfig.TestType)
+		run(postUtilities, config, context, ozoneConfig.PostUtilityType)
 		//tests(tests, config, context)
 
 	},

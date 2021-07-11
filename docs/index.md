@@ -37,15 +37,15 @@ Easy:
 
 Ozone is for making environment management easier. The best way to learn is by doing, so there is a test repo which we will also use for the tutorial.
 ```markdown
-git clone git@github.com:JamesArthurHolland/ozone-test.git
+git clone git@github.com:JamesArthurHolland/ozone-test.git --recurse-submodules
 
 cd ozone-test
 
 # For linux
-git checkout -b tutorial/1-simple-runnable-ubuntu
+git checkout -b tutorial/1-simple-runnable-ubuntu; git submodule update
 
 # For mac
-git checkout -b tutorial/1-simple-runnable-macos
+git checkout -b tutorial/1-simple-runnable-macos; git submodule update
 ```
 Docker's host network mode works on ubuntu but not on mac, so this is why the `NETWORK` is set to the project name in 
 the mac version.
@@ -109,10 +109,10 @@ service.
 
 ```
 # For linux
-git checkout -b tutorial/2-different-contexts-ubuntu
+git checkout -b tutorial/2-different-contexts-ubuntu; git submodule update
 
 # For mac
-git checkout -b tutorial/2-different-contexts-macos
+git checkout -b tutorial/2-different-contexts-macos; git submodule update~~~~
 ```
 
 A context is similar to what normally developers would call "environments", however in Ozone, environments refer to 
