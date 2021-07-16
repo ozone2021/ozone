@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/env"
-	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -49,12 +48,19 @@ type ContextStep struct {
 	WithEnv	[]string	`yaml:"with_env"`
 }
 
+type ContextEnv struct {
+	Context string		`yaml:"context"`
+	WithEnv	[]string	`yaml:"with_env"`
+}
+
+
 type Runnable struct {
 	Name        	string			`yaml:"name"`
 	Service			string			`yaml:"service"`
 	Dir         	string			`yaml:"dir"`
 	Depends			[]*Step			`yaml:"depends_on"`
-	WithEnv     	[]string      	`yaml:"with_env"`
+	//WithEnv     	[]string      	`yaml:"with_env"`
+	ContextEnv		[]*ContextEnv	`yaml:"context_envs"`
 	ContextSteps	[]*ContextStep 	`yaml:"context_steps"`
 	Type			RunnableType
 }
@@ -245,7 +251,7 @@ func ReadConfig() *OzoneConfig {
 	}
 
 	ozoneConfig.BuildVars["PROJECT"] = ozoneConfig.ProjectName
-	osEnv := utils.OSEnvToVarsMap()
+	osEnv := OSEnvToVarsMap()
 	ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, osEnv)
 	ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
 

@@ -11,7 +11,6 @@ import (
 	"github.com/JamesArthurHolland/ozone/ozone-lib/deployables/helm"
 	_go "github.com/JamesArthurHolland/ozone/ozone-lib/go"
 	"github.com/JamesArthurHolland/ozone/ozone-lib/utilities"
-	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/spf13/cobra"
 	"log"
@@ -91,36 +90,47 @@ func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, contex
 	}
 }
 
-func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.OzoneConfig, topLevelScope map[string]string) error {
+func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozoneConfig.OzoneConfig, topLevelScope map[string]string) error {
 	buildScope := ozoneConfig.CopyMap(topLevelScope)
-	if b.Service != "" {
-		buildScope["SERVICE"] = b.Service
+	if runnable.Service != "" {
+		buildScope["SERVICE"] = runnable.Service
 	}
-	if b.Dir != "" {
-		buildScope["DIR"] = b.Dir
+	if runnable.Dir != "" {
+		buildScope["DIR"] = runnable.Dir
 	}
-	buildScope["NAME"] = b.Name
+	buildScope["NAME"] = runnable.Name
 	buildScope = ozoneConfig.RenderNoMerge(buildScope, topLevelScope)
 
-	if b.Type == ozoneConfig.BuildType && checkCache(buildScope) == true {
-		log.Printf("Info: build %s is cached. \n", b.Name)
+	if runnable.Type == ozoneConfig.BuildType && checkCache(buildScope) == true {
+		log.Printf("Info: build %s is cached. \n", runnable.Name)
 		return nil
 	}
-	figure.NewFigure(b.Name, "doom", true).Print()
+	figure.NewFigure(runnable.Name, "doom", true).Print()
 
-	runnableVars, err := config.FetchEnvs(b.WithEnv, buildScope)
-	if err != nil {
-		return err
+	contextEnvVars := make(map[string]string)
+	for _, contextEnv := range runnable.ContextEnv {
+		if ozoneConfig.ContextInPattern(context, contextEnv.Context, buildScope) {
+			fetchedEnvs, err := config.FetchEnvs(contextEnv.WithEnv, buildScope)
+			if err != nil  {
+				return err
+			}
+			contextEnvVars = ozoneConfig.MergeMaps(contextEnvVars, fetchedEnvs)
+		}
 	}
+	//runnableVars, err := config.FetchEnvs(runnable.WithEnv, buildScope)
+	//if err != nil  {
+	//	return err
+	//}
+	runnableBuildScope := ozoneConfig.MergeMaps(contextEnvVars, buildScope)
 
-	for _, dependency := range b.Depends {
+	for _, dependency := range runnable.Depends {
 		exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
 
 		if !exists {
-			log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, b.Name)
+			log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, runnable.Name)
 		}
 
-		dependencyScope := ozoneConfig.MergeMaps(buildScope, runnableVars)
+		dependencyScope := ozoneConfig.MergeMaps(runnableBuildScope, contextEnvVars)
 		dependencyScope = ozoneConfig.MergeMaps(dependencyScope, dependency.WithVars)
 		err := runIndividual(dependencyRunnable, context, config, dependencyScope)
 		if err != nil {
@@ -128,45 +138,44 @@ func runIndividual(b *ozoneConfig.Runnable, context string, config *ozoneConfig.
 		}
 	}
 
-	for _, cs := range b.ContextSteps {
-		match := utils.ContextInPattern(context, cs.Context)
+	for _, cs := range runnable.ContextSteps {
+		match := ozoneConfig.ContextInPattern(context, cs.Context, runnableBuildScope)
 		if match {
-			contextStepVars, err := config.FetchEnvs(cs.WithEnv, buildScope)
-			contextStepVars = ozoneConfig.MergeMaps(runnableVars, contextStepVars)
+			contextStepVars, err := config.FetchEnvs(cs.WithEnv, runnableBuildScope)
+			contextStepVars = ozoneConfig.MergeMaps(contextEnvVars, contextStepVars)
 			contextStepBuildScope := ozoneConfig.MergeMaps(buildScope, contextStepVars)
 			if err != nil {
 				return err
 			}
 			//scope = ozoneConfig.MergeMaps(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
 			for _, step := range cs.Steps {
-
 				stepVars := ozoneConfig.MergeMaps(step.WithVars, contextStepBuildScope)
 				stepVars = ozoneConfig.MergeMaps(contextStepVars, stepVars)
 
-				fmt.Printf("step %s \n", step.Name)
+				fmt.Printf("Step: %s \n", step.Name)
 
 				if err != nil {
 					return err
 				}
 				if step.Type == "builtin" {
-					switch b.Type {
+					switch runnable.Type {
 					case ozoneConfig.PreUtilityType:
-						runUtility(step, b, stepVars)
+						runUtility(step, runnable, stepVars)
 					case ozoneConfig.BuildType:
-						runBuildable(step, b, stepVars)
+						runBuildable(step, runnable, stepVars)
 					case ozoneConfig.DeployType:
-						runDeployables(step, b, stepVars)
+						runDeployables(step, runnable, stepVars)
 					case ozoneConfig.TestType:
-						runTestable(step, b, stepVars)
+						runTestable(step, runnable, stepVars)
 					case ozoneConfig.PostUtilityType:
-						runUtility(step, b, stepVars)
+						runUtility(step, runnable, stepVars)
 					}
 				}
 			}
 		}
 	}
 	// TODO update cache
-	if headless == false && b.Type == ozoneConfig.BuildType {
+	if headless == false && runnable.Type == ozoneConfig.BuildType {
 		updateCache(buildScope)
 	}
 

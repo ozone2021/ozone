@@ -132,3 +132,65 @@ This relies on you having a k8s cluster setup, with a docker registry running in
 `registry.local` pointing at it.
 
 Running `ozone r all` now, you will see the different context flash up.
+
+"context_steps" and "context_envs" allow us to specify context specific steps and environment blocks.
+
+Take the following example:
+```
+context_envs:
+- context: local-k8s|ns-k8s  # helm-base is applied to local-k8s|ns-k8s
+  with_env:
+    - helm-base
+- context: "{{CONTEXT}}"  # then if an environment exists with the same name as the context, it is applied
+  with_env:
+    - "{{CONTEXT}}"
+```
+
+It is a good practice to name environments after contexts, as this provides a building block from which to add more 
+environments (which tend to be more step specific). 
+
+
+What you think the following block does?:
+
+```
+context_steps:
+- context: "{{CONTEXT}}"
+  steps:
+    - type: builtin
+      name: buildDockerImage
+- context: local-k8s|ns-k8s
+  steps:
+    - type: builtin
+      name: pushDockerImage
+```
+
+For all contexts in the context list, (local, local-k8s and ns-k8s) it builds the docker image, but only for the 
+kubernetes related contexts does it push it to the registry in the cluster.
+
+
+#### Commandline arguments
+
+Currently, ozone supports passing the context in via the command line, as well as specifying "headless" mode.
+
+Headless or "detached" mode means you can run ozone without the daemon, which means you can't make use of caching. 
+This might be desired behaviour if you are using ozone in the context of a build server that doesn't allow for the 
+docker daemon to be installed.
+
+#### Build deploy test
+
+If you have [newman](https://www.npmjs.com/package/newman) installed, you can run the following command:
+
+`ozone r -c ns-k8s -d all-test`
+
+This sets the context to ns-k8s (namespaced kubernetes), in detached mode, with the runnable all-test. If you inspect the runnable, I like to 
+put the aggregate builds "all" and "all-test" in the deploys section.
+
+The last part of this, is that it runs automated tests against the health check endpoints.
+
+A simple but effective test that should be the basis of any CI/CD pipeline. This will test for any runtime failures with
+ interpretated languages like ruby. 
+ 
+The output from the helm command is visible. You can see that the namespace is a hash. This is generated from the branch 
+name in the parent project.
+
+The container image tag for the microservices is generated from the commit hash of each respective git submodule.

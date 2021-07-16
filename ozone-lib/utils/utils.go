@@ -3,8 +3,6 @@ package utils
 import (
     "fmt"
     "log"
-    "os"
-    "strings"
 )
 
 func ParamsOK(runnable string, varName string, varsMap map[string]string) error {
@@ -21,22 +19,3 @@ func WarnIfNullVar(service, varValue, varName string) {
     }
 }
 
-func ContextInPattern(context, pattern string) bool {
-    patternArray := strings.Split(pattern, "|")
-    for _, v := range patternArray {
-        if context == v {
-            return true
-        }
-    }
-    return false
-}
-
-func OSEnvToVarsMap() map[string]string {
-    newMap := make(map[string]string)
-    for _, kvString := range os.Environ() {
-        parts := strings.Split(kvString, "=")
-        key, value := parts[0], parts[1]
-        newMap[key] = value
-    }
-    return newMap
-}

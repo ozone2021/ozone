@@ -3,6 +3,8 @@ package config
 import (
 	"github.com/flosch/pongo2/v4"
 	"log"
+	"os"
+	"strings"
 )
 
 func convertMap(originalMap interface{}) pongo2.Context {
@@ -12,6 +14,17 @@ func convertMap(originalMap interface{}) pongo2.Context {
 	}
 
 	return convertedMap
+}
+
+func ContextInPattern(context, pattern string, scope map[string]string) bool {
+	pattern = renderVars(pattern, scope)
+	patternArray := strings.Split(pattern, "|")
+	for _, v := range patternArray {
+		if context == v {
+			return true
+		}
+	}
+	return false
 }
 
 func renderVars(input string, varsMap map[string]string) string {
@@ -26,6 +39,16 @@ func renderVars(input string, varsMap map[string]string) string {
 		log.Fatalln(err)
 	}
 	return out
+}
+
+func OSEnvToVarsMap() map[string]string {
+	newMap := make(map[string]string)
+	for _, kvString := range os.Environ() {
+		parts := strings.Split(kvString, "=")
+		key, value := parts[0], parts[1]
+		newMap[key] = value
+	}
+	return newMap
 }
 
 func RenderNoMerge(base map[string]string, scope map[string]string) map[string]string {
