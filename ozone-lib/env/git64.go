@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"gopkg.in/src-d/go-git.v4"
-	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
+	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"strings"
 )
 

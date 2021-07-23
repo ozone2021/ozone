@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	process_manager_client "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager-client"
+	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/spf13/cobra"
 	"log"
 )

@@ -2,7 +2,7 @@ package utilities
 
 import (
     "fmt"
-    "github.com/JamesArthurHolland/ozone/ozone-lib/utils"
+    "github.com/ozone2021/ozone/ozone-lib/utils"
     "os"
     "os/exec"
 )

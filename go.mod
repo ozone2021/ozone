@@ -1,4 +1,4 @@
-module github.com/JamesArthurHolland/ozone
+module github.com/ozone2021/ozone
 
 go 1.14
 

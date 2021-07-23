@@ -3,7 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/JamesArthurHolland/ozone/ozone-lib/env"
+	"github.com/ozone2021/ozone/ozone-lib/env"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"

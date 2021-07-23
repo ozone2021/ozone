@@ -20,7 +20,7 @@ Environment variable management.
 
 curl https://registry.local/v2/_catalog -k
 
-go get -u github.com/JamesArthurHolland/ozone/ozone
+go get -u github.com/ozone2021/ozone/ozone
 
 `Build debug ozone container`
 

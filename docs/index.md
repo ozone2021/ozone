@@ -13,6 +13,8 @@ Ozone can:
 
 You will need the ozone daemon running, and also the ozone client.
 
+
+
 #### *Daemon*
 You can either:
 ##### Run from docker hub...
@@ -30,14 +32,14 @@ The daemon is used to keep track of cache hashs to tell whether or not any runna
 #### *Client*
 
 Easy:   
-`go get -u github.com/JamesArthurHolland/ozone/cmd/main`
+`go get -u github.com/ozone2021/ozone/cmd/main`
 
 
 # Getting started
 
 Ozone is for making environment management easier. The best way to learn is by doing, so there is a test repo which we will also use for the tutorial.
 ```markdown
-git clone git@github.com:JamesArthurHolland/ozone-test.git --recurse-submodules
+git clone git@github.com:ozone2021/ozone-test.git --recurse-submodules
 
 cd ozone-test
 

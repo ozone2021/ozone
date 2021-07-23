@@ -2,8 +2,8 @@ package buildables
 
 import (
 	"fmt"
-	process_manager "github.com/JamesArthurHolland/ozone/ozone-daemon-lib/process-manager"
-	"github.com/JamesArthurHolland/ozone/ozone-lib/utils"
+	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"os"
 	"os/exec"
 )

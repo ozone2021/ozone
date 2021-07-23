@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	ozoneConfig "github.com/JamesArthurHolland/ozone/ozone-lib/config"
+	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
