@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gopkg.in/src-d/go-git.v4"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
+	"log"
 	"strings"
 )
 
@@ -26,6 +27,7 @@ func FromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string
 		return nil, err
 	}
 	branchName := string(reference.Name())
+	log.Printf("Branchname %s \n", branchName)
 
 	git64Hash := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString([]byte(branchName))
 
