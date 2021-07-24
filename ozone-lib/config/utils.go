@@ -52,9 +52,12 @@ func OSEnvToVarsMap() map[string]string {
 }
 
 func RenderNoMerge(base map[string]string, scope map[string]string) map[string]string {
+	combinedScope := CopyMap(scope)
+	osEnv := OSEnvToVarsMap()
+	combinedScope = MergeMaps(combinedScope, osEnv)
 	newMap := CopyMap(base)
 	for k, v := range base {
-		newMap[k] = renderVars(v, scope)
+		newMap[k] = renderVars(v, combinedScope)
 	}
 	return newMap
 }
@@ -67,7 +70,7 @@ func CopyMap(toCopy map[string]string) map[string]string {
 	return newMap
 }
 
-func MergeMaps(base map[string]string, overwrite map[string]string) map[string]string {
+func MergeMapsSelfRender(base map[string]string, overwrite map[string]string) map[string]string {
 	if base == nil {
 		return CopyMap(overwrite)
 	}
@@ -76,5 +79,16 @@ func MergeMaps(base map[string]string, overwrite map[string]string) map[string]s
 		newMap[k] = v
 	}
 	newMap = RenderNoMerge(newMap, newMap)
+	return newMap
+}
+
+func MergeMaps(base map[string]string, overwrite map[string]string) map[string]string {
+	if base == nil {
+		return CopyMap(overwrite)
+	}
+	newMap := CopyMap(base)
+	for k, v := range overwrite {
+		newMap[k] = v
+	}
 	return newMap
 }

@@ -26,12 +26,19 @@ func FromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string
 	if err != nil {
 		return nil, err
 	}
-	branchName := string(reference.Name())
+
+	branchName, ok := varsParamMap["GIT_BRANCH"]
+	if !ok || branchName == "{{GIT_BRANCH}}" {
+		branchName = string(reference.Name())
+	}
 	log.Printf("Branchname %s \n", branchName)
 
 	git64Hash := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString([]byte(branchName))
 
-	namespace := strings.ToLower(git64Hash)[:12]
+	namespace := git64Hash
+	if len([]byte(git64Hash)) > 12 {
+		namespace = strings.ToLower(git64Hash)[:12]
+	}
 	varsMap["NAMESPACE"] = namespace
 	varsMap["SUBDOMAIN"] = fmt.Sprintf("%s.", namespace)
 

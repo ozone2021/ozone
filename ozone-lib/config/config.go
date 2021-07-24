@@ -155,7 +155,7 @@ func(config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) (
 					var inclVarsMap map[string]string
 					var err error
 					if incl.Type == "builtin" {
-						inclParamVarsMap := MergeMaps(incl.WithVars, scopeMap)
+						inclParamVarsMap := MergeMapsSelfRender(incl.WithVars, scopeMap)
 						inclVarsMap, err = config.fetchBuiltinEnvFromInclude(incl.Name, inclParamVarsMap)
 						if err != nil {
 							return nil, err
@@ -168,11 +168,12 @@ func(config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) (
 					}
 
 					inclVarsRendered := RenderNoMerge(inclVarsMap, scopeMap)
-					varsMap = MergeMaps(varsMap, inclVarsRendered)
+					varsMap = MergeMapsSelfRender(varsMap, inclVarsRendered)
 				}
 			}
 			renderedEnvVars := RenderNoMerge(e.WithVars, scopeMap)
-			varsMap = MergeMaps(varsMap, renderedEnvVars)
+
+			varsMap = MergeMapsSelfRender(varsMap, renderedEnvVars)
 		}
 	}
 	if nameFound == false {
@@ -213,7 +214,7 @@ func(config *OzoneConfig) FetchEnvs(envList []string, scope map[string]string) (
 		if err != nil {
 			return nil, err
 		}
-		varsMap = MergeMaps(varsMap, fetchedMap)
+		varsMap = MergeMapsSelfRender(varsMap, fetchedMap)
 	}
 	varsMap = RenderNoMerge(varsMap, scope)
 	return varsMap, nil

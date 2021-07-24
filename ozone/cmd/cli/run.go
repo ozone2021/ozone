@@ -114,14 +114,14 @@ func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozone
 			if err != nil  {
 				return err
 			}
-			contextEnvVars = ozoneConfig.MergeMaps(contextEnvVars, fetchedEnvs)
+			contextEnvVars = ozoneConfig.MergeMapsSelfRender(contextEnvVars, fetchedEnvs)
 		}
 	}
 	//runnableVars, err := config.FetchEnvs(runnable.WithEnv, buildScope)
 	//if err != nil  {
 	//	return err
 	//}
-	runnableBuildScope := ozoneConfig.MergeMaps(contextEnvVars, buildScope)
+	runnableBuildScope := ozoneConfig.MergeMapsSelfRender(contextEnvVars, buildScope)
 
 	for _, dependency := range runnable.Depends {
 		exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
@@ -130,8 +130,8 @@ func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozone
 			log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, runnable.Name)
 		}
 
-		dependencyScope := ozoneConfig.MergeMaps(runnableBuildScope, contextEnvVars)
-		dependencyScope = ozoneConfig.MergeMaps(dependencyScope, dependency.WithVars)
+		dependencyScope := ozoneConfig.MergeMapsSelfRender(runnableBuildScope, contextEnvVars)
+		dependencyScope = ozoneConfig.MergeMapsSelfRender(dependencyScope, dependency.WithVars)
 		err := runIndividual(dependencyRunnable, context, config, dependencyScope)
 		if err != nil {
 			return err
@@ -142,15 +142,15 @@ func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozone
 		match := ozoneConfig.ContextInPattern(context, cs.Context, runnableBuildScope)
 		if match {
 			contextStepVars, err := config.FetchEnvs(cs.WithEnv, runnableBuildScope)
-			contextStepVars = ozoneConfig.MergeMaps(contextEnvVars, contextStepVars)
-			contextStepBuildScope := ozoneConfig.MergeMaps(buildScope, contextStepVars)
+			contextStepVars = ozoneConfig.MergeMapsSelfRender(contextEnvVars, contextStepVars)
+			contextStepBuildScope := ozoneConfig.MergeMapsSelfRender(buildScope, contextStepVars)
 			if err != nil {
 				return err
 			}
-			//scope = ozoneConfig.MergeMaps(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
+			//scope = ozoneConfig.MergeMapsSelfRender(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
 			for _, step := range cs.Steps {
-				stepVars := ozoneConfig.MergeMaps(step.WithVars, contextStepBuildScope)
-				stepVars = ozoneConfig.MergeMaps(contextStepVars, stepVars)
+				stepVars := ozoneConfig.MergeMapsSelfRender(step.WithVars, contextStepBuildScope)
+				stepVars = ozoneConfig.MergeMapsSelfRender(contextStepVars, stepVars)
 
 				fmt.Printf("Step: %s \n", step.Name)
 
