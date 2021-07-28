@@ -38,6 +38,9 @@ func renderVars(input string, varsMap map[string]string) string {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	if out == "" {
+		return input
+	}
 	return out
 }
 
