@@ -62,6 +62,10 @@ func GitSubmoduleHash(varsParamMap map[string]string) (map[string]string, error)
 	varsMap := make(map[string]string)
 
 	repo, err := git.PlainOpen(dirPath)
+	if err != nil {
+		return nil, err
+	}
+
 	reference, err := repo.Head()
 	if err != nil {
 		return nil, err

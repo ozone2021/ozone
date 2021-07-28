@@ -188,8 +188,10 @@ func(config *OzoneConfig) fetchBuiltinEnvFromInclude(envName string, varsMap map
 	fromIncludeMap := make(map[string]string)
 
 	switch envName {
-	case "env/from_k8s_secret":
-		fromIncludeMap, err = env.FromSecret(varsMap)
+	case "env/from_k8s_secret_file":
+		fromIncludeMap, err = env.FromSecretFile(varsMap)
+	case "env/from_k8s_secret64":
+		fromIncludeMap, err = env.FromSecret64(varsMap)
 	case "env/from_env_file":
 		fromIncludeMap, err = env.FromEnvFile(varsMap)
 	case "env/git_directory_branch_hash":
