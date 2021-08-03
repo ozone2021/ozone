@@ -28,7 +28,7 @@ func FromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string
 	}
 
 	branchName, ok := varsParamMap["GIT_BRANCH"]
-	if !ok || branchName == "{{GIT_BRANCH}}" {
+	if !ok || ok && branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
 	}
 	log.Printf("Branchname %s \n", branchName)

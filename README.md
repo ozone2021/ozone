@@ -12,8 +12,6 @@ Environment variable management.
 
 `docker ps | grep ozone | awk '{print $1}' | xargs -I {} docker kill {}`   
 
-`docker run -p 8080:8080 hashicorp/http-echo -listen=:8080 -text="hello world"`   
-
 
 `ping host.docker.internal` to find host ip   
 // TODO command to add registry.local to host ip
