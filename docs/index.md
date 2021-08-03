@@ -196,3 +196,10 @@ The output from the helm command is visible. You can see that the namespace is a
 name in the parent project.
 
 The container image tag for the microservices is generated from the commit hash of each respective git submodule.
+
+## Building a dev server on k8s - 4 part medium tutorial
+
+I will show you, step by step, how to run a build server on a managed kubernetes instance. The build server will dynamically create a new environment when a pull request (PR) is opened in github, then delete the environment after the PR is closed. Long running branches (dev/main/epics) will be built when the PR is merged. Automated tests will be run against all environments.
+
+https://jaholland.medium.com/building-a-development-server-on-kubernetes-using-github-actions-and-ozone-part-i-79b28192c7f2
+
