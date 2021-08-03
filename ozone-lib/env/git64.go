@@ -6,10 +6,50 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
+	"regexp"
 	"strings"
 )
 
-func FromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string, error) {
+func StaticFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string, error) {
+	dirPath := varsParamMap["ROOT_DIR"]
+	if dirPath == "" {
+		dirPath = "./"
+	}
+
+	varsMap := make(map[string]string)
+
+	repo, err := git.PlainOpen(dirPath)
+	if err != nil {
+		return nil, err
+	}
+
+	reference, err := repo.Head()
+	if err != nil {
+		return nil, err
+	}
+
+
+	branchName, ok := varsParamMap["GIT_BRANCH"]
+	if !ok || branchName == "{{GIT_BRANCH}}" {
+		branchName = string(reference.Name())
+	}
+	branchName = strings.TrimPrefix(branchName, "refs/heads/")
+	log.Printf("Branchname %s \n", branchName)
+	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
+	if err != nil {
+		log.Fatal(err)
+	}
+	namespace := reg.ReplaceAllString(branchName, "")
+
+	varsMap["NAMESPACE"] = namespace
+	varsMap["SUBDOMAIN"] = fmt.Sprintf("%s.", namespace)
+
+	return varsMap, nil
+
+}
+
+
+func DynamicFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string, error) {
 	dirPath := varsParamMap["ROOT_DIR"]
 	if dirPath == "" {
 		dirPath = "./"
@@ -28,7 +68,7 @@ func FromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string
 	}
 
 	branchName, ok := varsParamMap["GIT_BRANCH"]
-	if !ok || ok && branchName == "{{GIT_BRANCH}}" {
+	if !ok || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
 	}
 	log.Printf("Branchname %s \n", branchName)
