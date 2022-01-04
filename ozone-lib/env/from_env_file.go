@@ -10,7 +10,7 @@ func FromEnvFile(varsParamMap map[string]string) (map[string]string, error) {
 	var varsMap map[string]string
 	var err error
 	if ok && envFile != "" {
-		varsMap, err = godotenv.Read()
+		varsMap, err = godotenv.Read(envFile)
 		if err != nil {
 			return nil, err
 		}
