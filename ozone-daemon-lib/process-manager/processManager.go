@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
-	"github.com/TwinProduction/go-color"
+	"github.com/TwiN/go-color"
 	"io"
 	"io/ioutil"
 	"log"

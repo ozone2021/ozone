@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/Microsoft/go-winio v0.5.0 // indirect
+	github.com/TwiN/go-color v1.1.0 // indirect
 	github.com/TwinProduction/go-color v1.0.0
 	github.com/common-nighthawk/go-figure v0.0.0-20200609044655-c4b36f998cf2
 	github.com/flosch/pongo2/v4 v4.0.2
