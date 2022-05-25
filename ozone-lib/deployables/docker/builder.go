@@ -11,7 +11,7 @@ import (
 
 func getDockerRunParams() []string {
 	return []string{
-		"FULL_TAG",
+		"DOCKER_FULL_TAG",
 		"PORT",
 		"NETWORK",
 		"SERVICE",
@@ -78,8 +78,6 @@ func DeleteContainerIfExists(serviceName string, env map[string]string) error {
 	return nil
 }
 
-
-
 func Build(env map[string]string) error {
 	for _, arg := range getDockerRunParams() {
 		if err := utils.ParamsOK("DeployDocker", arg, env); err != nil {
@@ -96,7 +94,7 @@ func Build(env map[string]string) error {
 	CreateNetworkIfNotExists(serviceName, env)
 	DeleteContainerIfExists(serviceName, env)
 
-	containerImage := env["FULL_TAG"]
+	containerImage := env["DOCKER_FULL_TAG"]
 	network := env["NETWORK"]
 	port := env["PORT"]
 	envString := VarsMapToDockerEnvString(env)
@@ -120,7 +118,7 @@ func Build(env map[string]string) error {
 		env,
 	}
 
-	if err := process_manager_client.AddProcess(query); err != nil{
+	if err := process_manager_client.AddProcess(query); err != nil {
 		return err
 	}
 

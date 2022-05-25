@@ -8,14 +8,12 @@ import (
 	"os/exec"
 )
 
-
 func getPushDockerImageParams() []string {
 	return []string{
-		"FULL_TAG",
+		"DOCKER_FULL_TAG",
 		"SERVICE",
 	}
 }
-
 
 func PushDockerImage(varsMap map[string]string) error {
 	for _, arg := range getPushDockerImageParams() {
@@ -24,7 +22,7 @@ func PushDockerImage(varsMap map[string]string) error {
 		}
 	}
 
-	tag := varsMap["FULL_TAG"]
+	tag := varsMap["DOCKER_FULL_TAG"]
 	cmdString := fmt.Sprintf("docker push %s",
 		tag,
 	)

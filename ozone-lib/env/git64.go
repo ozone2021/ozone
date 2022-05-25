@@ -3,8 +3,8 @@ package env
 import (
 	"encoding/base64"
 	"fmt"
-	"gopkg.in/src-d/go-git.v4"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
+	"gopkg.in/src-d/go-git.v4"
 	"log"
 	"regexp"
 	"strings"
@@ -28,7 +28,6 @@ func StaticFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]
 		return nil, err
 	}
 
-
 	branchName, ok := varsParamMap["GIT_BRANCH"]
 	if !ok || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
@@ -47,7 +46,6 @@ func StaticFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]
 	return varsMap, nil
 
 }
-
 
 func DynamicFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string, error) {
 	dirPath := varsParamMap["ROOT_DIR"]
@@ -112,6 +110,6 @@ func GitSubmoduleHash(varsParamMap map[string]string) (map[string]string, error)
 	}
 	submoduleHash := reference.Hash().String()
 
-	varsMap["FULL_TAG"] = fmt.Sprintf("%s/%s:%s", dockerRegistry, serviceName, submoduleHash)
+	varsMap["DOCKER_FULL_TAG"] = fmt.Sprintf("%s/%s:%s", dockerRegistry, serviceName, submoduleHash)
 	return varsMap, nil
 }

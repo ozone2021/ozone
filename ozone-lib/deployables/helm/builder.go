@@ -12,7 +12,7 @@ import (
 func getHelmParams() []string {
 	return []string{
 		"INSTALL_NAME",
-		"FULL_TAG",
+		"DOCKER_FULL_TAG",
 		"K8S_SERVICE",
 		"CHART_DIR",
 		"DOMAIN",
@@ -38,11 +38,11 @@ func Deploy(serviceName string, env map[string]string) error {
 	k8sServiceName := env["K8S_SERVICE"]
 	domain := env["DOMAIN"]
 	subdomain := env["SUBDOMAIN"]
-	tag := env["FULL_TAG"]
+	tag := env["DOCKER_FULL_TAG"]
 
 	containerPort, ok := env["CONTAINER_PORT"]
 	if ok {
-		utils.WarnIfNullVar(serviceName, containerPort,"CONTAINER_PORT")
+		utils.WarnIfNullVar(serviceName, containerPort, "CONTAINER_PORT")
 		containerPort = fmt.Sprintf("--set service.containerPort=%s", containerPort)
 	} else {
 		containerPort = ""
@@ -50,7 +50,7 @@ func Deploy(serviceName string, env map[string]string) error {
 
 	servicePort, ok := env["SERVICE_PORT"]
 	if ok {
-		utils.WarnIfNullVar(serviceName, servicePort,"SERVICE_PORT")
+		utils.WarnIfNullVar(serviceName, servicePort, "SERVICE_PORT")
 		servicePort = fmt.Sprintf("--set service.servicePort=%s", servicePort)
 	} else {
 		servicePort = ""
