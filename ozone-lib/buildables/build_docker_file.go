@@ -9,17 +9,16 @@ import (
 	"os/exec"
 )
 
-
 func getParams() []string {
 	return []string{
 		"DIR",
 		"FULL_TAG",
 		"SERVICE",
+		"DOCKER_BUILD_DIR",
 		//"GITLAB_PROJECT_CODE",
 		//"BUILD_ARGS",
 	}
 }
-
 
 func BuildDockerContainer(varsMap map[string]string) error {
 	for _, arg := range getParams() {
@@ -28,7 +27,10 @@ func BuildDockerContainer(varsMap map[string]string) error {
 		}
 	}
 
-	dockerBuildDir := varsMap["OZONE_WORKING_DIR"]
+	dockerBuildDir, ok := varsMap["DOCKER_BUILD_DIR"]
+	if !ok {
+		dockerBuildDir = varsMap["OZONE_WORKING_DIR"]
+	}
 	sourceDir := varsMap["DIR"]
 	cmdCallDir := varsMap["OZONE_WORKING_DIR"]
 	tag := varsMap["FULL_TAG"]
