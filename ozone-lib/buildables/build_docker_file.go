@@ -14,7 +14,7 @@ func getParams() []string {
 		"DIR",
 		"FULL_TAG",
 		"SERVICE",
-		"DOCKER_BUILD_DIR",
+		//"DOCKER_BUILD_DIR",
 		//"GITLAB_PROJECT_CODE",
 		//"BUILD_ARGS",
 	}
