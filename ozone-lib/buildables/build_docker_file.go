@@ -35,7 +35,7 @@ func BuildDockerContainer(varsMap map[string]string) error {
 	cmdCallDir := varsMap["OZONE_WORKING_DIR"]
 	tag := varsMap["DOCKER_FULL_TAG"]
 
-	buildArgs, ok := varsMap["BUILD_ARGS"]
+	buildArgs, ok := varsMap["DOCKER_BUILD_ARGS"]
 	if !ok {
 		buildArgs = ""
 	}
