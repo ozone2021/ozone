@@ -1,0 +1,17 @@
+Check for optional args in steps, and flag if mispelt etc.
+eg, WORKING_DIR in bashScript
+
+Overriding context env var from with_var of calling runnable doesn't override.
+
+  - name: deploy-webserver
+    service: webserver
+    dir: "{{SUBSCRIPTION_DIR}}"
+    depends_on:
+      - name: deploy-microservice
+        with_vars:
+          VALUES_FILE: "infrastructure/helm/generic_values.yaml"
+          CHART_DIR: "{{HELM_CHARTS_DIR}}/override" <--- this doesn't override
+
+
+
+Version check on Ozonefile.
