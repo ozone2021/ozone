@@ -67,8 +67,18 @@ func RenderNoMerge(base map[string]string, scope map[string]string) map[string]s
 
 func CopyMap(toCopy map[string]string) map[string]string {
 	newMap := make(map[string]string)
-	for k,v := range toCopy {
+	for k, v := range toCopy {
 		newMap[k] = v
+	}
+	return newMap
+}
+
+func CopyVariableMap(toCopy map[string]Variable) map[string]Variable {
+	newMap := make(map[string]Variable)
+	for k, v := range toCopy {
+		if variable, ok := v.(Variable); ok {
+			newMap[k] = variable.Copy()
+		}
 	}
 	return newMap
 }

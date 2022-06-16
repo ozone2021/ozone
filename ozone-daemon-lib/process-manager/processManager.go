@@ -63,12 +63,12 @@ func substituteOutput(input string, tempDir string) string {
 }
 
 func (pm *ProcessManager) CheckCache(request *CacheQuery, response *StringReply) error {
-	response.Body = pm.cache.Check(request.OzoneWorkingDir, request.Service)
+	response.Body = pm.cache.Check(request.OzoneWorkingDir, request.RunnableName)
 	return nil
 }
 
 func (pm *ProcessManager) UpdateCache(request *CacheQuery, response *BoolReply) error {
-	didUpdate := pm.cache.Update(request.OzoneWorkingDir, request.Service, request.OzoneFileAndDirHash)
+	didUpdate := pm.cache.Update(request.OzoneWorkingDir, request.RunnableName, request.OzoneFileAndDirHash)
 	response.Body = didUpdate
 	return nil
 }

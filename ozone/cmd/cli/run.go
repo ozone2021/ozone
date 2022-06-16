@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/common-nighthawk/go-figure"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/ozone2021/ozone/ozone-lib/buildables"
@@ -11,7 +12,6 @@ import (
 	"github.com/ozone2021/ozone/ozone-lib/deployables/helm"
 	_go "github.com/ozone2021/ozone/ozone-lib/go"
 	"github.com/ozone2021/ozone/ozone-lib/utilities"
-	"github.com/common-nighthawk/go-figure"
 	"github.com/spf13/cobra"
 	"log"
 	"path"
@@ -24,11 +24,11 @@ func init() {
 
 }
 
-func checkCache(buildScope map[string]string) bool {
+func checkCache(runnable *ozoneConfig.Runnable) bool {
 	if headless == true {
 		return false
 	}
-	hash, err := getBuildHash(buildScope)
+	hash, err := getBuildHash(runnable)
 	if err != nil {
 		log.Fatalln(err)
 		return false
@@ -37,34 +37,13 @@ func checkCache(buildScope map[string]string) bool {
 		return false
 	}
 
-
-	serviceName := buildScope["SERVICE"]
+	runnableName := runnable.Name
 	log.Printf("Hash is %s \n", hash)
-	cachedHash := process_manager_client.CacheCheck(ozoneWorkingDir, serviceName)
+	cachedHash := process_manager_client.CacheCheck(ozoneWorkingDir, runnableName)
 	return cachedHash == hash
 }
 
-func getBuildHash(buildScope map[string]string) (string, error) {
-	serviceName := buildScope["SERVICE"]
-	buildName := buildScope["NAME"]
-	dir := buildScope["DIR"]
-
-	if serviceName == "" {
-		log.Printf("WARNING: No servicename set on build '%s'.\n", buildName)
-		return "", nil
-	}
-	if dir == "" {
-		log.Printf("WARNING: No dir set on build '%s'.\n", buildName)
-		return "", nil
-	}
-
- 	buildDirFullPath := path.Join(ozoneWorkingDir, dir)
-	lastEditTime, err := cache.FileLastEdit(buildDirFullPath)
-
-	if err != nil {
-		return "", err
-	}
-
+func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
 	ozonefilePath := path.Join(ozoneWorkingDir, "Ozonefile")
 
 	ozonefileEditTime, err := cache.FileLastEdit(ozonefilePath)
@@ -73,13 +52,28 @@ func getBuildHash(buildScope map[string]string) (string, error) {
 		return "", err
 	}
 
-	hash := cache.Hash(ozonefileEditTime, lastEditTime)
+	filesDirsLastEditTimes := []int64{ozonefileEditTime}
+
+	for _, relativeFilePath := range runnable.WhenChanged {
+		fileDir := path.Join(ozoneWorkingDir, relativeFilePath)
+
+		editTime, err := cache.FileLastEdit(fileDir)
+
+		if err != nil {
+			return "", err
+		}
+
+		filesDirsLastEditTimes = append(filesDirsLastEditTimes, editTime)
+	}
+
+	hash := cache.Hash(filesDirsLastEditTimes...)
 	return hash, nil
 }
 
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
-	topLevelScope := ozoneConfig.CopyMap(config.BuildVars)
-	topLevelScope["CONTEXT"] = context
+	ordinal := 1
+	topLevelScope := ozoneConfig.CopyVariableMap(config.BuildVars)
+	topLevelScope["CONTEXT"] = ozoneConfig.NewSingleVariable(context, ordinal)
 	topLevelScope["OZONE_WORKING_DIR"] = ozoneWorkingDir
 
 	for _, b := range builds {
@@ -101,7 +95,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozone
 	buildScope["NAME"] = runnable.Name
 	buildScope = ozoneConfig.RenderNoMerge(buildScope, topLevelScope)
 
-	if runnable.Type == ozoneConfig.BuildType && checkCache(buildScope) == true {
+	if runnable.Type == ozoneConfig.BuildType && checkCache(runnable) == true {
 		log.Printf("Info: build %s is cached. \n", runnable.Name)
 		return nil
 	}
@@ -111,7 +105,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozone
 	for _, contextEnv := range runnable.ContextEnv {
 		if ozoneConfig.ContextInPattern(context, contextEnv.Context, buildScope) {
 			fetchedEnvs, err := config.FetchEnvs(contextEnv.WithEnv, buildScope)
-			if err != nil  {
+			if err != nil {
 				return err
 			}
 			contextEnvVars = ozoneConfig.MergeMapsSelfRender(contextEnvVars, fetchedEnvs)
@@ -176,21 +170,20 @@ func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozone
 	}
 	// TODO update cache
 	if headless == false && runnable.Type == ozoneConfig.BuildType {
-		updateCache(buildScope)
+		updateCache(runnable)
 	}
 
 	return nil
 }
 
-func updateCache(buildScope map[string]string) {
-	hash, err := getBuildHash(buildScope)
+func updateCache(runnable *ozoneConfig.Runnable) {
+	hash, err := getBuildHash(runnable)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	serviceName := buildScope["SERVICE"]
-	log.Printf("Cache updated for %s \n", serviceName)
-	process_manager_client.CacheUpdate(ozoneWorkingDir, serviceName, hash)
+	log.Printf("Cache updated for %s \n", runnable.Name)
+	process_manager_client.CacheUpdate(ozoneWorkingDir, runnable.Name, hash)
 }
 
 func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
@@ -250,8 +243,6 @@ func runUtility(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[str
 	}
 }
 
-
-
 func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map[string]string) {
 	if step.Type == "builtin" {
 		var err error
@@ -274,11 +265,6 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map
 		}
 	}
 }
-
-
-
-
-
 
 //func deploy(deploys []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
 //	//varsMap := ozoneConfig.VarsToMap(config.BuildVars)
@@ -309,7 +295,7 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap map
 //	}
 //}
 
-func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozoneConfig.Runnable, []*ozoneConfig.Runnable,[]*ozoneConfig.Runnable,[]*ozoneConfig.Runnable, []*ozoneConfig.Runnable) {
+func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable) {
 	var preUtilities []*ozoneConfig.Runnable
 	var buildables []*ozoneConfig.Runnable
 	var deployables []*ozoneConfig.Runnable
@@ -338,8 +324,8 @@ func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozone
 }
 
 var runCmd = &cobra.Command{
-	Use:   "r",
-	Long:  `List running processes`,
+	Use:  "r",
+	Long: `List running processes`,
 	Run: func(cmd *cobra.Command, args []string) {
 		headless, _ = cmd.Flags().GetBool("detached")
 
@@ -363,7 +349,6 @@ var runCmd = &cobra.Command{
 		if context == "" {
 			context = config.ContextInfo.Default
 		}
-
 
 		contextBanner := fmt.Sprintf("context::: %s", context)
 		figure.NewFigure(contextBanner, "doom", true).Print()
