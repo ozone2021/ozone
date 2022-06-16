@@ -7,6 +7,8 @@ import (
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/ozone2021/ozone/ozone-lib/buildables"
 	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/deployables/docker"
 	"github.com/ozone2021/ozone/ozone-lib/deployables/executable"
 	"github.com/ozone2021/ozone/ozone-lib/deployables/helm"
@@ -72,28 +74,30 @@ func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
 
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
 	ordinal := 1
-	topLevelScope := ozoneConfig.CopyVariableMap(config.BuildVars)
-	topLevelScope["CONTEXT"] = ozoneConfig.NewSingleVariable(context, ordinal)
-	topLevelScope["OZONE_WORKING_DIR"] = ozoneWorkingDir
+	topLevelScope := config_utils.CopyVariableMap(config.BuildVars)
+	topLevelScope["CONTEXT"] = config_variable.NewSingleVariable(context, ordinal)
+	topLevelScope["OZONE_WORKING_DIR"] = config_variable.NewSingleVariable(ozoneWorkingDir, ordinal)
 
 	for _, b := range builds {
-		err := runIndividual(b, context, config, topLevelScope)
+		err := runIndividual(b, ordinal, context, config, topLevelScope)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
 }
 
-func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozoneConfig.OzoneConfig, topLevelScope map[string]string) error {
-	buildScope := ozoneConfig.CopyMap(topLevelScope)
+func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, config *ozoneConfig.OzoneConfig, topLevelScope map[string]config_variable.Variable) error {
+	ordinal++
+
+	buildScope := config_utils.CopyVariableMap(topLevelScope)
 	if runnable.Service != "" {
-		buildScope["SERVICE"] = runnable.Service
+		buildScope["SERVICE"] = config_variable.NewSingleVariable(runnable.Service, ordinal)
 	}
 	if runnable.Dir != "" {
-		buildScope["DIR"] = runnable.Dir
+		buildScope["DIR"] = config_variable.NewSingleVariable(runnable.Dir, ordinal)
 	}
-	buildScope["NAME"] = runnable.Name
-	buildScope = ozoneConfig.RenderNoMerge(buildScope, topLevelScope)
+	buildScope["NAME"] = config_variable.NewSingleVariable(runnable.Name, ordinal)
+	buildScope = config_utils.RenderNoMerge(buildScope, topLevelScope)
 
 	if runnable.Type == ozoneConfig.BuildType && checkCache(runnable) == true {
 		log.Printf("Info: build %s is cached. \n", runnable.Name)
@@ -103,19 +107,19 @@ func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozone
 
 	contextEnvVars := make(map[string]string)
 	for _, contextEnv := range runnable.ContextEnv {
-		if ozoneConfig.ContextInPattern(context, contextEnv.Context, buildScope) {
+		if config_utils.ContextInPattern(context, contextEnv.Context, buildScope) {
 			fetchedEnvs, err := config.FetchEnvs(contextEnv.WithEnv, buildScope)
 			if err != nil {
 				return err
 			}
-			contextEnvVars = ozoneConfig.MergeMapsSelfRender(contextEnvVars, fetchedEnvs)
+			contextEnvVars = config_utils.MergeMapsSelfRender(contextEnvVars, fetchedEnvs)
 		}
 	}
 	//runnableVars, err := config.FetchEnvs(runnable.WithEnv, buildScope)
 	//if err != nil  {
 	//	return err
 	//}
-	runnableBuildScope := ozoneConfig.MergeMapsSelfRender(contextEnvVars, buildScope)
+	runnableBuildScope := config_utils.MergeMapsSelfRender(contextEnvVars, buildScope)
 
 	for _, dependency := range runnable.Depends {
 		exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
@@ -124,8 +128,8 @@ func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozone
 			log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, runnable.Name)
 		}
 
-		dependencyScope := ozoneConfig.MergeMapsSelfRender(runnableBuildScope, contextEnvVars)
-		dependencyScope = ozoneConfig.MergeMapsSelfRender(dependencyScope, dependency.WithVars)
+		dependencyScope := config_utils.MergeMapsSelfRender(runnableBuildScope, contextEnvVars)
+		dependencyScope = config_utils.MergeMapsSelfRender(dependencyScope, dependency.WithVars)
 		err := runIndividual(dependencyRunnable, context, config, dependencyScope)
 		if err != nil {
 			return err
@@ -133,18 +137,18 @@ func runIndividual(runnable *ozoneConfig.Runnable, context string, config *ozone
 	}
 
 	for _, cs := range runnable.ContextSteps {
-		match := ozoneConfig.ContextInPattern(context, cs.Context, runnableBuildScope)
+		match := config_utils.ContextInPattern(context, cs.Context, runnableBuildScope)
 		if match {
 			contextStepVars, err := config.FetchEnvs(cs.WithEnv, runnableBuildScope)
-			contextStepVars = ozoneConfig.MergeMapsSelfRender(contextEnvVars, contextStepVars)
-			contextStepBuildScope := ozoneConfig.MergeMapsSelfRender(buildScope, contextStepVars)
+			contextStepVars = config_utils.MergeMapsSelfRender(contextEnvVars, contextStepVars)
+			contextStepBuildScope := config_utils.MergeMapsSelfRender(buildScope, contextStepVars)
 			if err != nil {
 				return err
 			}
 			//scope = ozoneConfig.MergeMapsSelfRender(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
 			for _, step := range cs.Steps {
-				stepVars := ozoneConfig.MergeMapsSelfRender(step.WithVars, contextStepBuildScope)
-				stepVars = ozoneConfig.MergeMapsSelfRender(contextStepVars, stepVars)
+				stepVars := config_utils.MergeMapsSelfRender(step.WithVars, contextStepBuildScope)
+				stepVars = config_utils.MergeMapsSelfRender(contextStepVars, stepVars)
 
 				fmt.Printf("Step: %s \n", step.Name)
 

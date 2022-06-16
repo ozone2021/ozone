@@ -1,9 +1,10 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/env"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -26,21 +27,21 @@ type ContextInfo struct {
 }
 
 type Include struct {
-	Name     string            `yaml:"name"`
-	WithVars map[string]string `yaml:"with_vars"`
-	Type     string            `yaml:"type"`
+	Name     string                              `yaml:"name"`
+	WithVars map[string]config_variable.Variable `yaml:"with_vars"`
+	Type     string                              `yaml:"type"`
 }
 
 type Environment struct {
-	Name     string            `yaml:"name"`
-	WithVars map[string]string `yaml:"with_vars"`
-	Includes []*Include        `yaml:"include"`
+	Name     string                              `yaml:"name"`
+	WithVars map[string]config_variable.Variable `yaml:"with_vars"`
+	Includes []*Include                          `yaml:"include"`
 }
 
 type Step struct {
-	Type     string            `yaml:"type"`
-	Name     string            `yaml:"name"`
-	WithVars map[string]string `yaml:"with_vars"`
+	Type     string                              `yaml:"type"`
+	Name     string                              `yaml:"name"`
+	WithVars map[string]config_variable.Variable `yaml:"with_vars"`
 }
 
 type ContextStep struct {
@@ -67,59 +68,15 @@ type Runnable struct {
 }
 
 type OzoneConfig struct {
-	ProjectName   string              `yaml:"project"`
-	ContextInfo   ContextInfo         `yaml:"context"`
-	BuildVars     map[string]Variable `yaml:"build_vars"`
-	Environments  []*Environment      `yaml:"environments"`
-	PreUtilities  []*Runnable         `yaml:"pre_utilities"`
-	Builds        []*Runnable         `yaml:"builds"`
-	Deploys       []*Runnable         `yaml:"deploys"`
-	Tests         []*Runnable         `yaml:"tests"`
-	PostUtilities []*Runnable         `yaml:"post_utilities"`
-}
-
-type Variable interface {
-	SetValue(value interface{}) error
-	GetOrdinal() int
-	UnmarshalJSON(bytes []byte) error
-	Copy() Variable
-}
-
-type SingleVariable struct {
-	Value   string `yaml:"single_value"`
-	ordinal int    `yaml:"ordinal"`
-}
-
-func NewSingleVariable(value string, ordinal int) *SingleVariable {
-	return &SingleVariable{
-		Value:   value,
-		ordinal: ordinal,
-	}
-}
-
-func (v)
-
-func (v *SingleVariable) UnmarshalJSON(bytes []byte) error {
-	var value string
-	err := json.Unmarshal(bytes, &value)
-	if err != nil {
-		return err
-	}
-	v.Value = value
-	return nil
-}
-
-func (v *SingleVariable) SetValue(value interface{}) error {
-	stringValue, ok := value.(string)
-	if !ok {
-		return errors.New("Wasn't a string value in SingleVariable:SetValue")
-	}
-	v.Value = stringValue
-	return nil
-}
-
-type ListVariable struct {
-	Value []string `yaml:"list_value"`
+	ProjectName   string                              `yaml:"project"`
+	ContextInfo   ContextInfo                         `yaml:"context"`
+	BuildVars     map[string]config_variable.Variable `yaml:"build_vars"`
+	Environments  []*Environment                      `yaml:"environments"`
+	PreUtilities  []*Runnable                         `yaml:"pre_utilities"`
+	Builds        []*Runnable                         `yaml:"builds"`
+	Deploys       []*Runnable                         `yaml:"deploys"`
+	Tests         []*Runnable                         `yaml:"tests"`
+	PostUtilities []*Runnable                         `yaml:"post_utilities"`
 }
 
 func (config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
@@ -189,18 +146,19 @@ func (config *OzoneConfig) ListHasRunnableOfType(name string, runnables []*Runna
 	return false, nil
 }
 
-func (config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) (map[string]string, error) {
+func (config *OzoneConfig) fetchEnv(ordinal int, envName string, scopeMap map[string]config_variable.Variable) (map[string]config_variable.Variable, error) {
+	ordinal++
 	nameFound := false
-	varsMap := make(map[string]string)
+	varsMap := make(map[string]config_variable.Variable)
 	for _, e := range config.Environments {
 		if e.Name == envName {
 			nameFound = true
 			if len(e.Includes) != 0 {
 				for _, incl := range e.Includes {
-					var inclVarsMap map[string]string
+					var inclVarsMap map[string]config_variable.Variable
 					var err error
 					if incl.Type == "builtin" {
-						inclParamVarsMap := MergeMapsSelfRender(incl.WithVars, scopeMap)
+						inclParamVarsMap := config_utils.MergeMapsSelfRender(ordinal, incl.WithVars, scopeMap)
 						inclVarsMap, err = config.fetchBuiltinEnvFromInclude(incl.Name, inclParamVarsMap)
 						if err != nil {
 							return nil, err
@@ -212,13 +170,13 @@ func (config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) 
 						}
 					}
 
-					inclVarsRendered := RenderNoMerge(inclVarsMap, scopeMap)
-					varsMap = MergeMapsSelfRender(varsMap, inclVarsRendered)
+					inclVarsRendered := config_utils.RenderNoMerge(inclVarsMap, scopeMap)
+					varsMap = config_utils.MergeMapsSelfRender(varsMap, inclVarsRendered)
 				}
 			}
-			renderedEnvVars := RenderNoMerge(e.WithVars, scopeMap)
+			renderedEnvVars := config_utils.RenderNoMerge(e.WithVars, scopeMap)
 
-			varsMap = MergeMapsSelfRender(varsMap, renderedEnvVars)
+			varsMap = config_utils.MergeMapsSelfRender(varsMap, renderedEnvVars)
 		}
 	}
 	if nameFound == false {
@@ -228,9 +186,9 @@ func (config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) 
 	return varsMap, nil
 }
 
-func (config *OzoneConfig) fetchBuiltinEnvFromInclude(envName string, varsMap map[string]string) (map[string]string, error) {
+func (config *OzoneConfig) fetchBuiltinEnvFromInclude(envName string, varsMap map[string]config_variable.Variable) (map[string]config_variable.Variable, error) {
 	var err error
-	fromIncludeMap := make(map[string]string)
+	fromIncludeMap := make(map[string]config_variable.Variable)
 
 	switch envName {
 	case "env/from_k8s_secret_file":
@@ -254,18 +212,22 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(envName string, varsMap ma
 	return fromIncludeMap, nil
 }
 
-func (config *OzoneConfig) FetchEnvs(envList []string, scope map[string]string) (map[string]string, error) {
-	varsMap := make(map[string]string)
+func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope map[string]config_variable.Variable) (map[string]config_variable.Variable, error) {
+	varsMap := make(map[string]config_variable.Variable)
 
 	for _, env := range envList {
-		env = renderVars(env, scope)
-		fetchedMap, err := config.fetchEnv(env, scope)
+		renderedEnv, err := config_variable.RenderSingleString(env, scope)
 		if err != nil {
 			return nil, err
 		}
-		varsMap = MergeMapsSelfRender(varsMap, fetchedMap)
+
+		fetchedMap, err := config.fetchEnv(ordinal, renderedEnv, scope)
+		if err != nil {
+			return nil, err
+		}
+		varsMap = config_utils.MergeMapsSelfRender(ordinal, varsMap, fetchedMap)
 	}
-	varsMap = RenderNoMerge(varsMap, scope)
+	varsMap = config_utils.RenderNoMerge(ordinal, varsMap, scope)
 	return varsMap, nil
 }
 

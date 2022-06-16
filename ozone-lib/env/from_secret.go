@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/mitchellh/go-homedir"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -13,10 +14,10 @@ type k8sSecret struct {
 	stringData map[string]string `yaml:"stringData"`
 }
 
-func FromSecretFile(varsParamMap map[string]string) (map[string]string, error) {
-	varsMap := make(map[string]string)
+func FromSecretFile(ordinal int, varsParamMap map[string]config_variable.Variable) (map[string]config_variable.Variable, error) {
+	varsMap := make(map[string]config_variable.Variable)
 
-	secretFile, ok := varsParamMap["SECRET_FILE"]
+	secretFile, ok := varsParamMap["SECRET_FILE"].GetValue().(string)
 	if ok && secretFile != "" {
 		expandedSecretFile, err := homedir.Expand(secretFile)
 		if err != nil {
@@ -40,7 +41,7 @@ func FromSecretFile(varsParamMap map[string]string) (map[string]string, error) {
 			strKey := fmt.Sprintf("%v", key)
 			strValue := fmt.Sprintf("%v", value)
 
-			varsMap[strKey] = strValue
+			varsMap[strKey] = config_variable.NewSingleVariable(strValue, ordinal)
 		}
 	} else {
 		log.Fatalln("K8s/from_secret needs env var SECRET_FILE")
