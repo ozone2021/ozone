@@ -1,5 +1,7 @@
 package process_manager
 
+import . "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
+
 type ProcessCreateQuery struct {
 	Name              string
 	ProcessWorkingDir string
@@ -7,7 +9,7 @@ type ProcessCreateQuery struct {
 	Cmd               string
 	Synchronous       bool
 	IgnoreError       bool
-	Env               map[string]string
+	Env               VariableMap
 }
 
 type DebugQuery struct {

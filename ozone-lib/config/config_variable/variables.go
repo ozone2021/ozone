@@ -3,18 +3,65 @@ package config_variable
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/flosch/pongo2/v4"
+	"log"
+	"strings"
 )
 
-type Variable[T VariableDataFormats] interface {
-	SetValue(value T)
-	GetValue() T
-	GetOrdinal() int
-	Copy() *GenVariable[T]
-	UnmarshalJSON(bytes []byte) error
+type VariableMap map[string]interface{}
+
+func (vm *VariableMap) Explode() []string {
+	var output []string
+
+	for _, variable := range *vm {
+		iface := any(variable)
+		switch variable.(type) {
+		case *GenVariable[string]:
+			genvar := iface.(*GenVariable[string])
+			output = append(output, genvar.GetValue())
+		case *GenVariable[[]string]:
+			genvar := iface.(*GenVariable[[]string])
+
+			for _, i := range genvar.GetValue() {
+				output = append(output, i)
+			}
+		}
+	}
+
+	return output
 }
 
-type GenVariable[T VariableDataFormats, GenericVarType GenVarType] struct {
+// Must set ordinal first.
+func (vm *VariableMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var yamlObj map[string]interface{}
+	if err := unmarshal(&yamlObj); err != nil {
+		return err
+	}
+
+	log.Println(yamlObj)
+
+	(*vm) = make(VariableMap)
+
+	for name, value := range yamlObj {
+		switch x := value.(type) {
+		case string:
+			stringVal, _ := value.(string)
+			(*vm)[name] = NewGenVariable[string](stringVal, 0)
+		case []interface{}:
+			var stringSlice []string
+			for _, item := range x {
+				stringVal, _ := item.(string)
+				stringSlice = append(stringSlice, stringVal)
+			}
+			(*vm)[name] = NewGenVariable[[]string](stringSlice, 0)
+		}
+	}
+
+	return nil
+}
+
+type GenVariable[T VariableDataFormats] struct {
 	value   T   `yaml:"value"`
 	ordinal int `yaml:"ordinal"`
 }
@@ -48,7 +95,43 @@ func (v *GenVariable[T]) Copy() *GenVariable[T] {
 	}
 }
 
-func NewGenVariable[T](value T, ordinal int) *GenVariable[T] {
+func InterfaceToGenvar[Genvar GenVarType](iface interface{}) Genvar {
+	switch iface.(type) {
+	case *GenVariable[string]:
+		return iface.(Genvar)
+	case *GenVariable[[]string]:
+		return iface.(Genvar)
+	}
+	return nil
+}
+
+func GenVarToString(varMap VariableMap, key string) (string, error) {
+	genvarInterface, ok := varMap[key]
+
+	if !ok {
+		return "", nil
+	}
+
+	genvar, ok := genvarInterface.(*GenVariable[string])
+
+	if !ok {
+		return "", errors.New(fmt.Sprintf("Key %s not a string value", key))
+	}
+
+	return genvar.GetValue(), nil
+}
+
+func GenVarToFstring(varMap VariableMap, key string, format string) (string, error) {
+	varString, err := GenVarToString(varMap, key)
+
+	if err != nil {
+		return "", nil
+	}
+
+	return fmt.Sprintf(format, varString), nil
+}
+
+func NewGenVariable[T VariableDataFormats](value T, ordinal int) *GenVariable[T] {
 	return &GenVariable[T]{
 		value:   value,
 		ordinal: ordinal,
@@ -61,82 +144,57 @@ type VariableDataFormats interface {
 
 type GenVarType interface {
 	*GenVariable[string] | *GenVariable[[]string]
+	GetOrdinal() int
 }
 
-func RenderVariable[variableType GenVarType](variable variableType, varsMap map[string]Variable) error {
-	switch interface{}(variable).(type) {
-	case *GenVariable[string]:
-		val, ok := variable.(*GenVariable[string])
-		if !ok {
-			return errors.New("Should be string")
-		}
-		renderedValue, err := RenderSingleString(val.GetValue(), varsMap)
+func (v *GenVariable[T]) Render(varsMap VariableMap) (*GenVariable[T], error) {
+	var ret T
+	switch val := any(&ret).(type) {
+	case *string:
+		asStringGen := any(v).(*GenVariable[string])
+		renderedValue, err := RenderSingleString(asStringGen.GetValue(), varsMap)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		val.SetValue(renderedValue)
-
-	case *GenVariable[[]string]:
-		castVar, ok := variable.(*GenVariable[[]string])
-		if !ok {
-			return errors.New("Should be string array")
-		}
+		asStringGen.SetValue(renderedValue)
+	case *[]string:
 		var newArray []string
 
-		for _, listItem := range castVar.GetValue() {
-			newItem, err := RenderSingleString(listItem, varsMap)
+		for key, item := range *val {
+			var err error
+			newArray[key], err = RenderSingleString(item, varsMap)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			newArray = append(newArray, newItem)
 		}
-		castVar.SetValue(newArray)
-		return nil
+		asStringGen := any(v).(*GenVariable[[]string])
+		asStringGen.SetValue(newArray)
 	default:
-		return errors.New("Unknown type in variable render.")
+		return nil, errors.New("Unknown type in variable render.")
 	}
 
-	return errors.New("Unknown type in variable render.")
+	return v, nil
 }
 
-//func (v *GenVariable[T]) RenderVariable(varsMap map[string]Variable) (Variable, error) {
-//	switch v.GetVarType() {
-//	case StringType:
-//		//val, ok := v.GetValue()
-//		//if !ok {
-//		//	return nil, errors.New("Should be string")
-//		//}
-//		val := v.GetValue()
-//		renderedValue, err := RenderSingleString(val, varsMap)
-//		if err != nil {
-//			return nil, err
-//		}
-//		v.SetValue(renderedValue)
-//
-//	case GenVariable[[]string]:
-//		var newArray []string
-//
-//		for k, v := range varsMap {
-//			newArray[k] = RenderSingleString(v.GetValue(), varsMap)
-//		}
-//		v.Value = newArray
-//	default:
-//		return nil, errors.New("Unknown type in variable render.")
-//	}
-//
-//	return nil, errors.New("Unknown type in variable render.")
-//}
-
-func convertMap(originalMap interface{}) pongo2.Context {
+// TODO this is where we convert the lists to exploded semi colons.
+// Normal env vars go straight across.
+func convertMap(originalMap VariableMap) pongo2.Context {
 	convertedMap := make(map[string]interface{})
-	for key, variable := range originalMap.(map[string]Variable) {
-		convertedMap[key] = variable.GetValue() // TODO does this break for arrays?
+	for key, variable := range originalMap {
+		switch variable.(type) {
+		case *GenVariable[string]:
+			genVar := variable.(*GenVariable[string])
+			convertedMap[key] = genVar.GetValue()
+		case *GenVariable[[]string]:
+			genVar := variable.(*GenVariable[[]string])
+			convertedMap[key] = strings.Join(genVar.GetValue(), ";")
+		}
 	}
 
 	return convertedMap
 }
 
-func RenderSingleString(input string, varsMap map[string]Variable) (string, error) {
+func RenderSingleString(input string, varsMap VariableMap) (string, error) {
 	tpl, err := pongo2.FromString(input)
 	if err != nil {
 		return "", err

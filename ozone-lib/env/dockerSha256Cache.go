@@ -2,19 +2,20 @@ package env
 
 import (
 	"fmt"
+	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"gopkg.in/src-d/go-git.v4"
 	"log"
 	"regexp"
 	"strings"
 )
 
-func DockerTagFromSha256(varsParamMap map[string]string) (map[string]string, error) {
-	dirPath := varsParamMap["ROOT_DIR"]
-	if dirPath == "" {
+func DockerTagFromSha256(varsParamMap VariableMap) (VariableMap, error) {
+	dirPath, err := GenVarToString(varsParamMap, "ROOT_DIR")
+	if err != nil {
 		dirPath = "./"
 	}
 
-	varsMap := make(map[string]string)
+	varsMap := make(VariableMap)
 
 	repo, err := git.PlainOpen(dirPath)
 	if err != nil {
@@ -26,8 +27,8 @@ func DockerTagFromSha256(varsParamMap map[string]string) (map[string]string, err
 		return nil, err
 	}
 
-	branchName, ok := varsParamMap["GIT_BRANCH"]
-	if !ok || branchName == "{{GIT_BRANCH}}" {
+	branchName, err := GenVarToString(varsParamMap, "GIT_BRANCH")
+	if err == nil || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
 	}
 	branchName = strings.TrimPrefix(branchName, "refs/heads/")

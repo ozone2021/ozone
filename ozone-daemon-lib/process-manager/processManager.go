@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/TwiN/go-color"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"io"
 	"io/ioutil"
 	"log"
@@ -330,7 +331,7 @@ func (pm *ProcessManager) handleAsynchronous(
 	name string,
 	cmd *exec.Cmd,
 	logFile *os.File,
-	env map[string]string,
+	env config_variable.VariableMap,
 	ozoneWorkingDirectory string,
 	ignoreErr bool) error {
 
@@ -362,7 +363,11 @@ func (pm *ProcessManager) handleAsynchronous(
 	}
 	fmt.Printf("NONBLOCKING \n")
 
-	port, err := strconv.ParseInt(env["PORT"], 10, 64)
+	portString, err := config_variable.GenVarToString(env, "PORT")
+	if err != nil {
+		return err
+	}
+	port, err := strconv.ParseInt(portString, 10, 64)
 	if err != nil {
 		return err
 	}

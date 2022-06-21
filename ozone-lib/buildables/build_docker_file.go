@@ -3,6 +3,7 @@ package buildables
 import (
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"os"
@@ -11,7 +12,7 @@ import (
 
 func getParams() []string {
 	return []string{
-		"DIR",
+		//"DIR",
 		"DOCKER_FULL_TAG",
 		"SERVICE",
 		//"DOCKER_BUILD_DIR",
@@ -20,33 +21,26 @@ func getParams() []string {
 	}
 }
 
-func BuildDockerContainer(varsMap map[string]string) error {
+func BuildDockerContainer(varsMap VariableMap) error {
 	for _, arg := range getParams() {
 		if err := utils.ParamsOK("BuildDockerContainer", arg, varsMap); err != nil {
 			return err
 		}
 	}
 
-	dockerBuildDir, ok := varsMap["DOCKER_BUILD_DIR"]
-	if !ok {
-		dockerBuildDir = varsMap["OZONE_WORKING_DIR"]
+	dockerBuildDir, err := GenVarToString(varsMap, "DOCKER_BUILD_DIR")
+	if err != nil {
+		dockerBuildDir, _ = GenVarToString(varsMap, "OZONE_WORKING_DIR")
 	}
-	sourceDir := varsMap["DIR"]
-	cmdCallDir := varsMap["OZONE_WORKING_DIR"]
-	tag := varsMap["DOCKER_FULL_TAG"]
+	sourceDirArg, _ := GenVarToFstring(varsMap, "DIR", "--build-arg DIR=%s")
 
-	buildArgs, ok := varsMap["DOCKER_BUILD_ARGS"]
-	if !ok {
-		buildArgs = ""
-	}
-	buildArgs = fmt.Sprintf("%s --build-arg DIR=%s", buildArgs, sourceDir)
+	cmdCallDir, _ := GenVarToString(varsMap, "OZONE_WORKING_DIR")
+	tag, _ := GenVarToString(varsMap, "DOCKER_FULL_TAG")
 
-	dockerfilePath, ok := varsMap["DOCKERFILE"]
-	if ok {
-		dockerfilePath = fmt.Sprintf("-f %s", dockerfilePath)
-	} else {
-		dockerfilePath = ""
-	}
+	buildArgs, _ := GenVarToString(varsMap, "DOCKER_BUILD_ARGS")
+	buildArgs = fmt.Sprintf("%s %s", buildArgs, sourceDirArg)
+
+	dockerfilePath, _ := GenVarToFstring(varsMap, "DOCKERFILE", "-f %s")
 
 	cmdString := fmt.Sprintf("docker build -t %s %s %s %s",
 		tag,
@@ -62,7 +56,7 @@ func BuildDockerContainer(varsMap map[string]string) error {
 	cmd.Dir = cmdCallDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		fmt.Println("build docker err")
 		return err

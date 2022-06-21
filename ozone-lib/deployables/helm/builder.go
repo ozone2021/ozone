@@ -3,6 +3,7 @@ package helm
 import (
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"os"
@@ -18,7 +19,7 @@ func getHelmParams() []string {
 	}
 }
 
-func Deploy(serviceName string, env map[string]string) error {
+func Deploy(serviceName string, env config_variable.VariableMap) error {
 	for _, arg := range getHelmParams() {
 		if err := utils.ParamsOK("helmChart", arg, env); err != nil {
 			return err

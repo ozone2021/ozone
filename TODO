@@ -15,3 +15,6 @@ Overriding context env var from with_var of calling runnable doesn't override.
 
 
 Version check on Ozonefile.
+
+Variadic GenericVar. []string data structure for all. Single items just spit out normal, multiples spit out with semi-colon
+delimiter.

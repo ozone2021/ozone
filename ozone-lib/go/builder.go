@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"log"
 	"os"
 )
 
-
-
-func Build(serviceName string, relativeDir string, file string, varsMap map[string]string) error {
+func Build(serviceName string, relativeDir string, file string, varsMap config_variable.VariableMap) error {
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
@@ -29,7 +28,7 @@ func Build(serviceName string, relativeDir string, file string, varsMap map[stri
 		varsMap,
 	}
 
-	if err := process_manager_client.AddProcess(query); err != nil{
+	if err := process_manager_client.AddProcess(query); err != nil {
 		return err
 	}
 	return nil

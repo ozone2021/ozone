@@ -3,6 +3,7 @@ package env
 import (
 	"encoding/base64"
 	"fmt"
+	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"gopkg.in/src-d/go-git.v4"
 	"log"
@@ -10,13 +11,14 @@ import (
 	"strings"
 )
 
-func StaticFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string, error) {
-	dirPath := varsParamMap["ROOT_DIR"]
+func StaticFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, error) {
+	dirPath, err := GenVarToString(varsParamMap, "ROOT_DIR")
+
 	if dirPath == "" {
 		dirPath = "./"
 	}
 
-	varsMap := make(map[string]string)
+	varsMap := make(VariableMap)
 
 	repo, err := git.PlainOpen(dirPath)
 	if err != nil {
@@ -28,8 +30,8 @@ func StaticFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]
 		return nil, err
 	}
 
-	branchName, ok := varsParamMap["GIT_BRANCH"]
-	if !ok || branchName == "{{GIT_BRANCH}}" {
+	branchName, err := GenVarToString(varsParamMap, "GIT_BRANCH")
+	if err != nil || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
 	}
 	branchName = strings.TrimPrefix(branchName, "refs/heads/")
@@ -47,13 +49,14 @@ func StaticFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]
 
 }
 
-func DynamicFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string]string, error) {
-	dirPath := varsParamMap["ROOT_DIR"]
-	if dirPath == "" {
+func DynamicFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, error) {
+
+	dirPath, err := GenVarToString(varsParamMap, "ROOT_DIR")
+	if err != nil {
 		dirPath = "./"
 	}
 
-	varsMap := make(map[string]string)
+	varsMap := make(VariableMap)
 
 	repo, err := git.PlainOpen(dirPath)
 	if err != nil {
@@ -65,8 +68,8 @@ func DynamicFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string
 		return nil, err
 	}
 
-	branchName, ok := varsParamMap["GIT_BRANCH"]
-	if !ok || branchName == "{{GIT_BRANCH}}" {
+	branchName, err := GenVarToString(varsParamMap, "GIT_BRANCH")
+	if err != nil || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
 	}
 	log.Printf("Branchname %s \n", branchName)
@@ -83,7 +86,7 @@ func DynamicFromGitDirBranchNameHash(varsParamMap map[string]string) (map[string
 	return varsMap, nil
 }
 
-func GitSubmoduleHash(varsParamMap map[string]string) (map[string]string, error) {
+func GitSubmoduleHash(varsParamMap VariableMap) (VariableMap, error) {
 	for _, arg := range []string{
 		"DOCKER_REGISTRY",
 		"DIR",
@@ -94,10 +97,13 @@ func GitSubmoduleHash(varsParamMap map[string]string) (map[string]string, error)
 		}
 	}
 	dockerRegistry := varsParamMap["DOCKER_REGISTRY"]
-	dirPath := varsParamMap["DIR"]
+	dirPath, err := GenVarToString(varsParamMap, "DIR")
+	if err != nil {
+		dirPath = "./"
+	}
 	serviceName := varsParamMap["SERVICE"]
 
-	varsMap := make(map[string]string)
+	varsMap := make(VariableMap)
 
 	repo, err := git.PlainOpen(dirPath)
 	if err != nil {
