@@ -65,6 +65,5 @@ func TestGetOrdinal(t *testing.T) {
 
 	log.Println(stringOrd)
 	log.Println(sliceOrd)
-	log.Println(interOrd)
 
 }

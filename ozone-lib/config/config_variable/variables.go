@@ -178,7 +178,7 @@ func (v *GenVariable[T]) Render(varsMap VariableMap) (*GenVariable[T], error) {
 
 // TODO this is where we convert the lists to exploded semi colons.
 // Normal env vars go straight across.
-func convertMap(originalMap VariableMap) pongo2.Context {
+func ConvertMap(originalMap VariableMap) pongo2.Context {
 	convertedMap := make(map[string]interface{})
 	for key, variable := range originalMap {
 		switch variable.(type) {
@@ -199,7 +199,7 @@ func RenderSingleString(input string, varsMap VariableMap) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	context := convertMap(varsMap)
+	context := ConvertMap(varsMap)
 	out, err := tpl.Execute(context)
 	if err != nil {
 		return "", err
