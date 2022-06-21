@@ -25,3 +25,5 @@ go get -u github.com/ozone2021/ozone/ozone
 docker build . -t ozone-daemon-base --progress plain -f Dockerfile.base
 docker rm -f ozone-daemon; docker build . -t ozone-daemon --progress plain && docker exec -it (docker run --user root --restart=always -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon) /bin/sh
 
+ga -A; gc "Latest."; git tag -d 1.2 && git push --delete origin 1.2; git tag 1.2; git push --tags
+go install  github.com/ozone2021/ozone/ozone@1.2
