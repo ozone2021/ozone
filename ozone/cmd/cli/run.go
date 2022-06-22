@@ -117,11 +117,11 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		buildScope["CACHE_HASH_ENTIRE"] = config_variable.NewGenVariable[string](cacheHash, ordinal)
 	}
 
+	figure.NewFigure(runnable.Name, "doom", true).Print()
 	if runnable.Type == ozoneConfig.BuildType && checkCache(runnable) == true {
 		log.Printf("Info: build files for %s unchanged from cache. \n", runnable.Name)
 		return nil
 	}
-	figure.NewFigure(runnable.Name, "doom", true).Print()
 
 	contextEnvVars := make(config_variable.VariableMap)
 	for _, contextEnv := range runnable.ContextEnv {
