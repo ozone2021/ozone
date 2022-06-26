@@ -8,7 +8,7 @@ import (
 
 func ParamsOK(runnable string, varName string, varsMap config_variable.VariableMap) error {
 	param, ok := varsMap[varName]
-	if !ok || param == "" { // TODO cast
+	if !ok || param.ToString() == "" { // TODO cast
 		return fmt.Errorf("Var %s not present for %s \n", varName, runnable)
 	}
 	return nil

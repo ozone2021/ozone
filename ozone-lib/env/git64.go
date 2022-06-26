@@ -51,12 +51,11 @@ func StaticFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, erro
 
 }
 
-func DynamicFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, error) {
+func DynamicFromGitDirBranchNameHash(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
+	dirPath := "./"
 	dirPathVar, ok := varsParamMap["GIT_DIR"]
-	dirPath := dirPathVar.ToString()
-
-	if !ok {
-		dirPath = "./"
+	if ok {
+		dirPath = dirPathVar.ToString()
 	}
 
 	varsMap := make(VariableMap)
@@ -84,8 +83,8 @@ func DynamicFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, err
 	if len([]byte(git64Hash)) > 12 {
 		namespace = strings.ToLower(git64Hash)[:12]
 	}
-	varsMap["NAMESPACE"].SetStringValue(namespace)
-	varsMap["SUBDOMAIN"].SetStringValue(fmt.Sprintf("%s.", namespace))
+	varsMap["NAMESPACE"] = NewStringVariable(namespace, ordinal)
+	varsMap["SUBDOMAIN"] = NewStringVariable(fmt.Sprintf("%s.", namespace), ordinal)
 
 	return varsMap, nil
 }

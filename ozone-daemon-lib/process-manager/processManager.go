@@ -3,6 +3,7 @@ package process_manager
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/TwiN/go-color"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
@@ -363,11 +364,12 @@ func (pm *ProcessManager) handleAsynchronous(
 	}
 	fmt.Printf("NONBLOCKING \n")
 
-	portString, err := config_variable.GenVarToString(env, "PORT")
-	if err != nil {
-		return err
+	portStringVar, ok := env["PORT"]
+	if !ok {
+		return errors.New("PORT needed")
 	}
-	port, err := strconv.ParseInt(portString, 10, 64)
+
+	port, err := strconv.ParseInt(portStringVar.ToString(), 10, 64)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package env
 
 import (
+	"errors"
 	"github.com/joho/godotenv"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 )
@@ -14,17 +15,18 @@ func mapToVariableMap(ordinal int, envFile ...string) (VariableMap, error) {
 
 	varsMap := make(VariableMap)
 	for k, v := range varsMapStringString {
-		varsMap[k] = NewGenVariable(v, ordinal)
+		varsMap[k] = NewStringVariable(v, ordinal)
 	}
 
 	return varsMap, nil
 }
 
 func FromEnvFile(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
-	envFile, genErr := GenVarToString(varsParamMap, "ENV_FILE")
+	envFile, ok := varsParamMap["ENV_FILE"]
 
-	if genErr != nil {
-		return mapToVariableMap(ordinal)
+	if !ok {
+		return nil, errors.New("ENV_FILE needed.")
 	}
-	return mapToVariableMap(ordinal, envFile)
+
+	return mapToVariableMap(ordinal, envFile.ToString())
 }

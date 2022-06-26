@@ -81,8 +81,8 @@ func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, contex
 	ordinal := 1
 
 	topLevelScope := config_utils.CopyVariableMap(*config.BuildVars)
-	topLevelScope["CONTEXT"] = config_variable.NewGenVariable[string](context, ordinal)
-	topLevelScope["OZONE_WORKING_DIR"] = config_variable.NewGenVariable[string](ozoneWorkingDir, ordinal)
+	topLevelScope["CONTEXT"] = config_variable.NewStringVariable(context, ordinal)
+	topLevelScope["OZONE_WORKING_DIR"] = config_variable.NewStringVariable(ozoneWorkingDir, ordinal)
 
 	for _, b := range builds {
 		err := runIndividual(b, ordinal, context, config, topLevelScope)
@@ -97,18 +97,22 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 
 	buildScope := config_utils.CopyVariableMap(topLevelScope)
 	if runnable.Service != "" {
-		buildScope["SERVICE"] = config_variable.NewGenVariable[string](runnable.Service, ordinal)
+		buildScope["SERVICE"] = config_variable.NewStringVariable(runnable.Service, ordinal)
 	}
 	if runnable.Dir != "" {
-		buildScope["DIR"] = config_variable.NewGenVariable[string](runnable.Dir, ordinal)
+		buildScope["DIR"] = config_variable.NewStringVariable(runnable.Dir, ordinal)
 	}
-	buildScope["NAME"] = config_variable.NewGenVariable[string](runnable.Name, ordinal)
-	buildScope[config_keys.SOURCE_FILES_KEY] = config_variable.NewGenVariable[[]string](runnable.SourceFiles, ordinal)
+	buildScope["NAME"] = config_variable.NewStringVariable(runnable.Name, ordinal)
+	buildScope[config_keys.SOURCE_FILES_KEY] = config_variable.NewSliceVariable(runnable.SourceFiles, ordinal)
 	buildScope = config_utils.RenderNoMerge(ordinal, buildScope, topLevelScope)
 
 	// TODO add support for list variables.
 	for k, fileName := range runnable.WhenChanged {
-		runnable.WhenChanged[k] = config_utils.RenderSentence(fileName, buildScope)
+		var err error
+		runnable.WhenChanged[k], err = config_variable.RenderSentence(fileName, buildScope)
+		if err != nil {
+			return err
+		}
 	}
 
 	if hasCaching(runnable) {
@@ -116,7 +120,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		if err != nil {
 			return err
 		}
-		buildScope["CACHE_HASH_ENTIRE"] = config_variable.NewGenVariable[string](cacheHash, ordinal)
+		buildScope["CACHE_HASH_ENTIRE"] = config_variable.NewStringVariable(cacheHash, ordinal)
 	}
 
 	figure.NewFigure(runnable.Name, "doom", true).Print()

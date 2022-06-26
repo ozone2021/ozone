@@ -200,9 +200,9 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 	case "env/from_env_file":
 		fromIncludeMap, err = env.FromEnvFile(ordinal, varsMap)
 	case "env/git_log_hash":
-		fromIncludeMap, err = git_env.GitLogHash(varsMap)
+		fromIncludeMap, err = git_env.GitLogHash(ordinal, varsMap)
 	case "env/git_directory_branch_hash":
-		fromIncludeMap, err = env.DynamicFromGitDirBranchNameHash(varsMap)
+		fromIncludeMap, err = env.DynamicFromGitDirBranchNameHash(ordinal, varsMap)
 	case "env/git_directory_branch_static":
 		fromIncludeMap, err = env.StaticFromGitDirBranchNameHash(varsMap)
 	case "env/git_submodule_commit_hash":
@@ -270,7 +270,7 @@ func ReadConfig() *OzoneConfig {
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, osEnv)
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
 
-	//err = config_utils.RenderFilters(ozoneConfig.BuildVars) TODO needed?
+	err = ozoneConfig.BuildVars.RenderFilters()
 
 	if err != nil {
 		log.Fatalln(err)

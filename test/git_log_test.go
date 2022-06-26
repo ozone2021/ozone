@@ -10,9 +10,9 @@ import (
 
 func TestGitLog(t *testing.T) {
 
-	varsMap := make(map[string]interface{})
-	genVarDir := config_variable.NewGenVariable[string](".", 1)
-	genVarFiles := config_variable.NewGenVariable[[]string]([]string{"docs", "README.md"}, 1)
+	varsMap := make(config_variable.VariableMap)
+	genVarDir := config_variable.NewStringVariable(".", 1)
+	genVarFiles := config_variable.NewSliceVariable([]string{"docs", "README.md"}, 1)
 
 	varsMap["GIT_DIR"] = genVarDir
 	varsMap[config_keys.SOURCE_FILES_KEY] = genVarFiles

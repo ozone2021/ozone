@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type VariableMap map[string]Variable
+type VariableMap map[string]*Variable
 
 const VariablePattern = `\{\{\s*([^}|\s]*)\s*(\s*\\|\s*[^}]*)?\s*\}\}`
 const WhiteSpace = `\S(\s+)`
@@ -72,32 +72,36 @@ const (
 )
 
 type Variable struct {
-	value []string `yaml:"value"`
-	VarType
+	value   []string `yaml:"value"`
+	varType VarType
 	ordinal int `yaml:"ordinal"`
 }
 
-func NewStringVariable(value string, ordinal int) Variable {
-	return Variable{
+func NewStringVariable(value string, ordinal int) *Variable {
+	return &Variable{
 		value:   []string{value},
-		VarType: StringType,
+		varType: StringType,
 		ordinal: ordinal,
 	}
 }
 
-func NewSliceVariable(value []string, ordinal int) Variable {
-	return Variable{
+func NewSliceVariable(value []string, ordinal int) *Variable {
+	return &Variable{
 		value:   value,
-		VarType: SliceType,
+		varType: SliceType,
 		ordinal: ordinal,
 	}
 }
 
-func (v Variable) ToString() string {
+func (v *Variable) GetVarType() VarType {
+	return v.varType
+}
+
+func (v *Variable) ToString() string {
 	return v.Fstring("%s")
 }
 
-func (v Variable) Fstring(format string, seperators ...string) string {
+func (v *Variable) Fstring(format string, seperators ...string) string {
 	separator := ""
 	switch len(seperators) {
 	case 0:
@@ -107,8 +111,14 @@ func (v Variable) Fstring(format string, seperators ...string) string {
 	default:
 		log.Fatalln("Either one seperator or none must be passed.")
 	}
-	switch v.VarType {
+	if v == nil {
+		log.Printf("here")
+	}
+	switch v.GetVarType() {
 	case StringType:
+		if len(v.value) == 0 {
+			return ""
+		}
 		return fmt.Sprintf(format, v.value[0])
 	case SliceType:
 		return strings.Join(v.GetSliceValue(), separator)
@@ -119,17 +129,17 @@ func (v Variable) Fstring(format string, seperators ...string) string {
 	return ""
 }
 
-//func(vm *VariableMap) RenderFilters() error {
-//	for _, variable := range *vm {
-//		emptyVarsMap := make(VariableMap)
-//		variable.Render(emptyVarsMap)
-//	}
-//
-//	return nil
-//}
+func (vm *VariableMap) RenderFilters() error {
+	for _, variable := range *vm {
+		emptyVarsMap := make(VariableMap)
+		variable.Render(emptyVarsMap)
+	}
 
-func (v Variable) Render(varsMap VariableMap) error {
-	switch v.VarType {
+	return nil
+}
+
+func (v *Variable) Render(varsMap VariableMap) error {
+	switch v.GetVarType() {
 	case StringType:
 		renderedValue, err := RenderSentence(v.GetStringValue(), varsMap)
 		if err != nil {
@@ -139,12 +149,12 @@ func (v Variable) Render(varsMap VariableMap) error {
 	case SliceType:
 		var newArray []string
 
-		for key, item := range v.GetSliceValue() {
-			var err error
-			newArray[key], err = RenderSentence(item, varsMap)
+		for _, item := range v.GetSliceValue() {
+			rendered, err := RenderSentence(item, varsMap)
 			if err != nil {
 				return err
 			}
+			newArray = append(newArray, rendered)
 		}
 		v.value = newArray
 	default:

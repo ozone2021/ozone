@@ -11,18 +11,19 @@ import (
 	"strings"
 )
 
-func GitLogHash(varsMap VariableMap) (VariableMap, error) {
-	dirPath, err := GenVarToString(varsMap, "GIT_DIR")
-	if err != nil {
-		dirPath = "./"
+func GitLogHash(ordinal int, varsMap VariableMap) (VariableMap, error) {
+	dirPath := "./"
+	dirPathVar, ok := varsMap["GIT_DIR"]
+	if ok {
+		dirPath = dirPathVar.ToString()
 	}
 
-	files, err := GenVarToSlice(varsMap, config_keys.SOURCE_FILES_KEY)
-	if err != nil {
-		return nil, errors.New("Source files must be list")
+	filesVar, ok := varsMap[config_keys.SOURCE_FILES_KEY]
+	if !ok {
+		return nil, errors.New("Source files must be set")
 	}
 
-	filesJoined := strings.Join(files, " ")
+	filesJoined := strings.Join(filesVar.GetSliceValue(), " ")
 
 	cmdString := fmt.Sprintf("git log -n 1 --pretty=format:%%H --  %s",
 		filesJoined,
@@ -41,7 +42,7 @@ func GitLogHash(varsMap VariableMap) (VariableMap, error) {
 		return nil, errors.New(fmt.Sprintf("No git hash, maybe some files don't exist / relative path issue?: %s", filesJoined))
 	}
 
-	varsMap["GIT_LOG_HASH"] = string(byteData)
+	varsMap["GIT_LOG_HASH"] = NewStringVariable(string(byteData), ordinal)
 
 	return varsMap, nil
 }
