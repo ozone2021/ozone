@@ -6,6 +6,7 @@ import (
 	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/env"
+	"github.com/ozone2021/ozone/ozone-lib/env/git_env"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -59,6 +60,7 @@ type Runnable struct {
 	Name        string   `yaml:"name"`
 	Service     string   `yaml:"service"`
 	Dir         string   `yaml:"dir"`
+	SourceFiles []string `yaml:"source_files"`
 	WhenChanged []string `yaml:"when_changed"`
 	Depends     []*Step  `yaml:"depends_on"`
 	//WithEnv     	[]string      	`yaml:"with_env"`
@@ -197,6 +199,8 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 		fromIncludeMap, err = env.FromSecret64(varsMap)
 	case "env/from_env_file":
 		fromIncludeMap, err = env.FromEnvFile(ordinal, varsMap)
+	case "env/git_log_hash":
+		fromIncludeMap, err = git_env.GitLogHash(varsMap)
 	case "env/git_directory_branch_hash":
 		fromIncludeMap, err = env.DynamicFromGitDirBranchNameHash(varsMap)
 	case "env/git_directory_branch_static":
@@ -217,7 +221,7 @@ func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope Variab
 	varsMap := make(VariableMap)
 
 	for _, env := range envList {
-		renderedEnv, err := RenderSingleString(env, scope)
+		renderedEnv, err := PongoRender(env, scope)
 		if err != nil {
 			return nil, err
 		}

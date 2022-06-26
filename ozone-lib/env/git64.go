@@ -86,6 +86,8 @@ func DynamicFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, err
 	return varsMap, nil
 }
 
+
+
 func GitSubmoduleHash(varsParamMap VariableMap) (VariableMap, error) {
 	for _, arg := range []string{
 		"DOCKER_REGISTRY",

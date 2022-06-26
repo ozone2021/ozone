@@ -9,7 +9,7 @@ import (
 )
 
 func ContextInPattern(context, pattern string, scope VariableMap) (bool, error) {
-	pattern, err := RenderSingleString(pattern, scope)
+	pattern, err := PongoRender(pattern, scope)
 	if err != nil {
 		return false, err
 	}

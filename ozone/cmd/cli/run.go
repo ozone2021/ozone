@@ -7,6 +7,7 @@ import (
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/ozone2021/ozone/ozone-lib/buildables"
 	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_keys"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/deployables/docker"
@@ -102,6 +103,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		buildScope["DIR"] = config_variable.NewGenVariable[string](runnable.Dir, ordinal)
 	}
 	buildScope["NAME"] = config_variable.NewGenVariable[string](runnable.Name, ordinal)
+	buildScope[config_keys.SOURCE_FILES_KEY] = config_variable.NewGenVariable[[]string](runnable.SourceFiles, ordinal)
 	buildScope = config_utils.RenderNoMerge(ordinal, buildScope, topLevelScope)
 
 	// TODO add support for list variables.
