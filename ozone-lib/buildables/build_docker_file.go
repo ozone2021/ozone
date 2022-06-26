@@ -28,19 +28,19 @@ func BuildDockerContainer(varsMap VariableMap) error {
 		}
 	}
 
-	dockerBuildDir, err := GenVarToString(varsMap, "DOCKER_BUILD_DIR")
-	if err != nil {
-		dockerBuildDir, _ = GenVarToString(varsMap, "OZONE_WORKING_DIR")
+	dockerBuildDir, ok := varsMap["DOCKER_BUILD_DIR"]
+	if !ok {
+		dockerBuildDir = varsMap["OZONE_WORKING_DIR"]
 	}
-	sourceDirArg, _ := GenVarToFstring(varsMap, "DIR", "--build-arg DIR=%s")
+	sourceDirArg := varsMap["DIR"].Fstring("--build-arg DIR=%s")
 
-	cmdCallDir, _ := GenVarToString(varsMap, "OZONE_WORKING_DIR")
-	tag, _ := GenVarToString(varsMap, "DOCKER_FULL_TAG")
+	cmdCallDir, _ := varsMap["OZONE_WORKING_DIR"]
+	tag, _ := varsMap["DOCKER_FULL_TAG"]
 
-	buildArgs, _ := GenVarToString(varsMap, "DOCKER_BUILD_ARGS")
+	buildArgs := varsMap["DOCKER_BUILD_ARGS"].ToString()
 	buildArgs = fmt.Sprintf("%s %s", buildArgs, sourceDirArg)
 
-	dockerfilePath, _ := GenVarToFstring(varsMap, "DOCKERFILE", "-f %s")
+	dockerfilePath := varsMap["DOCKERFILE"].Fstring("-f %s")
 
 	cmdString := fmt.Sprintf("docker build -t %s %s %s %s",
 		tag,
@@ -53,10 +53,10 @@ func BuildDockerContainer(varsMap VariableMap) error {
 
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
-	cmd.Dir = cmdCallDir
+	cmd.Dir = cmdCallDir.ToString()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
-	err = cmd.Run()
+	err := cmd.Run()
 	if err != nil {
 		fmt.Println("build docker err")
 		return err

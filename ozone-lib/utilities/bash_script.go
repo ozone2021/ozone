@@ -21,10 +21,7 @@ func RunBashScript(envVarMap config_variable.VariableMap) error {
 			return err
 		}
 	}
-	scriptPath, err := config_variable.GenVarToString(envVarMap, "SCRIPT")
-	if err != nil {
-		return err
-	}
+	scriptPath := envVarMap["SCRIPT"].ToString()
 	cmd := exec.Command("/bin/bash", scriptPath)
 
 	env := config_variable.ConvertMap(envVarMap)
@@ -40,7 +37,7 @@ func RunBashScript(envVarMap config_variable.VariableMap) error {
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	err := cmd.Run()
 
 	if err != nil {
 		return err

@@ -2,6 +2,7 @@ package env
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"github.com/mitchellh/go-homedir"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
@@ -17,10 +18,13 @@ type k8sSecret struct {
 func FromSecretFile(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
 	varsMap := make(VariableMap)
 
-	secretFile, err := GenVarToString(varsParamMap, "SECRET_FILE")
+	secretFile, ok := varsParamMap["SECRET_FILE"]
+	if !ok {
+		return nil, errors.New("Need SECRET_FILE")
+	}
 
-	if err == nil && secretFile != "" {
-		expandedSecretFile, err := homedir.Expand(secretFile)
+	if secretFile.ToString() != "" {
+		expandedSecretFile, err := homedir.Expand(secretFile.ToString())
 		if err != nil {
 			return nil, fmt.Errorf("Secret file error:  #%v \n", err)
 		}
@@ -42,8 +46,7 @@ func FromSecretFile(ordinal int, varsParamMap VariableMap) (VariableMap, error) 
 			strKey := fmt.Sprintf("%v", key)
 			strValue := fmt.Sprintf("%v", value)
 
-			genVar := NewGenVariable[string](strValue, ordinal)
-			varsMap[strKey] = genVar
+			varsMap[strKey] = NewStringVariable(strValue, ordinal)
 		}
 	} else {
 		log.Fatalln("K8s/from_secret needs env var SECRET_FILE")
@@ -51,17 +54,17 @@ func FromSecretFile(ordinal int, varsParamMap VariableMap) (VariableMap, error) 
 	return varsMap, nil
 }
 
-func FromSecret64(varsParamMap VariableMap) (VariableMap, error) {
+func FromSecret64(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
 	varsMap := make(VariableMap)
 
-	secret64, err := GenVarToString(varsParamMap, "SECRET_BASE64")
-	if err != nil {
-		log.Fatalln("K8s/from_secret needs env var SECRET_FILE")
+	secret64, ok := varsParamMap["SECRET_BASE64"]
+	if !ok {
+		return nil, errors.New("Need SECRET_BASE64")
 	}
 
-	if secret64 != "" {
+	if secret64.ToString() != "" {
 		var decode64Bytes []byte
-		decode64Bytes, err := base64.StdEncoding.DecodeString(secret64)
+		decode64Bytes, err := base64.StdEncoding.DecodeString(secret64.ToString())
 		if err != nil {
 			return nil, fmt.Errorf("SECRET_BASE64 decode error:  #%v ", err)
 		}
@@ -78,7 +81,7 @@ func FromSecret64(varsParamMap VariableMap) (VariableMap, error) {
 			strKey := fmt.Sprintf("%v", key)
 			strValue := fmt.Sprintf("%v", value)
 
-			varsMap[strKey] = strValue
+			varsMap[strKey] = NewStringVariable(strValue, ordinal)
 		}
 	}
 	return varsMap, nil

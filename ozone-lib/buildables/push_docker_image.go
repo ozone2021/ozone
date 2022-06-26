@@ -23,7 +23,7 @@ func PushDockerImage(varsMap VariableMap) error {
 		}
 	}
 
-	cmdString, _ := GenVarToFstring(varsMap, "DOCKER_FULL_TAG", "docker push %s")
+	cmdString := varsMap["DOCKER_FULL_TAG"].Fstring("docker push %s")
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
 	cmd.Stdout = os.Stdout
@@ -34,18 +34,6 @@ func PushDockerImage(varsMap VariableMap) error {
 		return err
 	}
 	cmd.Wait()
-
-	//query := &process_manager.ProcessCreateQuery{
-	//	serviceName,
-	//	ozoneWorkingDir,
-	//	ozoneWorkingDir,
-	//	cmdString,
-	//	true,
-	//	false,
-	//	varsMap,
-	//}
-	//
-	//process_manager_client.AddProcess(query)
 
 	return nil
 }

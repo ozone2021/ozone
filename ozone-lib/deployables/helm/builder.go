@@ -67,27 +67,5 @@ func Deploy(serviceName string, envVarMap config_variable.VariableMap) error {
 		return err
 	}
 	cmd.Wait()
-	//query := &process_manager.ProcessCreateQuery{
-	//	serviceName,
-	//	ozoneWorkingDir,
-	//	ozoneWorkingDir,
-	//	cmdString,
-	//	true,
-	//	false,
-	//	env,
-	//}
-	//
-	//var reply *error
-	//
-	//client, err := rpc.DialHTTP("tcp", ":8000")
-	//if err != nil {
-	//	log.Fatal("dialing:", err)
-	//}
-	//err = client.Call("ProcessManager.AddProcess", query, reply)
-	//if err != nil {
-	//	log.Println(cmdString)
-	//	log.Fatal("helm error:", err)
-	//	return err
-	//}
 	return nil
 }

@@ -1,7 +1,6 @@
 package config_variable
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/flosch/pongo2/v4"
@@ -10,7 +9,7 @@ import (
 	"strings"
 )
 
-type VariableMap map[string]interface{}
+type VariableMap map[string]Variable
 
 const VariablePattern = `\{\{\s*([^}|\s]*)\s*(\s*\\|\s*[^}]*)?\s*\}\}`
 const WhiteSpace = `\S(\s+)`
@@ -39,22 +38,20 @@ func (vm *VariableMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	log.Println(yamlObj)
-
 	(*vm) = make(VariableMap)
 
 	for name, value := range yamlObj {
 		switch x := value.(type) {
 		case string:
 			stringVal, _ := value.(string)
-			(*vm)[name] = NewGenVariable[string](stringVal, 0)
+			(*vm)[name] = NewStringVariable(stringVal, 0)
 		case []interface{}:
 			var stringSlice []string
 			for _, item := range x {
 				stringVal, _ := item.(string)
 				stringSlice = append(stringSlice, stringVal)
 			}
-			(*vm)[name] = NewGenVariable[[]string](stringSlice, 0)
+			(*vm)[name] = NewSliceVariable(stringSlice, 0)
 		}
 	}
 
@@ -67,42 +64,40 @@ type VarDeclaration struct {
 	Filter      string
 }
 
-type GenVariable[T VariableDataFormats] struct {
-	value   T   `yaml:"value"`
+type VarType int
+
+const (
+	StringType VarType = iota
+	SliceType  VarType = iota
+)
+
+type Variable struct {
+	value []string `yaml:"value"`
+	VarType
 	ordinal int `yaml:"ordinal"`
 }
 
-func (v *GenVariable[T]) SetValue(value T) {
-	v.value = value
-}
-
-func (v *GenVariable[T]) GetValue() T {
-	return v.value
-}
-
-func (v *GenVariable[T]) GetOrdinal() int {
-	return v.ordinal
-}
-
-func (v *GenVariable[T]) UnmarshalJSON(bytes []byte) error {
-	var value T
-	err := json.Unmarshal(bytes, &value)
-	if err != nil {
-		return err
-	}
-	v.value = value
-	return nil
-}
-
-func (v *GenVariable[T]) Copy() *GenVariable[T] {
-	return &GenVariable[T]{
-		value:   v.value,
-		ordinal: v.ordinal,
+func NewStringVariable(value string, ordinal int) Variable {
+	return Variable{
+		value:   []string{value},
+		VarType: StringType,
+		ordinal: ordinal,
 	}
 }
 
-// 0 or 1 seperators, default is ";"
-func (v *GenVariable[T]) JoinSlice(seperators ...string) (string, error) {
+func NewSliceVariable(value []string, ordinal int) Variable {
+	return Variable{
+		value:   value,
+		VarType: SliceType,
+		ordinal: ordinal,
+	}
+}
+
+func (v Variable) ToString() string {
+	return v.Fstring("%s")
+}
+
+func (v Variable) Fstring(format string, seperators ...string) string {
 	separator := ""
 	switch len(seperators) {
 	case 0:
@@ -110,117 +105,69 @@ func (v *GenVariable[T]) JoinSlice(seperators ...string) (string, error) {
 	case 1:
 		separator = seperators[0]
 	default:
-		return "", errors.New("Either one seperator or none must be passed.")
+		log.Fatalln("Either one seperator or none must be passed.")
 	}
-	if len(seperators) > 1 {
-
+	switch v.VarType {
+	case StringType:
+		return fmt.Sprintf(format, v.value[0])
+	case SliceType:
+		return strings.Join(v.GetSliceValue(), separator)
+	default:
+		log.Fatalln("Unknown type in variable ToString.")
 	}
-
-	iface := any(*v)
-
-	genvar, ok := iface.(*GenVariable[[]string])
-
-	if !ok {
-		return "", errors.New("Not a *GenVariable[[]string]")
-	}
-
-	return strings.Join(genvar.GetValue(), separator), nil
+	log.Fatalln("Error: variable ToString.")
+	return ""
 }
 
-func InterfaceToGenvar[Genvar GenVarType](iface interface{}) Genvar {
-	switch iface.(type) {
-	case *GenVariable[string]:
-		return iface.(Genvar)
-	case *GenVariable[[]string]:
-		return iface.(Genvar)
-	}
-	return nil
-}
+//func(vm *VariableMap) RenderFilters() error {
+//	for _, variable := range *vm {
+//		emptyVarsMap := make(VariableMap)
+//		variable.Render(emptyVarsMap)
+//	}
+//
+//	return nil
+//}
 
-func GenVarToString(varMap VariableMap, key string) (string, error) {
-	genvarInterface, ok := varMap[key]
-
-	if !ok {
-		return "", nil
-	}
-
-	genvar, ok := genvarInterface.(*GenVariable[string])
-
-	if !ok {
-		return "", errors.New(fmt.Sprintf("Key %s not a string value", key))
-	}
-
-	return genvar.GetValue(), nil
-}
-
-func GenVarToFstring(varMap VariableMap, key string, format string) (string, error) {
-	varString, err := GenVarToString(varMap, key)
-
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf(format, varString), nil
-}
-
-func GenVarToSlice(varMap VariableMap, key string) ([]string, error) {
-	genvarInterface, ok := varMap[key]
-
-	if !ok {
-		return nil, nil
-	}
-
-	genvar, ok := genvarInterface.(*GenVariable[[]string])
-	if !ok {
-		return nil, errors.New(fmt.Sprintf("Key %s not a string value", key))
-	}
-
-	return genvar.GetValue(), nil
-}
-
-func NewGenVariable[T VariableDataFormats](value T, ordinal int) *GenVariable[T] {
-	return &GenVariable[T]{
-		value:   value,
-		ordinal: ordinal,
-	}
-}
-
-type VariableDataFormats interface {
-	string | []string
-}
-
-type GenVarType interface {
-	*GenVariable[string] | *GenVariable[[]string]
-	GetOrdinal() int
-}
-
-func (v *GenVariable[T]) Render(varsMap VariableMap) (*GenVariable[T], error) {
-	var ret T
-	switch val := any(&ret).(type) {
-	case *string:
-		asStringGen := any(v).(*GenVariable[string])
-		renderedValue, err := RenderSentence(asStringGen.GetValue(), varsMap)
+func (v Variable) Render(varsMap VariableMap) error {
+	switch v.VarType {
+	case StringType:
+		renderedValue, err := RenderSentence(v.GetStringValue(), varsMap)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		asStringGen.SetValue(renderedValue)
-	case *[]string:
+		v.value = []string{renderedValue}
+	case SliceType:
 		var newArray []string
 
-		for key, item := range *val {
+		for key, item := range v.GetSliceValue() {
 			var err error
 			newArray[key], err = RenderSentence(item, varsMap)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
-		asStringGen := any(v).(*GenVariable[[]string])
-		asStringGen.SetValue(newArray)
+		v.value = newArray
 	default:
-		return nil, errors.New("Unknown type in variable render.")
+		return errors.New("Unknown type in variable render.")
 	}
 
-	return v, nil
+	return nil
+}
+
+func (v Variable) SetStringValue(value string) {
+	v.value = []string{value}
+}
+
+func (v Variable) GetStringValue() string {
+	return v.value[0]
+}
+
+func (v Variable) GetSliceValue() []string {
+	return v.value
+}
+
+func (v Variable) GetOrdinal() int {
+	return v.ordinal
 }
 
 // TODO this is where we convert the lists to exploded semi colons.
@@ -228,27 +175,10 @@ func (v *GenVariable[T]) Render(varsMap VariableMap) (*GenVariable[T], error) {
 func ConvertMap(originalMap VariableMap) pongo2.Context {
 	convertedMap := make(map[string]interface{})
 	for key, variable := range originalMap {
-		switch variable.(type) {
-		case *GenVariable[string]:
-			genVar := variable.(*GenVariable[string])
-			convertedMap[key] = genVar.GetValue()
-		case *GenVariable[[]string]:
-			genVar := variable.(*GenVariable[[]string])
-			convertedMap[key] = strings.Join(genVar.GetValue(), ";")
-		}
+		convertedMap[key] = variable.ToString()
 	}
 
 	return convertedMap
-}
-
-func getWhitespace(sentence string) []string {
-	r := regexp.MustCompile(WhiteSpace)
-	var output []string
-	matches := r.FindAllString(sentence, -1)
-	for _, match := range matches {
-		output = append(output, match[1:])
-	}
-	return output
 }
 
 func collectVariableAndFilters(sentence string) []*VarDeclaration {
@@ -310,17 +240,3 @@ func PongoRender(input string, varsMap VariableMap) (string, error) {
 	}
 	return out, nil
 }
-
-//func NewListGenVariable(value []string, ordinal int) *Variable[[]string] {
-//	return &GenVariable[[]string]{
-//		value:   value,
-//		ordinal: ordinal,
-//	}
-//}
-
-//func Copy[E Variable](variable E) E {
-//	return &E{
-//		Value:   v.Value,
-//		ordinal: 0,
-//	}
-//}

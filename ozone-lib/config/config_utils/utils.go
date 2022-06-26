@@ -1,7 +1,6 @@
 package config_utils
 
 import (
-	"errors"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"log"
 	"os"
@@ -23,47 +22,14 @@ func ContextInPattern(context, pattern string, scope VariableMap) (bool, error) 
 	return false, nil
 }
 
-//func renderVars(input string, varsMap map[string]variable.Variable) string {
-//	//tpl, err := pongo2.FromString("Hello {{ name|capfirst }}!")
-//	tpl, err := pongo2.FromString(input)
-//	if err != nil {
-//		log.Fatalln(err)
-//	}
-//	context := convertMap(varsMap)
-//	out, err := tpl.Execute(context)
-//	if err != nil {
-//		log.Fatalln(err)
-//	}
-//	if out == "" {
-//		return input
-//	}
-//	return out
-//}
-
-//func OSEnvToVarsMap() map[string]string {
-//	newMap := make(map[string]string)
-//	for _, kvString := range os.Environ() {
-//		parts := strings.Split(kvString, "=")
-//		key, value := parts[0], parts[1]
-//		newMap[key] = value
-//	}
-//	return newMap
-//}
-
 func OSEnvToVarsMap(ordinal int) VariableMap {
 	newMap := make(VariableMap)
 	for _, kvString := range os.Environ() {
 		parts := strings.Split(kvString, "=")
 		key, value := parts[0], parts[1]
-		newMap[key] = NewGenVariable[string](value, ordinal)
+		newMap[key] = NewStringVariable(value, ordinal)
 	}
 	return newMap
-}
-
-func RenderSentence(sentence string, scope VariableMap) string {
-	genvar := NewGenVariable[string](sentence, 1)
-	genvar.Render(scope)
-	return genvar.GetValue()
 }
 
 func RenderNoMerge(ordinal int, base VariableMap, scope VariableMap) VariableMap {
@@ -74,17 +40,11 @@ func RenderNoMerge(ordinal int, base VariableMap, scope VariableMap) VariableMap
 		log.Fatalln(err)
 	}
 	newMap := CopyVariableMap(base)
-	for k, variable := range newMap {
-		switch variable.(type) {
-		case *GenVariable[string]:
-			genVar := variable.(*GenVariable[string])
-			genVar.Render(combinedScope)
-		case *GenVariable[[]string]:
-			genVar := variable.(*GenVariable[[]string])
-			genVar.Render(combinedScope)
+	for _, variable := range newMap {
+		err := variable.Render(combinedScope)
+		if err != nil {
+			log.Fatalln(err)
 		}
-
-		newMap[k] = variable
 	}
 	return newMap
 }
@@ -117,23 +77,16 @@ func MergeMapsSelfRender(ordinal int, base VariableMap, overwrite VariableMap) V
 	return newMap
 }
 
-func RenderFilters(base *VariableMap) error {
-	mapWithFiltersApplied := CopyVariableMap(*base)
-
-	for _, variable := range mapWithFiltersApplied {
-		emptyVarsMap := make(VariableMap)
-		switch variable.(type) {
-		case *GenVariable[string]:
-			genVar := variable.(*GenVariable[string])
-			genVar.Render(emptyVarsMap)
-		case *GenVariable[[]string]:
-			// TODO
-		}
-
-	}
-
-	return nil
-}
+//func RenderFilters(base *VariableMap) error {
+//	mapWithFiltersApplied := CopyVariableMap(*base)
+//
+//	for _, variable := range mapWithFiltersApplied {
+//		emptyVarsMap := make(VariableMap)
+//		variable.Render(emptyVarsMap)
+//	}
+//
+//	return nil
+//}
 
 func MergeMaps(base map[string]string, overwrite map[string]string) map[string]string {
 	if base == nil {
@@ -146,60 +99,24 @@ func MergeMaps(base map[string]string, overwrite map[string]string) map[string]s
 	return newMap
 }
 
-func CopyCopy[GenVar GenVarType](genvarIface interface{}, ptr *GenVar) {
-	switch genvarIface.(type) {
-	case *GenVariable[string]:
-		genVar := genvarIface.(GenVariable[string])
-		genVarPtr := any(ptr).(*GenVariable[string])
-		genVarPtr = &genVar
-		ptr = any(genVarPtr).(*GenVar)
-	case *GenVariable[[]string]:
-		genVar := genvarIface.(GenVariable[[]string])
-		genVarPtr := any(ptr).(*GenVariable[[]string])
-		genVarPtr = &genVar
-		ptr = any(genVarPtr).(*GenVar)
-	}
-}
-
-func GetOrdinal[Genvar GenVarType](genvar Genvar) (int, error) {
-	return genvar.GetOrdinal(), nil
-}
-
-func GetOrdinalInterface(iface interface{}) (int, error) {
-	stringGenVar, ok := iface.(*GenVariable[string])
-	if ok {
-		return GetOrdinal(stringGenVar)
-	}
-	sliceGenVar, ok := iface.(*GenVariable[[]string])
-	if ok {
-		return GetOrdinal(sliceGenVar)
-	}
-	return 0, errors.New("GetOrdinalInterface error")
-}
-
+// TODO make a method of vm* potentially
 func MergeVariableMaps(base VariableMap, overwrite VariableMap) (VariableMap, error) {
 	if base == nil {
 		return CopyVariableMap(overwrite), nil
 	}
 	newMap := CopyVariableMap(base)
-	for key, overwriteValue := range overwrite {
+	for key, overwriteVariable := range overwrite {
 		_, exists := newMap[key]
 		if exists {
-			overwriteOrdinal, err := GetOrdinalInterface(overwriteValue)
-			if err != nil {
-				return nil, err
-			}
+			overwriteOrdinal := overwriteVariable.GetOrdinal()
 
-			baseOrdinal, err := GetOrdinalInterface(base)
-			if err != nil {
-				return nil, err
-			}
+			baseOrdinal := newMap[key].GetOrdinal()
 
 			if overwriteOrdinal < baseOrdinal {
-				newMap[key] = overwriteValue
+				newMap[key] = overwriteVariable
 			}
 		} else {
-			newMap[key] = overwriteValue
+			newMap[key] = overwriteVariable
 		}
 	}
 	return newMap, nil

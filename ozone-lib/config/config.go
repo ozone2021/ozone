@@ -196,7 +196,7 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 	case "env/from_k8s_secret_file":
 		fromIncludeMap, err = env.FromSecretFile(ordinal, varsMap)
 	case "env/from_k8s_secret64":
-		fromIncludeMap, err = env.FromSecret64(varsMap)
+		fromIncludeMap, err = env.FromSecret64(ordinal, varsMap)
 	case "env/from_env_file":
 		fromIncludeMap, err = env.FromEnvFile(ordinal, varsMap)
 	case "env/git_log_hash":
@@ -270,7 +270,7 @@ func ReadConfig() *OzoneConfig {
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, osEnv)
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
 
-	err = config_utils.RenderFilters(ozoneConfig.BuildVars)
+	//err = config_utils.RenderFilters(ozoneConfig.BuildVars) TODO needed?
 
 	if err != nil {
 		log.Fatalln(err)
