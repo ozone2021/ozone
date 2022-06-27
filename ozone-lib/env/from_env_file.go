@@ -28,5 +28,5 @@ func FromEnvFile(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
 		return nil, errors.New("ENV_FILE needed.")
 	}
 
-	return mapToVariableMap(ordinal, envFile.ToString())
+	return mapToVariableMap(ordinal, envFile.String())
 }

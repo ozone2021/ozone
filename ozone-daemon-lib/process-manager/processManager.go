@@ -369,7 +369,7 @@ func (pm *ProcessManager) handleAsynchronous(
 		return errors.New("PORT needed")
 	}
 
-	port, err := strconv.ParseInt(portStringVar.ToString(), 10, 64)
+	port, err := strconv.ParseInt(portStringVar.String(), 10, 64)
 	if err != nil {
 		return err
 	}

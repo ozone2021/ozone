@@ -97,7 +97,7 @@ func (v *Variable) GetVarType() VarType {
 	return v.varType
 }
 
-func (v *Variable) ToString() string {
+func (v *Variable) String() string {
 	return v.Fstring("%s")
 }
 
@@ -185,7 +185,7 @@ func (v Variable) GetOrdinal() int {
 func ConvertMap(originalMap VariableMap) pongo2.Context {
 	convertedMap := make(map[string]interface{})
 	for key, variable := range originalMap {
-		convertedMap[key] = variable.ToString()
+		convertedMap[key] = variable.String()
 	}
 
 	return convertedMap

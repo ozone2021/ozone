@@ -91,7 +91,7 @@ func Build(env VariableMap) error {
 		log.Println(err)
 	}
 
-	serviceName := env["SERVICE"].ToString()
+	serviceName := env["SERVICE"].String()
 
 	CreateNetworkIfNotExists(serviceName, env)
 	DeleteContainerIfExists(serviceName, env)

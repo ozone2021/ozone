@@ -15,7 +15,7 @@ func GitLogHash(ordinal int, varsMap VariableMap) (VariableMap, error) {
 	dirPath := "./"
 	dirPathVar, ok := varsMap["GIT_DIR"]
 	if ok {
-		dirPath = dirPathVar.ToString()
+		dirPath = dirPathVar.String()
 	}
 
 	filesVar, ok := varsMap[config_keys.SOURCE_FILES_KEY]

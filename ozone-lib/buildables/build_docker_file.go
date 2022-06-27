@@ -37,7 +37,7 @@ func BuildDockerContainer(varsMap VariableMap) error {
 	cmdCallDir, _ := varsMap["OZONE_WORKING_DIR"]
 	tag, _ := varsMap["DOCKER_FULL_TAG"]
 
-	buildArgs := varsMap["DOCKER_BUILD_ARGS"].ToString()
+	buildArgs := varsMap["DOCKER_BUILD_ARGS"].String()
 	buildArgs = fmt.Sprintf("%s %s", buildArgs, sourceDirArg)
 
 	dockerfilePath := varsMap["DOCKERFILE"].Fstring("-f %s")
@@ -53,7 +53,7 @@ func BuildDockerContainer(varsMap VariableMap) error {
 
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
-	cmd.Dir = cmdCallDir.ToString()
+	cmd.Dir = cmdCallDir.String()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
 	err := cmd.Run()

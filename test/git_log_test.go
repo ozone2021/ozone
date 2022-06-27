@@ -17,11 +17,17 @@ func TestGitLog(t *testing.T) {
 	varsMap["GIT_DIR"] = genVarDir
 	varsMap[config_keys.SOURCE_FILES_KEY] = genVarFiles
 
-	output, err := git_env.GitLogHash(varsMap)
+	varsMap, err := git_env.GitLogHash(1, varsMap)
 
 	if err != nil {
 		t.Error(err)
 	}
-	log.Printf("Output is %s", output)
+
+	outVar, ok := varsMap["GIT_LOG_HASH"]
+	if !ok {
+		t.Error("GIT_LOG_HASH should be set")
+	}
+	gitlogFull := outVar.String()
+	log.Printf("GIT_LOG_HASH is %s", gitlogFull)
 
 }

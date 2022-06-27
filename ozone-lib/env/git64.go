@@ -13,7 +13,7 @@ import (
 
 func StaticFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, error) {
 	dirPathVar, ok := varsParamMap["GIT_DIR"]
-	dirPath := dirPathVar.ToString()
+	dirPath := dirPathVar.String()
 
 	if !ok {
 		dirPath = "./"
@@ -32,7 +32,7 @@ func StaticFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, erro
 	}
 
 	branchNameVar, ok := varsParamMap["GIT_BRANCH"]
-	branchName := branchNameVar.ToString()
+	branchName := branchNameVar.String()
 	if err != nil || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
 	}
@@ -55,7 +55,7 @@ func DynamicFromGitDirBranchNameHash(ordinal int, varsParamMap VariableMap) (Var
 	dirPath := "./"
 	dirPathVar, ok := varsParamMap["GIT_DIR"]
 	if ok {
-		dirPath = dirPathVar.ToString()
+		dirPath = dirPathVar.String()
 	}
 
 	varsMap := make(VariableMap)
@@ -71,7 +71,7 @@ func DynamicFromGitDirBranchNameHash(ordinal int, varsParamMap VariableMap) (Var
 	}
 
 	branchNameVar, ok := varsParamMap["GIT_BRANCH"]
-	branchName := branchNameVar.ToString()
+	branchName := branchNameVar.String()
 	if err != nil || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
 	}
@@ -101,7 +101,7 @@ func GitSubmoduleHash(varsParamMap VariableMap) (VariableMap, error) {
 	}
 	dockerRegistry := varsParamMap["DOCKER_REGISTRY"]
 	dirPathVar, ok := varsParamMap["GIT_DIR"]
-	dirPath := dirPathVar.ToString()
+	dirPath := dirPathVar.String()
 
 	if !ok {
 		dirPath = "./"

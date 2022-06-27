@@ -52,8 +52,9 @@ type ContextStep struct {
 }
 
 type ContextEnv struct {
-	Context string   `yaml:"context"`
-	WithEnv []string `yaml:"with_env"`
+	Context  string      `yaml:"context"`
+	WithEnv  []string    `yaml:"with_env"`
+	WithVars VariableMap `yaml:"with_vars"`
 }
 
 type Runnable struct {
@@ -199,6 +200,8 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 		fromIncludeMap, err = env.FromSecret64(ordinal, varsMap)
 	case "env/from_env_file":
 		fromIncludeMap, err = env.FromEnvFile(ordinal, varsMap)
+	case "env/from_version_file":
+		fromIncludeMap, err = env.FromVersionFile(ordinal, varsMap)
 	case "env/git_log_hash":
 		fromIncludeMap, err = git_env.GitLogHash(ordinal, varsMap)
 	case "env/git_directory_branch_hash":

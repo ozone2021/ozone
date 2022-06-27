@@ -23,8 +23,8 @@ func FromSecretFile(ordinal int, varsParamMap VariableMap) (VariableMap, error) 
 		return nil, errors.New("Need SECRET_FILE")
 	}
 
-	if secretFile.ToString() != "" {
-		expandedSecretFile, err := homedir.Expand(secretFile.ToString())
+	if secretFile.String() != "" {
+		expandedSecretFile, err := homedir.Expand(secretFile.String())
 		if err != nil {
 			return nil, fmt.Errorf("Secret file error:  #%v \n", err)
 		}
@@ -62,9 +62,9 @@ func FromSecret64(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
 		return nil, errors.New("Need SECRET_BASE64")
 	}
 
-	if secret64.ToString() != "" {
+	if secret64.String() != "" {
 		var decode64Bytes []byte
-		decode64Bytes, err := base64.StdEncoding.DecodeString(secret64.ToString())
+		decode64Bytes, err := base64.StdEncoding.DecodeString(secret64.String())
 		if err != nil {
 			return nil, fmt.Errorf("SECRET_BASE64 decode error:  #%v ", err)
 		}

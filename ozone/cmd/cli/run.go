@@ -28,7 +28,8 @@ func init() {
 }
 
 func hasCaching(runnable *ozoneConfig.Runnable) bool {
-	return runnable.WhenChanged != nil
+	//return runnable.SourceFiles != nil TODO when_changed: "{{SOURCE_FILES}}"
+	return false
 }
 
 func checkCache(runnable *ozoneConfig.Runnable) bool {
@@ -61,7 +62,7 @@ func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
 
 	filesDirsLastEditTimes := []int64{ozonefileEditTime}
 
-	for _, relativeFilePath := range runnable.WhenChanged {
+	for _, relativeFilePath := range runnable.SourceFiles {
 		fileDir := path.Join(ozoneWorkingDir, relativeFilePath)
 
 		editTime, err := cache.FileLastEdit(fileDir)
@@ -107,9 +108,9 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	buildScope = config_utils.RenderNoMerge(ordinal, buildScope, topLevelScope)
 
 	// TODO add support for list variables.
-	for k, fileName := range runnable.WhenChanged {
+	for k, fileName := range runnable.SourceFiles {
 		var err error
-		runnable.WhenChanged[k], err = config_variable.RenderSentence(fileName, buildScope)
+		runnable.SourceFiles[k], err = config_variable.RenderSentence(fileName, buildScope)
 		if err != nil {
 			return err
 		}
@@ -131,6 +132,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 
 	contextEnvVars := make(config_variable.VariableMap)
 	for _, contextEnv := range runnable.ContextEnv {
+		buildScope = config_utils.MergeMapsSelfRender(ordinal, buildScope, contextEnv.WithVars)
 		inPattern, err := config_utils.ContextInPattern(context, contextEnv.Context, buildScope)
 
 		if err != nil {
