@@ -11,16 +11,16 @@ import (
 	"strings"
 )
 
-func GitLogHash(ordinal int, varsMap VariableMap) (VariableMap, error) {
+func GitLogHash(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 	dirPath := "./"
-	dirPathVar, ok := varsMap["GIT_DIR"]
+	dirPathVar, ok := varsMap.GetVariable("GIT_DIR")
 	if ok {
 		dirPath = dirPathVar.String()
 	}
 
-	filesVar, ok := varsMap[config_keys.SOURCE_FILES_KEY]
+	filesVar, ok := varsMap.GetVariable(config_keys.SOURCE_FILES_KEY)
 	if !ok {
-		return nil, errors.New("Source files must be set")
+		return errors.New("Source files must be set")
 	}
 
 	filesJoined := strings.Join(filesVar.GetSliceValue(), " ")
@@ -35,14 +35,14 @@ func GitLogHash(ordinal int, varsMap VariableMap) (VariableMap, error) {
 	cmd.Stderr = os.Stderr
 	byteData, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if len(byteData) == 0 {
-		return nil, errors.New(fmt.Sprintf("No git hash, maybe some files don't exist / relative path issue?: %s", filesJoined))
+		return errors.New(fmt.Sprintf("No git hash, maybe some files don't exist / relative path issue?: %s", filesJoined))
 	}
 
-	varsMap["GIT_LOG_HASH"] = NewStringVariable(string(byteData), ordinal)
+	fromIncludeMap.AddVariable(NewStringVariable("GIT_LOG_HASH", string(byteData)), ordinal)
 
-	return varsMap, nil
+	return nil
 }

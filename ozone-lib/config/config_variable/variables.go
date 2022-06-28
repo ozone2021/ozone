@@ -4,32 +4,63 @@ import (
 	"errors"
 	"fmt"
 	"github.com/flosch/pongo2/v4"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_keys"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
 	"log"
+	"math"
+	"reflect"
 	"regexp"
 	"strings"
 )
 
-type VariableMap map[string]*Variable
-
 const VariablePattern = `\{\{\s*([^}|\s]*)\s*(\s*\\|\s*[^}]*)?\s*\}\}`
 const WhiteSpace = `\S(\s+)`
 const ReplacementSymbol = `®`
+const ConfigOrdinal = math.MaxInt
 
-//func (vm *VariableMap) Explode() []string {
-//for _, variable := range v.GetValue() {
-//iface := any(variable)
-//switch variable.(type) {
-//case *GenVariable[string]:
-//genvar := iface.(*GenVariable[string])
-//output = append(output, genvar.GetValue())
-//case *GenVariable[[]string]:
-//genvar := iface.(*GenVariable[[]string])
-//
-//for _, i := range genvar.GetValue() {
-//output = append(output, i)
+type VariableMap struct {
+	variables map[string]*Variable
+	ordinals  map[string]int
+}
+
+const OrdinalityTag = "ordinality"
+
+func NewVariableMap() *VariableMap {
+	return &VariableMap{
+		variables: make(map[string]*Variable),
+		ordinals:  make(map[string]int),
+	}
+}
+
+func (vm *VariableMap) IsEmpty() bool {
+	return len(vm.variables) == 0
+}
+
+func (vm *VariableMap) AddVariable(variable *Variable, ordinal int) {
+	_, exists := vm.variables[variable.name]
+	if !exists || exists && ordinal < vm.ordinals[variable.name] {
+		vm.variables[variable.name] = variable
+		vm.ordinals[variable.name] = ordinal
+	}
+}
+
+func (vm *VariableMap) GetVariable(name string) (*Variable, bool) {
+	variable, ok := vm.variables[name]
+	return variable, ok
+}
+
+//func (vm *VariableMap) getOrdinal(name string) int {
+//	return vm.ordinals[name]
 //}
-//}
-//}
+
+func (vm *VariableMap) ConvertMap() pongo2.Context {
+	convertedMap := make(map[string]interface{})
+	for key, variable := range vm.variables {
+		convertedMap[key] = variable.String()
+	}
+
+	return convertedMap
+}
 
 // Must set ordinal first.
 func (vm *VariableMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -38,24 +69,59 @@ func (vm *VariableMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	(*vm) = make(VariableMap)
-
 	for name, value := range yamlObj {
 		switch x := value.(type) {
 		case string:
-			stringVal, _ := value.(string)
-			(*vm)[name] = NewStringVariable(stringVal, 0)
+			vm.AddVariable(NewStringVariable(name, x), ConfigOrdinal)
 		case []interface{}:
 			var stringSlice []string
 			for _, item := range x {
 				stringVal, _ := item.(string)
 				stringSlice = append(stringSlice, stringVal)
 			}
-			(*vm)[name] = NewSliceVariable(stringSlice, 0)
+			vm.AddVariable(NewSliceVariable(name, stringSlice), ConfigOrdinal)
 		}
 	}
 
 	return nil
+}
+
+// Does this mess the overwrite varmap up?
+func (vm *VariableMap) MergeVariableMaps(overwrite *VariableMap) error {
+	for _, overwriteVariable := range overwrite.variables {
+		variable, err := vm.Render(*overwriteVariable)
+		if err != nil {
+			return err
+		}
+		vm.AddVariable(variable, overwrite.ordinals[overwriteVariable.name])
+	}
+	return nil
+}
+
+func (vm *VariableMap) RenderNoMerge(ordinal int, scope *VariableMap) error {
+	combinedScope := scope.Copy()
+	osEnv := config_utils.OSEnvToVarsMap(ordinal)
+	err := combinedScope.MergeVariableMaps(osEnv)
+	if err != nil {
+		return err
+	}
+	for _, variable := range vm.variables {
+		rendered, err := combinedScope.Render(*variable)
+		if err != nil {
+			return err
+		}
+		variable = rendered
+	}
+	return nil
+}
+
+func (vm *VariableMap) Copy() *VariableMap {
+	newMap := NewVariableMap()
+	for name, variable := range vm.variables {
+		newMap.variables[name] = variable.Copy()
+		newMap.ordinals[name] = vm.ordinals[name]
+	}
+	return newMap
 }
 
 type VarDeclaration struct {
@@ -72,24 +138,32 @@ const (
 )
 
 type Variable struct {
+	name    string
 	value   []string `yaml:"value"`
 	varType VarType
-	ordinal int `yaml:"ordinal"`
 }
 
-func NewStringVariable(value string, ordinal int) *Variable {
+func NewStringVariable(name, value string) *Variable {
 	return &Variable{
+		name:    name,
 		value:   []string{value},
 		varType: StringType,
-		ordinal: ordinal,
 	}
 }
 
-func NewSliceVariable(value []string, ordinal int) *Variable {
+func NewSliceVariable(name string, value []string) *Variable {
 	return &Variable{
+		name:    name,
 		value:   value,
 		varType: SliceType,
-		ordinal: ordinal,
+	}
+}
+
+func (v *Variable) Copy() *Variable {
+	return &Variable{
+		name:    v.name,
+		value:   v.value,
+		varType: v.varType,
 	}
 }
 
@@ -129,43 +203,138 @@ func (v *Variable) Fstring(format string, seperators ...string) string {
 	return ""
 }
 
-func (vm *VariableMap) RenderFilters() error {
-	for _, variable := range *vm {
-		emptyVarsMap := make(VariableMap)
-		variable.Render(emptyVarsMap)
+// TODO maybe a custom tag of ozone?
+func (v *Variable) getYamlTag() (string, error) {
+	t := reflect.TypeOf(v)
+
+	// Get the type and kind of our user variable
+	fmt.Println("Type:", t.Name())
+	fmt.Println("Kind:", t.Kind())
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		return field.Tag.Get("yaml"), nil
 	}
+	return "", errors.New("Could not get yaml tag.")
+}
+
+func (v *Variable) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var yamlObj map[string]interface{}
+	if err := unmarshal(&yamlObj); err != nil {
+		return err
+	}
+
+	switch value := yamlObj[config_keys.SOURCE_FILES_KEY].(type) {
+	case string:
+		v.SetStringValue(value)
+	case []interface{}:
+		var stringSlice []string
+		for _, item := range value {
+			stringVal, _ := item.(string)
+			stringSlice = append(stringSlice, stringVal)
+		}
+		v.SetSliceValue(stringSlice)
+	}
+
+	tag, err := v.getYamlTag()
+	if err != nil {
+		return err
+	}
+	v.name = tag
 
 	return nil
 }
 
-func (v *Variable) Render(varsMap VariableMap) error {
-	switch v.GetVarType() {
-	case StringType:
-		renderedValue, err := RenderSentence(v.GetStringValue(), varsMap)
+func (vm *VariableMap) SelfRender() error {
+	for _, variable := range vm.variables {
+		var err error
+		variable, err = vm.Render(variable)
 		if err != nil {
 			return err
 		}
-		v.value = []string{renderedValue}
+	}
+	return nil
+}
+
+func (vm *VariableMap) Render(v *Variable) (*Variable, error) {
+	output := v.Copy()
+	switch v.GetVarType() {
+	case StringType:
+		renderedValue, err := vm.RenderSentence(v.GetStringValue())
+		if err != nil {
+			return nil, err
+		}
+		output.value = []string{renderedValue}
 	case SliceType:
 		var newArray []string
 
 		for _, item := range v.GetSliceValue() {
-			rendered, err := RenderSentence(item, varsMap)
+			rendered, err := vm.RenderSentence(item)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			newArray = append(newArray, rendered)
 		}
-		v.value = newArray
+		output.value = newArray
 	default:
-		return errors.New("Unknown type in variable render.")
+		return nil, errors.New("Unknown type in variable render.")
 	}
 
-	return nil
+	return output, nil
+}
+
+//func (v *Variable) Render(varsMap VariableMap) error {
+//	switch v.GetVarType() {
+//	case StringType:
+//		renderedValue, err := RenderSentence(v.GetStringValue(), varsMap)
+//		if err != nil {
+//			return err
+//		}
+//		v.value = []string{renderedValue}
+//	case SliceType:
+//		var newArray []string
+//
+//		for _, item := range v.GetSliceValue() {
+//			rendered, err := RenderSentence(item, varsMap)
+//			if err != nil {
+//				return err
+//			}
+//			newArray = append(newArray, rendered)
+//		}
+//		v.value = newArray
+//	default:
+//		return errors.New("Unknown type in variable render.")
+//	}
+//
+//	return nil
+//}
+
+func (vm *VariableMap) RenderSentence(sentence string) (string, error) {
+	collectedVars := collectVariableAndFilters(sentence)
+	replacedWithSpecialChar := replaceVariablesWithSpecial(sentence, collectedVars)
+
+	output := replacedWithSpecialChar
+	for _, varDeclaration := range collectedVars {
+		_, exists := vm.variables[varDeclaration.VarName]
+		var err error
+		replacement := varDeclaration.Declaration
+		if exists || varDeclaration.Filter != "" {
+			replacement, err = PongoRender(replacement, vm.ConvertMap())
+			if err != nil {
+				return "", err
+			}
+		}
+		output = strings.Replace(output, ReplacementSymbol, replacement, 1)
+	}
+	return output, nil
 }
 
 func (v Variable) SetStringValue(value string) {
 	v.value = []string{value}
+}
+
+func (v Variable) SetSliceValue(value []string) {
+	v.value = value
 }
 
 func (v Variable) GetStringValue() string {
@@ -176,20 +345,8 @@ func (v Variable) GetSliceValue() []string {
 	return v.value
 }
 
-func (v Variable) GetOrdinal() int {
-	return v.ordinal
-}
-
 // TODO this is where we convert the lists to exploded semi colons.
 // Normal env vars go straight across.
-func ConvertMap(originalMap VariableMap) pongo2.Context {
-	convertedMap := make(map[string]interface{})
-	for key, variable := range originalMap {
-		convertedMap[key] = variable.String()
-	}
-
-	return convertedMap
-}
 
 func collectVariableAndFilters(sentence string) []*VarDeclaration {
 	r := regexp.MustCompile(VariablePattern)
@@ -215,32 +372,11 @@ func replaceVariablesWithSpecial(sentence string, collectedVarsWithBraces []*Var
 	return sentence
 }
 
-func RenderSentence(sentence string, varsMap VariableMap) (string, error) {
-	collectedVars := collectVariableAndFilters(sentence)
-	replacedWithSpecialChar := replaceVariablesWithSpecial(sentence, collectedVars)
-
-	output := replacedWithSpecialChar
-	for _, varDeclaration := range collectedVars {
-		_, exists := varsMap[varDeclaration.VarName]
-		var err error
-		replacement := varDeclaration.Declaration
-		if exists || varDeclaration.Filter != "" {
-			replacement, err = PongoRender(replacement, varsMap)
-			if err != nil {
-				return "", err
-			}
-		}
-		output = strings.Replace(output, ReplacementSymbol, replacement, 1)
-	}
-	return output, nil
-}
-
-func PongoRender(input string, varsMap VariableMap) (string, error) {
+func PongoRender(input string, context pongo2.Context) (string, error) {
 	tpl, err := pongo2.FromString(input)
 	if err != nil {
 		return "", err
 	}
-	context := ConvertMap(varsMap)
 	out, err := tpl.Execute(context)
 	if err != nil {
 		return "", err

@@ -11,27 +11,25 @@ import (
 	"strings"
 )
 
-func StaticFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, error) {
-	dirPathVar, ok := varsParamMap["GIT_DIR"]
+func StaticFromGitDirBranchNameHash(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
+	dirPathVar, ok := varsMap.GetVariable("GIT_DIR")
 	dirPath := dirPathVar.String()
 
 	if !ok {
 		dirPath = "./"
 	}
 
-	varsMap := make(VariableMap)
-
 	repo, err := git.PlainOpen(dirPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	reference, err := repo.Head()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	branchNameVar, ok := varsParamMap["GIT_BRANCH"]
+	branchNameVar, ok := varsMap.GetVariable("GIT_BRANCH")
 	branchName := branchNameVar.String()
 	if err != nil || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
@@ -44,33 +42,31 @@ func StaticFromGitDirBranchNameHash(varsParamMap VariableMap) (VariableMap, erro
 	}
 	namespace := reg.ReplaceAllString(branchName, "")
 
-	varsMap["NAMESPACE"].SetStringValue(namespace)
-	varsMap["SUBDOMAIN"].SetStringValue(fmt.Sprintf("%s.", namespace))
+	fromIncludeMap.AddVariable(NewStringVariable("NAMESPACE", namespace), ordinal)
+	fromIncludeMap.AddVariable(NewStringVariable("SUBDOMAIN", fmt.Sprintf("%s.", namespace)), ordinal)
 
-	return varsMap, nil
+	return nil
 
 }
 
-func DynamicFromGitDirBranchNameHash(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
+func DynamicFromGitDirBranchNameHash(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 	dirPath := "./"
-	dirPathVar, ok := varsParamMap["GIT_DIR"]
+	dirPathVar, ok := varsMap.GetVariable("GIT_DIR")
 	if ok {
 		dirPath = dirPathVar.String()
 	}
 
-	varsMap := make(VariableMap)
-
 	repo, err := git.PlainOpen(dirPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	reference, err := repo.Head()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	branchNameVar, ok := varsParamMap["GIT_BRANCH"]
+	branchNameVar, ok := varsMap.GetVariable("GIT_BRANCH")
 	branchName := branchNameVar.String()
 	if err != nil || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
@@ -83,44 +79,42 @@ func DynamicFromGitDirBranchNameHash(ordinal int, varsParamMap VariableMap) (Var
 	if len([]byte(git64Hash)) > 12 {
 		namespace = strings.ToLower(git64Hash)[:12]
 	}
-	varsMap["NAMESPACE"] = NewStringVariable(namespace, ordinal)
-	varsMap["SUBDOMAIN"] = NewStringVariable(fmt.Sprintf("%s.", namespace), ordinal)
+	fromIncludeMap.AddVariable(NewStringVariable("NAMESPACE", namespace), ordinal)
+	fromIncludeMap.AddVariable(NewStringVariable("SUBDOMAIN", fmt.Sprintf("%s.", namespace)), ordinal)
 
-	return varsMap, nil
+	return nil
 }
 
-func GitSubmoduleHash(varsParamMap VariableMap) (VariableMap, error) {
+func GitSubmoduleHash(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 	for _, arg := range []string{
 		"DOCKER_REGISTRY",
 		"DIR",
 		"SERVICE",
 	} {
-		if err := utils.ParamsOK("GitSubmoduleHash", arg, varsParamMap); err != nil {
-			return nil, err
+		if err := utils.ParamsOK("GitSubmoduleHash", arg, varsMap); err != nil {
+			return err
 		}
 	}
-	dockerRegistry := varsParamMap["DOCKER_REGISTRY"]
-	dirPathVar, ok := varsParamMap["GIT_DIR"]
+	dockerRegistry, _ := varsMap.GetVariable("DOCKER_REGISTRY")
+	dirPathVar, ok := varsMap.GetVariable("GIT_DIR")
 	dirPath := dirPathVar.String()
 
 	if !ok {
 		dirPath = "./"
 	}
-	serviceName := varsParamMap["SERVICE"]
-
-	varsMap := make(VariableMap)
+	serviceName, _ := varsMap.GetVariable("SERVICE")
 
 	repo, err := git.PlainOpen(dirPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	reference, err := repo.Head()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	submoduleHash := reference.Hash().String()
 
-	varsMap["DOCKER_FULL_TAG"].SetStringValue(fmt.Sprintf("%s/%s:%s", dockerRegistry, serviceName, submoduleHash))
-	return varsMap, nil
+	fromIncludeMap.AddVariable(NewStringVariable("DOCKER_FULL_TAG", fmt.Sprintf("%s/%s:%s", dockerRegistry, serviceName, submoduleHash)), ordinal)
+	return nil
 }

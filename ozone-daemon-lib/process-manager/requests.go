@@ -9,7 +9,7 @@ type ProcessCreateQuery struct {
 	Cmd               string
 	Synchronous       bool
 	IgnoreError       bool
-	Env               VariableMap
+	Env               *VariableMap
 }
 
 type DebugQuery struct {

@@ -20,16 +20,16 @@ func getDockerRunParams() []string {
 	}
 }
 
-func VarsMapToDockerEnvString(varsMap VariableMap) string {
-	envString := ""
-	for key, value := range varsMap {
-		envString = fmt.Sprintf("%s-e %s=%s ", envString, key, value)
-	}
-	return envString
-}
+//func VarsMapToDockerEnvString(varsMap *VariableMap) string {
+//	envString := ""
+//	for key, value := range varsMap {
+//		envString = fmt.Sprintf("%s-e %s=%s ", envString, key, value)
+//	}
+//	return envString
+//}
 
-func CreateNetworkIfNotExists(serviceName string, env VariableMap) error {
-	network := env["NETWORK"]
+func CreateNetworkIfNotExists(serviceName string, env *VariableMap) error {
+	network, _ := env.GetVariable("NETWORK")
 
 	cmdString := fmt.Sprintf("docker network create -d bridge %s",
 		network,
@@ -55,7 +55,7 @@ func CreateNetworkIfNotExists(serviceName string, env VariableMap) error {
 	return nil
 }
 
-func DeleteContainerIfExists(serviceName string, env VariableMap) error {
+func DeleteContainerIfExists(serviceName string, env *VariableMap) error {
 	cmdString := fmt.Sprintf("docker rm -f %s",
 		serviceName,
 	)
@@ -79,7 +79,7 @@ func DeleteContainerIfExists(serviceName string, env VariableMap) error {
 	return nil
 }
 
-func Build(env VariableMap) error {
+func Build(env *VariableMap) error {
 	for _, arg := range getDockerRunParams() {
 		if err := utils.ParamsOK("DeployDocker", arg, env); err != nil {
 			return err
@@ -91,19 +91,19 @@ func Build(env VariableMap) error {
 		log.Println(err)
 	}
 
-	serviceName := env["SERVICE"].String()
+	serviceName, _ := env.GetVariable("SERVICE")
 
-	CreateNetworkIfNotExists(serviceName, env)
-	DeleteContainerIfExists(serviceName, env)
+	CreateNetworkIfNotExists(serviceName.String(), env)
+	DeleteContainerIfExists(serviceName.String(), env)
 
-	containerImage := env["DOCKER_FULL_TAG"]
-	network := env["NETWORK"]
-	port := env["PORT"]
-	envString := VarsMapToDockerEnvString(env)
+	containerImage, _ := env.GetVariable("DOCKER_FULL_TAG")
+	network, _ := env.GetVariable("NETWORK")
+	port, _ := env.GetVariable("PORT")
+	//envString := VarsMapToDockerEnvString(env)
 
-	cmdString := fmt.Sprintf("docker run --rm -t -v __OUTPUT__:__OUTPUT__ --network %s %s -p %s:%s --name %s %s",
+	cmdString := fmt.Sprintf("docker run --rm -t -v __OUTPUT__:__OUTPUT__ --network %s   -p %s:%s --name %s %s",
 		network,
-		envString,
+		//envString,
 		port,
 		port,
 		serviceName,
@@ -111,7 +111,7 @@ func Build(env VariableMap) error {
 	)
 
 	query := &process_manager.ProcessCreateQuery{
-		serviceName,
+		serviceName.String(),
 		"/",
 		ozoneWorkingDir,
 		cmdString,

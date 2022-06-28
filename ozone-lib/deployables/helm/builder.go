@@ -19,7 +19,7 @@ func getHelmParams() []string {
 	}
 }
 
-func Deploy(serviceName string, envVarMap config_variable.VariableMap) error {
+func Deploy(serviceName string, envVarMap *config_variable.VariableMap) error {
 	for _, arg := range getHelmParams() {
 		if err := utils.ParamsOK("helmChart", arg, envVarMap); err != nil {
 			return err
@@ -31,7 +31,7 @@ func Deploy(serviceName string, envVarMap config_variable.VariableMap) error {
 		log.Println(err)
 	}
 
-	env := config_variable.ConvertMap(envVarMap)
+	env := envVarMap.ConvertMap()
 
 	installName := env["INSTALL_NAME"]
 	chartDir := env["CHART_DIR"]

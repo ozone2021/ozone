@@ -2,13 +2,12 @@ package config_utils
 
 import (
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
-	"log"
 	"os"
 	"strings"
 )
 
-func ContextInPattern(context, pattern string, scope VariableMap) (bool, error) {
-	pattern, err := PongoRender(pattern, scope)
+func ContextInPattern(context, pattern string, scope *VariableMap) (bool, error) {
+	pattern, err := PongoRender(pattern, scope.ConvertMap())
 	if err != nil {
 		return false, err
 	}
@@ -22,32 +21,33 @@ func ContextInPattern(context, pattern string, scope VariableMap) (bool, error) 
 	return false, nil
 }
 
-func OSEnvToVarsMap(ordinal int) VariableMap {
-	newMap := make(VariableMap)
+func OSEnvToVarsMap(ordinal int) *VariableMap {
+	newMap := NewVariableMap()
 	for _, kvString := range os.Environ() {
 		parts := strings.Split(kvString, "=")
 		key, value := parts[0], parts[1]
-		newMap[key] = NewStringVariable(value, ordinal)
+		newMap.AddVariable(NewStringVariable(key, value), ordinal)
 	}
 	return newMap
 }
 
-func RenderNoMerge(ordinal int, base VariableMap, scope VariableMap) VariableMap {
-	combinedScope := CopyVariableMap(scope)
-	osEnv := OSEnvToVarsMap(ordinal)
-	combinedScope, err := MergeVariableMaps(combinedScope, osEnv)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	newMap := CopyVariableMap(base)
-	for _, variable := range newMap {
-		err := variable.Render(combinedScope)
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}
-	return newMap
-}
+//func RenderNoMerge(ordinal int, base VariableMap, scope VariableMap) VariableMap {
+//	combinedScope := scope.Copy()
+//	osEnv := OSEnvToVarsMap(ordinal)
+//	err := combinedScope.MergeVariableMaps(osEnv)
+//	if err != nil {
+//		log.Fatalln(err)
+//	}
+//	newMap := base.Copy()
+//	for _, variable := range newMap {
+//		rendered, err := combinedScope.Render(variable)
+//		if err != nil {
+//			log.Fatalln(err)
+//		}
+//		variable = rendered
+//	}
+//	return newMap
+//}
 
 func CopyMap(toCopy map[string]string) map[string]string {
 	newMap := make(map[string]string)
@@ -57,19 +57,11 @@ func CopyMap(toCopy map[string]string) map[string]string {
 	return newMap
 }
 
-func CopyVariableMap(toCopy VariableMap) VariableMap {
-	newMap := make(VariableMap)
-	for k, v := range toCopy {
-		newMap[k] = v
+func MergeMapsSelfRender(ordinal int, base *VariableMap, overwrite *VariableMap) *VariableMap {
+	if base.IsEmpty() {
+		return overwrite.Copy()
 	}
-	return newMap
-}
-
-func MergeMapsSelfRender(ordinal int, base VariableMap, overwrite VariableMap) VariableMap {
-	if base == nil {
-		return CopyVariableMap(overwrite)
-	}
-	newMap := CopyVariableMap(base)
+	newMap := base.Copy()
 	for k, v := range overwrite {
 		newMap[k] = v
 	}
@@ -88,36 +80,4 @@ func MergeMapsSelfRender(ordinal int, base VariableMap, overwrite VariableMap) V
 //	return nil
 //}
 
-func MergeMaps(base map[string]string, overwrite map[string]string) map[string]string {
-	if base == nil {
-		return CopyMap(overwrite)
-	}
-	newMap := CopyMap(base)
-	for k, v := range overwrite {
-		newMap[k] = v
-	}
-	return newMap
-}
-
 // TODO make a method of vm* potentially
-func MergeVariableMaps(base VariableMap, overwrite VariableMap) (VariableMap, error) {
-	if base == nil {
-		return CopyVariableMap(overwrite), nil
-	}
-	newMap := CopyVariableMap(base)
-	for key, overwriteVariable := range overwrite {
-		_, exists := newMap[key]
-		if exists {
-			overwriteOrdinal := overwriteVariable.GetOrdinal()
-
-			baseOrdinal := newMap[key].GetOrdinal()
-
-			if overwriteOrdinal < baseOrdinal {
-				newMap[key] = overwriteVariable
-			}
-		} else {
-			newMap[key] = overwriteVariable
-		}
-	}
-	return newMap, nil
-}

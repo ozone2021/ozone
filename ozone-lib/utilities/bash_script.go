@@ -15,16 +15,16 @@ func getParams() []string {
 	}
 }
 
-func RunBashScript(envVarMap config_variable.VariableMap) error {
+func RunBashScript(envVarMap *config_variable.VariableMap) error {
 	for _, arg := range getParams() {
 		if err := utils.ParamsOK("RunBashScript", arg, envVarMap); err != nil {
 			return err
 		}
 	}
-	scriptPath := envVarMap["SCRIPT"].String()
-	cmd := exec.Command("/bin/bash", scriptPath)
+	scriptPath, _ := envVarMap.GetVariable("SCRIPT")
+	cmd := exec.Command("/bin/bash", scriptPath.String())
 
-	env := config_variable.ConvertMap(envVarMap)
+	env := envVarMap.ConvertMap()
 
 	workingDir, ok := env["WORKING_DIR"]
 	if ok {

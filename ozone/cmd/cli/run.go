@@ -7,7 +7,6 @@ import (
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/ozone2021/ozone/ozone-lib/buildables"
 	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
-	"github.com/ozone2021/ozone/ozone-lib/config/config_keys"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/deployables/docker"
@@ -79,49 +78,43 @@ func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
 }
 
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
-	ordinal := 1
+	ordinal := 0
 
-	topLevelScope := config_utils.CopyVariableMap(*config.BuildVars)
-	topLevelScope["CONTEXT"] = config_variable.NewStringVariable(context, ordinal)
-	topLevelScope["OZONE_WORKING_DIR"] = config_variable.NewStringVariable(ozoneWorkingDir, ordinal)
+	topLevelScope := config.BuildVars.Copy()
+	topLevelScope.AddVariable(config_variable.NewStringVariable("CONTEXT", context), ordinal)
+	topLevelScope.AddVariable(config_variable.NewStringVariable("OZONE_WORKING_DIR", ozoneWorkingDir), ordinal)
 
 	for _, b := range builds {
-		err := runIndividual(b, ordinal, context, config, topLevelScope)
+		err := runIndividual(b, ordinal, context, config, topLevelScope.Copy())
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
 }
 
-func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, config *ozoneConfig.OzoneConfig, topLevelScope config_variable.VariableMap) error {
+func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, config *ozoneConfig.OzoneConfig, buildScope *config_variable.VariableMap) error {
 	ordinal++
 
-	buildScope := config_utils.CopyVariableMap(topLevelScope)
 	if runnable.Service != "" {
-		buildScope["SERVICE"] = config_variable.NewStringVariable(runnable.Service, ordinal)
+		buildScope.AddVariable(config_variable.NewStringVariable("SERVICE", runnable.Service), ordinal)
 	}
 	if runnable.Dir != "" {
-		buildScope["DIR"] = config_variable.NewStringVariable(runnable.Dir, ordinal)
+		buildScope.AddVariable(config_variable.NewStringVariable("DIR", runnable.Dir), ordinal)
 	}
-	buildScope["NAME"] = config_variable.NewStringVariable(runnable.Name, ordinal)
-	buildScope[config_keys.SOURCE_FILES_KEY] = config_variable.NewSliceVariable(runnable.SourceFiles, ordinal)
-	buildScope = config_utils.RenderNoMerge(ordinal, buildScope, topLevelScope)
+	buildScope.AddVariable(config_variable.NewStringVariable("NAME", runnable.Name), ordinal)
+	//runnable.SourceFiles. TODO set name
+	buildScope.AddVariable(runnable.SourceFiles, ordinal)
+	buildScope.SelfRender()
 
 	// TODO add support for list variables.
-	for k, fileName := range runnable.SourceFiles {
-		var err error
-		runnable.SourceFiles[k], err = config_variable.RenderSentence(fileName, buildScope)
-		if err != nil {
-			return err
-		}
-	}
+	buildScope.Render(runnable.SourceFiles)
 
 	if hasCaching(runnable) {
 		cacheHash, err := getBuildHash(runnable)
 		if err != nil {
 			return err
 		}
-		buildScope["CACHE_HASH_ENTIRE"] = config_variable.NewStringVariable(cacheHash, ordinal)
+		buildScope.AddVariable(config_variable.NewStringVariable("CACHE_HASH_ENTIRE", cacheHash), ordinal)
 	}
 
 	figure.NewFigure(runnable.Name, "doom", true).Print()
@@ -130,9 +123,9 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		return nil
 	}
 
-	contextEnvVars := make(config_variable.VariableMap)
+	contextEnvVars := config_variable.NewVariableMap()
 	for _, contextEnv := range runnable.ContextEnv {
-		buildScope = config_utils.MergeMapsSelfRender(ordinal, buildScope, contextEnv.WithVars)
+		buildScope.MergeVariableMaps(contextEnv.WithVars)
 		inPattern, err := config_utils.ContextInPattern(context, contextEnv.Context, buildScope)
 
 		if err != nil {
@@ -143,7 +136,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 			if err != nil {
 				return err
 			}
-			contextEnvVars = config_utils.MergeMapsSelfRender(ordinal, contextEnvVars, fetchedEnvs)
+			contextEnvVars.MergeVariableMaps(fetchedEnvs)
 		}
 	}
 	//runnableVars, err := config.FetchEnvs(runnable.WithEnv, buildScope)
@@ -160,7 +153,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		}
 
 		dependencyScope := config_utils.MergeMapsSelfRender(ordinal, runnableBuildScope, contextEnvVars)
-		dependencyScope = config_utils.MergeMapsSelfRender(ordinal, dependencyScope, dependency.WithVars)
+		dependencyScope.MergeVariableMaps(dependency.WithVars)
 		err := runIndividual(dependencyRunnable, ordinal, context, config, dependencyScope)
 		if err != nil {
 			return err
@@ -224,7 +217,7 @@ func updateCache(runnable *ozoneConfig.Runnable) {
 	process_manager_client.CacheUpdate(ozoneWorkingDir, runnable.Name, hash)
 }
 
-func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap config_variable.VariableMap) {
+func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *config_variable.VariableMap) {
 	switch step.Name {
 	case "go":
 		fmt.Println("gogo")
@@ -257,7 +250,7 @@ func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap confi
 	}
 }
 
-func runTestable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap config_variable.VariableMap) {
+func runTestable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *config_variable.VariableMap) {
 	switch step.Name {
 	case "bashScript":
 		err := utilities.RunBashScript(varsMap)
@@ -269,7 +262,7 @@ func runTestable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap config
 	}
 }
 
-func runUtility(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap config_variable.VariableMap) {
+func runUtility(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *config_variable.VariableMap) {
 	switch step.Name {
 	case "bashScript":
 		err := utilities.RunBashScript(varsMap)
@@ -281,14 +274,12 @@ func runUtility(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap config_
 	}
 }
 
-func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap config_variable.VariableMap) {
+func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *config_variable.VariableMap) {
 	if step.Type == "builtin" {
 		var err error
 		switch step.Name {
 		case "executable":
-			fmt.Println("gogo")
 			err = executable.Build(r.Service, varsMap)
-			fmt.Println("after")
 		case "helm":
 			err = helm.Deploy(r.Service, varsMap)
 		case "runDockerImage":

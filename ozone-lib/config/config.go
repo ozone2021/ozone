@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/env"
 	"github.com/ozone2021/ozone/ozone-lib/env/git_env"
@@ -28,21 +27,21 @@ type ContextInfo struct {
 }
 
 type Include struct {
-	Name     string      `yaml:"name"`
-	WithVars VariableMap `yaml:"with_vars"`
-	Type     string      `yaml:"type"`
+	Name     string       `yaml:"name"`
+	WithVars *VariableMap `yaml:"with_vars"`
+	Type     string       `yaml:"type"`
 }
 
 type Environment struct {
-	Name     string      `yaml:"name"`
-	WithVars VariableMap `yaml:"with_vars"`
-	Includes []*Include  `yaml:"include"`
+	Name     string       `yaml:"name"`
+	WithVars *VariableMap `yaml:"with_vars"`
+	Includes []*Include   `yaml:"include"`
 }
 
 type Step struct {
-	Type     string      `yaml:"type"`
-	Name     string      `yaml:"name"`
-	WithVars VariableMap `yaml:"with_vars"`
+	Type     string       `yaml:"type"`
+	Name     string       `yaml:"name"`
+	WithVars *VariableMap `yaml:"with_vars"`
 }
 
 type ContextStep struct {
@@ -52,18 +51,18 @@ type ContextStep struct {
 }
 
 type ContextEnv struct {
-	Context  string      `yaml:"context"`
-	WithEnv  []string    `yaml:"with_env"`
-	WithVars VariableMap `yaml:"with_vars"`
+	Context  string       `yaml:"context"`
+	WithEnv  []string     `yaml:"with_env"`
+	WithVars *VariableMap `yaml:"with_vars"`
 }
 
 type Runnable struct {
-	Name        string   `yaml:"name"`
-	Service     string   `yaml:"service"`
-	Dir         string   `yaml:"dir"`
-	SourceFiles []string `yaml:"source_files"`
-	WhenChanged []string `yaml:"when_changed"`
-	Depends     []*Step  `yaml:"depends_on"`
+	Name        string    `yaml:"name"`
+	Service     string    `yaml:"service"`
+	Dir         string    `yaml:"dir"`
+	SourceFiles *Variable `yaml:"source_files"`
+	WhenChanged []string  `yaml:"when_changed"`
+	Depends     []*Step   `yaml:"depends_on"`
 	//WithEnv     	[]string      	`yaml:"with_env"`
 	ContextEnv   []*ContextEnv  `yaml:"context_envs"`
 	ContextSteps []*ContextStep `yaml:"context_steps"`
@@ -149,18 +148,20 @@ func (config *OzoneConfig) ListHasRunnableOfType(name string, runnables []*Runna
 	return false, nil
 }
 
-func (config *OzoneConfig) fetchEnv(ordinal int, envName string, scopeMap VariableMap) (VariableMap, error) {
+func (config *OzoneConfig) fetchEnv(ordinal int, envName string, scopeMap *VariableMap) (*VariableMap, error) {
+	// TODO ordinal
 	nameFound := false
-	varsMap := make(VariableMap)
+	varsMap := NewVariableMap()
 	for _, e := range config.Environments {
 		if e.Name == envName {
 			nameFound = true
 			if len(e.Includes) != 0 {
 				for _, incl := range e.Includes {
-					var inclVarsMap VariableMap
+					var inclVarsMap *VariableMap
 					var err error
 					if incl.Type == "builtin" {
-						inclParamVarsMap := config_utils.MergeMapsSelfRender(ordinal, incl.WithVars, scopeMap)
+						inclParamVarsMap := incl.WithVars.Copy()
+						inclParamVarsMap.MergeVariableMaps(scopeMap)
 						inclVarsMap, err = config.fetchBuiltinEnvFromInclude(ordinal, incl.Name, inclParamVarsMap)
 						if err != nil {
 							return nil, err
@@ -172,13 +173,14 @@ func (config *OzoneConfig) fetchEnv(ordinal int, envName string, scopeMap Variab
 						}
 					}
 
-					inclVarsRendered := config_utils.RenderNoMerge(ordinal, inclVarsMap, scopeMap)
-					varsMap = config_utils.MergeMapsSelfRender(ordinal, varsMap, inclVarsRendered)
+					inclVarsMap.RenderNoMerge(ordinal, scopeMap)
+					varsMap.MergeVariableMaps(inclVarsMap)
 				}
 			}
-			renderedEnvVars := config_utils.RenderNoMerge(ordinal, e.WithVars, scopeMap)
+			renderedEnvVars := e.WithVars.Copy()
+			renderedEnvVars.RenderNoMerge(ordinal, scopeMap)
 
-			varsMap = config_utils.MergeMapsSelfRender(ordinal, varsMap, renderedEnvVars)
+			varsMap.MergeVariableMaps(renderedEnvVars)
 		}
 	}
 	if nameFound == false {
@@ -188,28 +190,28 @@ func (config *OzoneConfig) fetchEnv(ordinal int, envName string, scopeMap Variab
 	return varsMap, nil
 }
 
-func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName string, varsMap VariableMap) (VariableMap, error) {
+func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName string, varsMap *VariableMap) (*VariableMap, error) {
 	var err error
-	fromIncludeMap := make(VariableMap)
+	fromIncludeMap := NewVariableMap()
 
 	// TODO
 	switch envName {
 	case "env/from_k8s_secret_file":
-		fromIncludeMap, err = env.FromSecretFile(ordinal, varsMap)
+		err = env.FromSecretFile(ordinal, varsMap, fromIncludeMap)
 	case "env/from_k8s_secret64":
-		fromIncludeMap, err = env.FromSecret64(ordinal, varsMap)
+		err = env.FromSecret64(ordinal, varsMap, fromIncludeMap)
 	case "env/from_env_file":
-		fromIncludeMap, err = env.FromEnvFile(ordinal, varsMap)
+		err = env.FromEnvFile(ordinal, varsMap, fromIncludeMap)
 	case "env/from_version_file":
-		fromIncludeMap, err = env.FromVersionFile(ordinal, varsMap)
+		err = env.FromVersionFile(ordinal, varsMap, fromIncludeMap)
 	case "env/git_log_hash":
-		fromIncludeMap, err = git_env.GitLogHash(ordinal, varsMap)
+		err = git_env.GitLogHash(ordinal, varsMap, fromIncludeMap)
 	case "env/git_directory_branch_hash":
-		fromIncludeMap, err = env.DynamicFromGitDirBranchNameHash(ordinal, varsMap)
+		err = env.DynamicFromGitDirBranchNameHash(ordinal, varsMap, fromIncludeMap)
 	case "env/git_directory_branch_static":
-		fromIncludeMap, err = env.StaticFromGitDirBranchNameHash(varsMap)
+		err = env.StaticFromGitDirBranchNameHash(ordinal, varsMap, fromIncludeMap)
 	case "env/git_submodule_commit_hash":
-		fromIncludeMap, err = env.GitSubmoduleHash(varsMap)
+		err = env.GitSubmoduleHash(ordinal, varsMap, fromIncludeMap)
 	}
 
 	if err != nil {
@@ -219,12 +221,12 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 	return fromIncludeMap, nil
 }
 
-func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope VariableMap) (VariableMap, error) {
+func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope *VariableMap) (*VariableMap, error) {
 	ordinal++
-	varsMap := make(VariableMap)
+	varsMap := NewVariableMap()
 
 	for _, env := range envList {
-		renderedEnv, err := PongoRender(env, scope)
+		renderedEnv, err := PongoRender(env, scope.ConvertMap())
 		if err != nil {
 			return nil, err
 		}
@@ -233,9 +235,13 @@ func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope Variab
 		if err != nil {
 			return nil, err
 		}
-		varsMap = config_utils.MergeMapsSelfRender(ordinal, varsMap, fetchedMap)
+		err = varsMap.MergeVariableMaps(fetchedMap)
+		if err != nil {
+			return nil, err
+		}
+		varsMap.MergeVariableMaps(fetchedMap)
 	}
-	varsMap = config_utils.RenderNoMerge(ordinal, varsMap, scope)
+	varsMap.RenderNoMerge(ordinal, scope)
 	return varsMap, nil
 }
 
@@ -273,7 +279,7 @@ func ReadConfig() *OzoneConfig {
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, osEnv)
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
 
-	err = ozoneConfig.BuildVars.RenderFilters()
+	err = ozoneConfig.BuildVars.SelfRender()
 
 	if err != nil {
 		log.Fatalln(err)

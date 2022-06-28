@@ -6,8 +6,8 @@ import (
 	"log"
 )
 
-func ParamsOK(runnable string, varName string, varsMap config_variable.VariableMap) error {
-	param, ok := varsMap[varName]
+func ParamsOK(runnable string, varName string, varsMap *config_variable.VariableMap) error {
+	param, ok := varsMap.GetVariable(varName)
 	if !ok || param.String() == "" { // TODO cast
 		return fmt.Errorf("Var %s not present for %s \n", varName, runnable)
 	}

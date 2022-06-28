@@ -6,27 +6,22 @@ import (
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 )
 
-func mapToVariableMap(ordinal int, envFile ...string) (VariableMap, error) {
-	varsMapStringString, err := godotenv.Read(envFile...)
-
-	if err != nil {
-		return nil, err
-	}
-
-	varsMap := make(VariableMap)
-	for k, v := range varsMapStringString {
-		varsMap[k] = NewStringVariable(v, ordinal)
-	}
-
-	return varsMap, nil
-}
-
-func FromEnvFile(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
-	envFile, ok := varsParamMap["ENV_FILE"]
+func FromEnvFile(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
+	envFile, ok := varsMap.GetVariable("ENV_FILE")
 
 	if !ok {
-		return nil, errors.New("ENV_FILE needed.")
+		return errors.New("ENV_FILE needed.")
 	}
 
-	return mapToVariableMap(ordinal, envFile.String())
+	varsMapStringString, err := godotenv.Read(envFile.String())
+
+	if err != nil {
+		return err
+	}
+
+	for k, v := range varsMapStringString {
+		fromIncludeMap.AddVariable(NewStringVariable(k, v), ordinal)
+	}
+
+	return nil
 }

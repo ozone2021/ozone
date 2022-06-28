@@ -15,74 +15,72 @@ type k8sSecret struct {
 	stringData map[string]string `yaml:"stringData"`
 }
 
-func FromSecretFile(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
-	varsMap := make(VariableMap)
+func FromSecretFile(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 
-	secretFile, ok := varsParamMap["SECRET_FILE"]
+	secretFile, ok := varsMap.GetVariable("SECRET_FILE")
 	if !ok {
-		return nil, errors.New("Need SECRET_FILE")
+		return errors.New("Need SECRET_FILE")
 	}
 
 	if secretFile.String() != "" {
 		expandedSecretFile, err := homedir.Expand(secretFile.String())
 		if err != nil {
-			return nil, fmt.Errorf("Secret file error:  #%v \n", err)
+			return fmt.Errorf("Secret file error:  #%v \n", err)
 		}
 
 		yamlFile, err := ioutil.ReadFile(expandedSecretFile)
 		if err != nil {
-			return nil, fmt.Errorf("Secret file error:  #%v ", err)
+			return fmt.Errorf("Secret file error:  #%v ", err)
 		}
 		m := make(map[string]interface{})
 		err = yaml.Unmarshal(yamlFile, &m)
 		if err != nil {
-			return nil, fmt.Errorf("K8s/from_secret error: Unmarshal SECRET_FILE: %v", err)
+			return fmt.Errorf("K8s/from_secret error: Unmarshal SECRET_FILE: %v", err)
 		}
 		stringDataMap, ok := m["stringData"].(map[interface{}]interface{})
 		if !ok {
-			return nil, fmt.Errorf("Argument is not a map")
+			return fmt.Errorf("Argument is not a map")
 		}
 		for key, value := range stringDataMap {
 			strKey := fmt.Sprintf("%v", key)
 			strValue := fmt.Sprintf("%v", value)
 
-			varsMap[strKey] = NewStringVariable(strValue, ordinal)
+			fromIncludeMap.AddVariable(NewStringVariable(strKey, strValue), ordinal)
 		}
 	} else {
 		log.Fatalln("K8s/from_secret needs env var SECRET_FILE")
 	}
-	return varsMap, nil
+	return nil
 }
 
-func FromSecret64(ordinal int, varsParamMap VariableMap) (VariableMap, error) {
-	varsMap := make(VariableMap)
+func FromSecret64(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 
-	secret64, ok := varsParamMap["SECRET_BASE64"]
+	secret64, ok := varsMap.GetVariable("SECRET_BASE64")
 	if !ok {
-		return nil, errors.New("Need SECRET_BASE64")
+		return errors.New("Need SECRET_BASE64")
 	}
 
 	if secret64.String() != "" {
 		var decode64Bytes []byte
 		decode64Bytes, err := base64.StdEncoding.DecodeString(secret64.String())
 		if err != nil {
-			return nil, fmt.Errorf("SECRET_BASE64 decode error:  #%v ", err)
+			return fmt.Errorf("SECRET_BASE64 decode error:  #%v ", err)
 		}
 		m := make(map[string]interface{})
 		err = yaml.Unmarshal(decode64Bytes, &m)
 		if err != nil {
-			return nil, fmt.Errorf("K8s/from_secret error: Unmarshal SECRET_FILE: %v", err)
+			return fmt.Errorf("K8s/from_secret error: Unmarshal SECRET_FILE: %v", err)
 		}
 		stringDataMap, ok := m["stringData"].(map[interface{}]interface{})
 		if !ok {
-			return nil, fmt.Errorf("Argument is not a map")
+			return fmt.Errorf("Argument is not a map")
 		}
 		for key, value := range stringDataMap {
 			strKey := fmt.Sprintf("%v", key)
 			strValue := fmt.Sprintf("%v", value)
 
-			varsMap[strKey] = NewStringVariable(strValue, ordinal)
+			fromIncludeMap.AddVariable(NewStringVariable(strKey, strValue), ordinal)
 		}
 	}
-	return varsMap, nil
+	return nil
 }

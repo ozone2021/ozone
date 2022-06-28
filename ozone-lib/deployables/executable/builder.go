@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-func Build(serviceName string, env config_variable.VariableMap) error {
+func Build(serviceName string, env *config_variable.VariableMap) error {
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		return err
