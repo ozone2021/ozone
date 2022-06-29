@@ -55,6 +55,17 @@ func TestSentenceRender(t *testing.T) {
 	//log.Println(replacedWithSpecialChar)
 }
 
+func TestFilter(t *testing.T) {
+	//input := `{{DOMAIN | default_if_none:"virtuosoqa.local"}}`
+	input := "{{DOCKER_REGISTRY | default_if_none:\"registry.local\"}}"
+	vm := config_variable.NewVariableMap()
+	output, err := config_variable.PongoRender(input, vm.ConvertMap())
+	if err != nil {
+		t.Error(err)
+	}
+	log.Println(output)
+}
+
 func TestVarMatch(t *testing.T) {
 
 	r := regexp.MustCompile(config_variable.VariablePattern)

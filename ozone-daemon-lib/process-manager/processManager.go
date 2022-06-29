@@ -332,7 +332,7 @@ func (pm *ProcessManager) handleAsynchronous(
 	name string,
 	cmd *exec.Cmd,
 	logFile *os.File,
-	env config_variable.VariableMap,
+	env *config_variable.VariableMap,
 	ozoneWorkingDirectory string,
 	ignoreErr bool) error {
 
@@ -364,7 +364,7 @@ func (pm *ProcessManager) handleAsynchronous(
 	}
 	fmt.Printf("NONBLOCKING \n")
 
-	portStringVar, ok := env["PORT"]
+	portStringVar, ok := env.GetVariable("PORT")
 	if !ok {
 		return errors.New("PORT needed")
 	}

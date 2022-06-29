@@ -57,12 +57,11 @@ type ContextEnv struct {
 }
 
 type Runnable struct {
-	Name        string    `yaml:"name"`
-	Service     string    `yaml:"service"`
-	Dir         string    `yaml:"dir"`
-	SourceFiles *Variable `yaml:"source_files"`
-	WhenChanged []string  `yaml:"when_changed"`
-	Depends     []*Step   `yaml:"depends_on"`
+	Name        string   `yaml:"name"`
+	Service     string   `yaml:"service"`
+	Dir         string   `yaml:"dir"`
+	SourceFiles []string `yaml:"source_files"`
+	Depends     []*Step  `yaml:"depends_on"`
 	//WithEnv     	[]string      	`yaml:"with_env"`
 	ContextEnv   []*ContextEnv  `yaml:"context_envs"`
 	ContextSteps []*ContextStep `yaml:"context_steps"`
@@ -160,7 +159,7 @@ func (config *OzoneConfig) fetchEnv(ordinal int, envName string, scopeMap *Varia
 					var inclVarsMap *VariableMap
 					var err error
 					if incl.Type == "builtin" {
-						inclParamVarsMap := incl.WithVars.Copy()
+						inclParamVarsMap := CopyOrCreateNew(incl.WithVars)
 						inclParamVarsMap.MergeVariableMaps(scopeMap)
 						inclVarsMap, err = config.fetchBuiltinEnvFromInclude(ordinal, incl.Name, inclParamVarsMap)
 						if err != nil {
@@ -177,7 +176,7 @@ func (config *OzoneConfig) fetchEnv(ordinal int, envName string, scopeMap *Varia
 					varsMap.MergeVariableMaps(inclVarsMap)
 				}
 			}
-			renderedEnvVars := e.WithVars.Copy()
+			renderedEnvVars := CopyOrCreateNew(e.WithVars)
 			renderedEnvVars.RenderNoMerge(ordinal, scopeMap)
 
 			varsMap.MergeVariableMaps(renderedEnvVars)
@@ -245,6 +244,66 @@ func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope *Varia
 	return varsMap, nil
 }
 
+//func (r *Runnable) UnmarshalYAML(unmarshal func(interface{}) error) error {
+//	var yamlObj map[string]interface{}
+//	if err := unmarshal(&yamlObj); err != nil {
+//		return err
+//	}
+//
+//	r.Name = yamlObj["name"].(string)
+//	service, ok := yamlObj["service"].(string)
+//	if ok {
+//		r.Service = service
+//	}
+//
+//	dir, ok := yamlObj["dir"].(string)
+//	if ok {
+//		r.Dir = dir
+//	}
+//
+//	sourceFiles, ok := yamlObj["source_files"].([]string)
+//	if ok {
+//		r.SourceFiles = NewSliceVariable(config_keys.SOURCE_FILES_KEY, sourceFiles)
+//	}
+//
+//	dependencyBytes, ok := yamlObj["depends_on"].([]byte)
+//	var steps []*Step
+//	if ok {
+//		if err := json.Unmarshal(dependencyBytes, &steps); err != nil {
+//			return err
+//		}
+//		r.Depends = steps
+//	}
+//
+//	contextEnvBytes, ok := yamlObj["context_envs"].([]byte)
+//	var envs []*ContextEnv
+//	if ok {
+//		if err := json.Unmarshal(contextEnvBytes, &envs); err != nil {
+//			return err
+//		}
+//		r.ContextEnv = envs
+//	}
+//
+//	contextSteps, ok := yamlObj["context_steps"].([]byte)
+//	var csteps []*ContextStep
+//	if ok {
+//		if err := json.Unmarshal(contextSteps, &csteps); err != nil {
+//			return err
+//		}
+//		r.ContextEnv = envs
+//	}
+//
+//	var contextInfo ContextInfo
+//	b, ok := yamlObj["context"].([]byte)
+//	if ok {
+//		if err := json.Unmarshal(b, &contextInfo); err != nil {
+//			return err
+//		}
+//	}
+//
+//	return nil
+//}
+
 func ReadConfig() *OzoneConfig {
 	ozoneConfig := OzoneConfig{}
 
@@ -279,7 +338,7 @@ func ReadConfig() *OzoneConfig {
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, osEnv)
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
 
-	err = ozoneConfig.BuildVars.SelfRender()
+	err = ozoneConfig.BuildVars.RenderFilters()
 
 	if err != nil {
 		log.Fatalln(err)

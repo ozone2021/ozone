@@ -16,14 +16,15 @@ func getPushDockerImageParams() []string {
 	}
 }
 
-func PushDockerImage(varsMap VariableMap) error {
+func PushDockerImage(varsMap *VariableMap) error {
 	for _, arg := range getPushDockerImageParams() {
 		if err := utils.ParamsOK("PushDockerImage", arg, varsMap); err != nil {
 			return err
 		}
 	}
 
-	cmdString := varsMap["DOCKER_FULL_TAG"].Fstring("docker push %s")
+	tag, _ := varsMap.GetVariable("DOCKER_FULL_TAG")
+	cmdString := fmt.Sprintf("docker push %s", tag)
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
 	cmd.Stdout = os.Stdout

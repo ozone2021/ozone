@@ -2,7 +2,6 @@ package config_utils
 
 import (
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
-	"os"
 	"strings"
 )
 
@@ -19,16 +18,6 @@ func ContextInPattern(context, pattern string, scope *VariableMap) (bool, error)
 		}
 	}
 	return false, nil
-}
-
-func OSEnvToVarsMap(ordinal int) *VariableMap {
-	newMap := NewVariableMap()
-	for _, kvString := range os.Environ() {
-		parts := strings.Split(kvString, "=")
-		key, value := parts[0], parts[1]
-		newMap.AddVariable(NewStringVariable(key, value), ordinal)
-	}
-	return newMap
 }
 
 //func RenderNoMerge(ordinal int, base VariableMap, scope VariableMap) VariableMap {
@@ -49,25 +38,17 @@ func OSEnvToVarsMap(ordinal int) *VariableMap {
 //	return newMap
 //}
 
-func CopyMap(toCopy map[string]string) map[string]string {
-	newMap := make(map[string]string)
-	for k, v := range toCopy {
-		newMap[k] = v
-	}
-	return newMap
-}
-
-func MergeMapsSelfRender(ordinal int, base *VariableMap, overwrite *VariableMap) *VariableMap {
-	if base.IsEmpty() {
-		return overwrite.Copy()
-	}
-	newMap := base.Copy()
-	for k, v := range overwrite {
-		newMap[k] = v
-	}
-	newMap = RenderNoMerge(ordinal, newMap, newMap)
-	return newMap
-}
+//func MergeMapsSelfRender(ordinal int, base *VariableMap, overwrite *VariableMap) *VariableMap {
+//	if base.IsEmpty() {
+//		return overwrite.Copy()
+//	}
+//	newMap := base.Copy()
+//	for k, v := range overwrite {
+//		newMap[k] = v
+//	}
+//	newMap = RenderNoMerge(ordinal, newMap, newMap)
+//	return newMap
+//}
 
 //func RenderFilters(base *VariableMap) error {
 //	mapWithFiltersApplied := CopyVariableMap(*base)

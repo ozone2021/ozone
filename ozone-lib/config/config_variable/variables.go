@@ -4,10 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/flosch/pongo2/v4"
-	"github.com/ozone2021/ozone/ozone-lib/config/config_keys"
-	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
 	"log"
 	"math"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -37,6 +36,9 @@ func (vm *VariableMap) IsEmpty() bool {
 }
 
 func (vm *VariableMap) AddVariable(variable *Variable, ordinal int) {
+	if variable == nil {
+		return
+	}
 	_, exists := vm.variables[variable.name]
 	if !exists || exists && ordinal < vm.ordinals[variable.name] {
 		vm.variables[variable.name] = variable
@@ -69,6 +71,7 @@ func (vm *VariableMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
+	*vm = *NewVariableMap()
 	for name, value := range yamlObj {
 		switch x := value.(type) {
 		case string:
@@ -88,8 +91,11 @@ func (vm *VariableMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Does this mess the overwrite varmap up?
 func (vm *VariableMap) MergeVariableMaps(overwrite *VariableMap) error {
+	if overwrite == nil {
+		return nil
+	}
 	for _, overwriteVariable := range overwrite.variables {
-		variable, err := vm.Render(*overwriteVariable)
+		variable, err := vm.Render(overwriteVariable)
 		if err != nil {
 			return err
 		}
@@ -100,13 +106,13 @@ func (vm *VariableMap) MergeVariableMaps(overwrite *VariableMap) error {
 
 func (vm *VariableMap) RenderNoMerge(ordinal int, scope *VariableMap) error {
 	combinedScope := scope.Copy()
-	osEnv := config_utils.OSEnvToVarsMap(ordinal)
+	osEnv := OSEnvToVarsMap(ordinal)
 	err := combinedScope.MergeVariableMaps(osEnv)
 	if err != nil {
 		return err
 	}
 	for _, variable := range vm.variables {
-		rendered, err := combinedScope.Render(*variable)
+		rendered, err := combinedScope.Render(variable)
 		if err != nil {
 			return err
 		}
@@ -115,11 +121,28 @@ func (vm *VariableMap) RenderNoMerge(ordinal int, scope *VariableMap) error {
 	return nil
 }
 
+func CopyOrCreateNew(vm *VariableMap) *VariableMap {
+	if vm == nil {
+		return NewVariableMap()
+	}
+	return vm.Copy()
+}
+
 func (vm *VariableMap) Copy() *VariableMap {
 	newMap := NewVariableMap()
 	for name, variable := range vm.variables {
 		newMap.variables[name] = variable.Copy()
 		newMap.ordinals[name] = vm.ordinals[name]
+	}
+	return newMap
+}
+
+func OSEnvToVarsMap(ordinal int) *VariableMap {
+	newMap := NewVariableMap()
+	for _, kvString := range os.Environ() {
+		parts := strings.Split(kvString, "=")
+		key, value := parts[0], parts[1]
+		newMap.AddVariable(NewStringVariable(key, value), ordinal)
 	}
 	return newMap
 }
@@ -205,7 +228,7 @@ func (v *Variable) Fstring(format string, seperators ...string) string {
 
 // TODO maybe a custom tag of ozone?
 func (v *Variable) getYamlTag() (string, error) {
-	t := reflect.TypeOf(v)
+	t := reflect.TypeOf(*v)
 
 	// Get the type and kind of our user variable
 	fmt.Println("Type:", t.Name())
@@ -213,18 +236,20 @@ func (v *Variable) getYamlTag() (string, error) {
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
-		return field.Tag.Get("yaml"), nil
+		tag := field.Tag.Get("yaml")
+		log.Println(tag)
+		fmt.Printf("%d. %v (%v), tag: '%v'\n", i+1, field.Name, field.Type.Name(), tag)
 	}
 	return "", errors.New("Could not get yaml tag.")
 }
 
 func (v *Variable) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var yamlObj map[string]interface{}
+	var yamlObj interface{}
 	if err := unmarshal(&yamlObj); err != nil {
 		return err
 	}
 
-	switch value := yamlObj[config_keys.SOURCE_FILES_KEY].(type) {
+	switch value := yamlObj.(type) {
 	case string:
 		v.SetStringValue(value)
 	case []interface{}:
@@ -245,13 +270,40 @@ func (v *Variable) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (vm *VariableMap) RenderFilters() error {
+	emptyVm := NewVariableMap()
+	for _, variable := range vm.variables {
+		switch variable.GetVarType() {
+		case StringType:
+			rendered, err := PongoRender(variable.String(), emptyVm.ConvertMap())
+			if err != nil {
+				return err
+			}
+			variable.SetStringValue(rendered)
+		case SliceType:
+			var newArray []string
+			for _, item := range variable.GetSliceValue() {
+				rendered, err := PongoRender(item, emptyVm.ConvertMap())
+				if err != nil {
+					return err
+				}
+				newArray = append(newArray, rendered)
+			}
+			variable.SetSliceValue(newArray)
+		default:
+			return errors.New("Unknown type in variable render.")
+		}
+	}
+	return nil
+}
+
 func (vm *VariableMap) SelfRender() error {
 	for _, variable := range vm.variables {
-		var err error
-		variable, err = vm.Render(variable)
+		rendered, err := vm.Render(variable)
 		if err != nil {
 			return err
 		}
+		*variable = *rendered
 	}
 	return nil
 }
@@ -329,19 +381,19 @@ func (vm *VariableMap) RenderSentence(sentence string) (string, error) {
 	return output, nil
 }
 
-func (v Variable) SetStringValue(value string) {
+func (v *Variable) SetStringValue(value string) {
 	v.value = []string{value}
 }
 
-func (v Variable) SetSliceValue(value []string) {
+func (v *Variable) SetSliceValue(value []string) {
 	v.value = value
 }
 
-func (v Variable) GetStringValue() string {
+func (v *Variable) GetStringValue() string {
 	return v.value[0]
 }
 
-func (v Variable) GetSliceValue() []string {
+func (v *Variable) GetSliceValue() []string {
 	return v.value
 }
 

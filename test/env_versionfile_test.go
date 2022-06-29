@@ -7,17 +7,18 @@ import (
 )
 
 func TestVersionFile(t *testing.T) {
-	varsMap := make(config_variable.VariableMap)
+	varsMap := config_variable.NewVariableMap()
 
-	varsMap["VERSION_FILE_DIR"] = config_variable.NewStringVariable("./version", 1)
+	varsMap.AddVariable(config_variable.NewStringVariable("./version", "1"), 1)
 
-	varsMap, err := env.FromVersionFile(1, varsMap)
+	outputMap := config_variable.NewVariableMap()
+	err := env.FromVersionFile(1, varsMap, outputMap)
 
 	if err != nil {
 		t.Error(err)
 	}
 
-	version, ok := varsMap["SERVICE_VERSION"]
+	version, ok := varsMap.GetVariable("SERVICE_VERSION")
 	if !ok {
 		t.Error("SERVICE_VERSION should be set.")
 	}

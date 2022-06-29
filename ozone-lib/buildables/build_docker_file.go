@@ -21,26 +21,34 @@ func getParams() []string {
 	}
 }
 
-func BuildDockerContainer(varsMap VariableMap) error {
+func BuildDockerContainer(varsMap *VariableMap) error {
 	for _, arg := range getParams() {
 		if err := utils.ParamsOK("BuildDockerContainer", arg, varsMap); err != nil {
 			return err
 		}
 	}
 
-	dockerBuildDir, ok := varsMap["DOCKER_BUILD_DIR"]
+	dockerBuildDir, ok := varsMap.GetVariable("DOCKER_BUILD_DIR")
 	if !ok {
-		dockerBuildDir = varsMap["OZONE_WORKING_DIR"]
+		dockerBuildDir, _ = varsMap.GetVariable("OZONE_WORKING_DIR")
 	}
-	sourceDirArg := varsMap["DIR"].Fstring("--build-arg DIR=%s")
 
-	cmdCallDir, _ := varsMap["OZONE_WORKING_DIR"]
-	tag, _ := varsMap["DOCKER_FULL_TAG"]
+	//sourceDirArg := varsMap.GetVariable("DIR").Fstring("--build-arg DIR=%s")
 
-	buildArgs := varsMap["DOCKER_BUILD_ARGS"].String()
-	buildArgs = fmt.Sprintf("%s %s", buildArgs, sourceDirArg)
+	cmdCallDir, _ := varsMap.GetVariable("OZONE_WORKING_DIR")
+	tag, _ := varsMap.GetVariable("DOCKER_FULL_TAG")
 
-	dockerfilePath := varsMap["DOCKERFILE"].Fstring("-f %s")
+	buildArgs := ""
+	buildArgsVar, ok := varsMap.GetVariable("DOCKER_BUILD_ARGS")
+	if ok {
+		buildArgs = fmt.Sprintf("%s", buildArgsVar)
+	}
+
+	dockerfilePath := ""
+	dockerfilePathVar, ok := varsMap.GetVariable("DOCKERFILE")
+	if ok {
+		buildArgs = fmt.Sprintf("-f %s", dockerfilePathVar)
+	}
 
 	cmdString := fmt.Sprintf("docker build -t %s %s %s %s",
 		tag,
