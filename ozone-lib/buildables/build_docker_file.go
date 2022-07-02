@@ -47,7 +47,7 @@ func BuildDockerContainer(varsMap *VariableMap) error {
 	dockerfilePath := ""
 	dockerfilePathVar, ok := varsMap.GetVariable("DOCKERFILE")
 	if ok {
-		buildArgs = fmt.Sprintf("-f %s", dockerfilePathVar)
+		buildArgs = fmt.Sprintf("%s -f %s", buildArgs, dockerfilePathVar)
 	}
 
 	cmdString := fmt.Sprintf("docker build -t %s %s %s %s",

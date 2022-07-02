@@ -14,7 +14,11 @@ Overriding context env var from with_var of calling runnable doesn't override.
 
 
 
+
+
 Version check on Ozonefile.
 
-Variadic GenericVar. []string data structure for all. Single items just spit out normal, multiples spit out with semi-colon
-delimiter.
+ContextStep step -> should probably force name being set to give better error messages.
+
+document:
+Conditional script should return 3 for exit that is a real error. All others should be ignored.

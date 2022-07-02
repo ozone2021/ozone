@@ -31,7 +31,7 @@ func Deploy(serviceName string, envVarMap *config_variable.VariableMap) error {
 		log.Println(err)
 	}
 
-	env := envVarMap.ConvertMap()
+	env := envVarMap.ConvertMapPongo()
 
 	installName := env["INSTALL_NAME"]
 	chartDir := env["CHART_DIR"]

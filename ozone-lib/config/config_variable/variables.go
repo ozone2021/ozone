@@ -40,10 +40,23 @@ func (vm *VariableMap) AddVariable(variable *Variable, ordinal int) {
 		return
 	}
 	_, exists := vm.variables[variable.name]
-	if !exists || exists && ordinal < vm.ordinals[variable.name] {
+	if !exists || exists && ordinal <= vm.ordinals[variable.name] {
 		vm.variables[variable.name] = variable
 		vm.ordinals[variable.name] = ordinal
 	}
+}
+
+func (vm *VariableMap) AddVariableWithoutOrdinality(variable *Variable) {
+	if variable == nil {
+		return
+	}
+	//rendered, err := vm.Render(variable)
+	//if err != nil {
+	//	return err
+	//}
+	vm.variables[variable.name] = variable
+	vm.ordinals[variable.name] = 1
+	return
 }
 
 func (vm *VariableMap) GetVariable(name string) (*Variable, bool) {
@@ -55,7 +68,16 @@ func (vm *VariableMap) GetVariable(name string) (*Variable, bool) {
 //	return vm.ordinals[name]
 //}
 
-func (vm *VariableMap) ConvertMap() pongo2.Context {
+func (vm *VariableMap) ConvertMap() map[string]string {
+	convertedMap := make(map[string]string)
+	for key, variable := range vm.variables {
+		convertedMap[key] = variable.String()
+	}
+
+	return convertedMap
+}
+
+func (vm *VariableMap) ConvertMapPongo() pongo2.Context {
 	convertedMap := make(map[string]interface{})
 	for key, variable := range vm.variables {
 		convertedMap[key] = variable.String()
@@ -105,8 +127,8 @@ func (vm *VariableMap) MergeVariableMaps(overwrite *VariableMap) error {
 }
 
 func (vm *VariableMap) RenderNoMerge(ordinal int, scope *VariableMap) error {
-	combinedScope := scope.Copy()
-	osEnv := OSEnvToVarsMap(ordinal)
+	combinedScope := scope.copy()
+	osEnv := OSEnvToVarsMap()
 	err := combinedScope.MergeVariableMaps(osEnv)
 	if err != nil {
 		return err
@@ -116,7 +138,7 @@ func (vm *VariableMap) RenderNoMerge(ordinal int, scope *VariableMap) error {
 		if err != nil {
 			return err
 		}
-		variable = rendered
+		*variable = *rendered
 	}
 	return nil
 }
@@ -125,10 +147,10 @@ func CopyOrCreateNew(vm *VariableMap) *VariableMap {
 	if vm == nil {
 		return NewVariableMap()
 	}
-	return vm.Copy()
+	return vm.copy()
 }
 
-func (vm *VariableMap) Copy() *VariableMap {
+func (vm *VariableMap) copy() *VariableMap {
 	newMap := NewVariableMap()
 	for name, variable := range vm.variables {
 		newMap.variables[name] = variable.Copy()
@@ -137,12 +159,12 @@ func (vm *VariableMap) Copy() *VariableMap {
 	return newMap
 }
 
-func OSEnvToVarsMap(ordinal int) *VariableMap {
+func OSEnvToVarsMap() *VariableMap {
 	newMap := NewVariableMap()
 	for _, kvString := range os.Environ() {
 		parts := strings.Split(kvString, "=")
 		key, value := parts[0], parts[1]
-		newMap.AddVariable(NewStringVariable(key, value), ordinal)
+		newMap.AddVariable(NewStringVariable(key, value), ConfigOrdinal)
 	}
 	return newMap
 }
@@ -271,11 +293,11 @@ func (v *Variable) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 func (vm *VariableMap) RenderFilters() error {
-	emptyVm := NewVariableMap()
+	emptyVm := OSEnvToVarsMap()
 	for _, variable := range vm.variables {
 		switch variable.GetVarType() {
 		case StringType:
-			rendered, err := PongoRender(variable.String(), emptyVm.ConvertMap())
+			rendered, err := PongoRender(variable.String(), emptyVm.ConvertMapPongo())
 			if err != nil {
 				return err
 			}
@@ -283,7 +305,7 @@ func (vm *VariableMap) RenderFilters() error {
 		case SliceType:
 			var newArray []string
 			for _, item := range variable.GetSliceValue() {
-				rendered, err := PongoRender(item, emptyVm.ConvertMap())
+				rendered, err := PongoRender(item, emptyVm.ConvertMapPongo())
 				if err != nil {
 					return err
 				}
@@ -371,7 +393,7 @@ func (vm *VariableMap) RenderSentence(sentence string) (string, error) {
 		var err error
 		replacement := varDeclaration.Declaration
 		if exists || varDeclaration.Filter != "" {
-			replacement, err = PongoRender(replacement, vm.ConvertMap())
+			replacement, err = PongoRender(replacement, vm.ConvertMapPongo())
 			if err != nil {
 				return "", err
 			}

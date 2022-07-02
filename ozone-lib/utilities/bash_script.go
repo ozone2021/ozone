@@ -3,26 +3,14 @@ package utilities
 import (
 	"fmt"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
-	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"os"
 	"os/exec"
 )
 
-func getParams() []string {
-	return []string{
-		"SCRIPT",
-		//"WORKING_DIRECTORY" optional
-	}
-}
-
-func RunBashScript(envVarMap *config_variable.VariableMap) error {
-	for _, arg := range getParams() {
-		if err := utils.ParamsOK("RunBashScript", arg, envVarMap); err != nil {
-			return err
-		}
-	}
-	scriptPath, _ := envVarMap.GetVariable("SCRIPT")
-	cmd := exec.Command("/bin/bash", scriptPath.String())
+// -1 is an error which can't be ignored in conditional
+//
+func RunBashScript(script string, envVarMap *config_variable.VariableMap) (int, error) {
+	cmd := exec.Command("/bin/bash", script)
 
 	env := envVarMap.ConvertMap()
 
@@ -31,17 +19,24 @@ func RunBashScript(envVarMap *config_variable.VariableMap) error {
 		cmd.Dir = fmt.Sprintf("%s/%s", env["OZONE_WORKING_DIR"], workingDir)
 	}
 
-	cmd.Env = os.Environ()
+	combinedEnv := os.Environ()
+
+	for key, value := range env {
+		combinedEnv = append(combinedEnv, fmt.Sprintf("%s=%s", key, value)) // TODO this doesn't overwrite os.ENv vars
+	}
+
+	cmd.Env = combinedEnv
 	for k, v := range env {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-
-	if err != nil {
-		return err
+	if err := cmd.Run(); err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			return exitError.ExitCode(), err
+		}
 	}
+
 	//output := string(out)
-	return nil
+	return 0, nil
 }

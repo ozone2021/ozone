@@ -6,7 +6,7 @@ import (
 )
 
 func ContextInPattern(context, pattern string, scope *VariableMap) (bool, error) {
-	pattern, err := PongoRender(pattern, scope.ConvertMap())
+	pattern, err := PongoRender(pattern, scope.ConvertMapPongo())
 	if err != nil {
 		return false, err
 	}

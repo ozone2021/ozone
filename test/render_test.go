@@ -59,7 +59,7 @@ func TestFilter(t *testing.T) {
 	//input := `{{DOMAIN | default_if_none:"virtuosoqa.local"}}`
 	input := "{{DOCKER_REGISTRY | default_if_none:\"registry.local\"}}"
 	vm := config_variable.NewVariableMap()
-	output, err := config_variable.PongoRender(input, vm.ConvertMap())
+	output, err := config_variable.PongoRender(input, vm.ConvertMapPongo())
 	if err != nil {
 		t.Error(err)
 	}

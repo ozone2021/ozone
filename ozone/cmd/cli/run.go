@@ -81,15 +81,30 @@ func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
 func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
 	ordinal := 0
 
-	topLevelScope := config.BuildVars.Copy()
+	topLevelScope := config_variable.CopyOrCreateNew(config.BuildVars)
 	topLevelScope.AddVariable(config_variable.NewStringVariable("CONTEXT", context), ordinal)
 	topLevelScope.AddVariable(config_variable.NewStringVariable("OZONE_WORKING_DIR", ozoneWorkingDir), ordinal)
 
 	for _, b := range builds {
-		err := runIndividual(b, ordinal, context, config, topLevelScope.Copy())
+		err := runIndividual(b, ordinal, context, config, config_variable.CopyOrCreateNew(topLevelScope))
 		if err != nil {
 			log.Fatalln(err)
 		}
+	}
+}
+
+func whenScript(script string, varsMap *config_variable.VariableMap) (bool, error) {
+	exitCode, err := utilities.RunBashScript(script, varsMap)
+	if err != nil {
+		log.Printf("WARNING: code %d, potential err=%s", exitCode, err.Error())
+	}
+	switch exitCode {
+	case 0:
+		return true, nil
+	case -1:
+		return false, err
+	default:
+		return false, nil
 	}
 }
 
@@ -97,7 +112,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	ordinal++
 
 	if runnable.Service != "" {
-		buildScope.AddVariable(config_variable.NewStringVariable("SERVICE", runnable.Service), ordinal)
+		buildScope.AddVariableWithoutOrdinality(config_variable.NewStringVariable("SERVICE", runnable.Service))
 	}
 	if runnable.Dir != "" {
 		buildScope.AddVariable(config_variable.NewStringVariable("DIR", runnable.Dir), ordinal)
@@ -147,12 +162,54 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 			contextEnvVars.MergeVariableMaps(fetchedEnvs)
 		}
 	}
+
 	//runnableVars, err := config.FetchEnvs(runnable.WithEnv, buildScope)
 	//if err != nil  {
 	//	return err
 	//}
-	runnableBuildScope := contextEnvVars.Copy()
+	runnableBuildScope := config_variable.CopyOrCreateNew(contextEnvVars)
 	runnableBuildScope.MergeVariableMaps(buildScope)
+
+	shouldRun := true
+	for _, contextConditional := range runnable.ContextConditionals {
+		inPattern, err := config_utils.ContextInPattern(context, contextConditional.Context, runnableBuildScope)
+		if err != nil {
+			return err
+		}
+		if inPattern {
+			// WhenScript
+			for _, script := range contextConditional.WhenScript {
+				exitCode, err := utilities.RunBashScript(script, runnableBuildScope)
+				switch exitCode {
+				case 0:
+					shouldRun = true
+				case 3:
+					return err
+				default:
+					shouldRun = false
+					log.Printf("Not running, contextConditional whenScript not satisfied: %s", script)
+					return nil
+				}
+			}
+			// When Not script
+			for _, script := range contextConditional.WhenNotScript {
+				exitCode, err := utilities.RunBashScript(script, runnableBuildScope)
+				switch exitCode {
+				case 0:
+					shouldRun = false
+					log.Printf("Not running, contextConditional whenNotScript not satisfied: %s", script)
+					return nil
+				case 3:
+					return err
+				default:
+					shouldRun = true
+				}
+			}
+		}
+	}
+	if !shouldRun {
+		return nil
+	}
 
 	for _, dependency := range runnable.Depends {
 		exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
@@ -161,7 +218,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 			log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, runnable.Name)
 		}
 
-		dependencyScope := runnableBuildScope.Copy()
+		dependencyScope := config_variable.CopyOrCreateNew(runnableBuildScope)
 		dependencyScope.MergeVariableMaps(contextEnvVars)
 		dependencyScope.MergeVariableMaps(dependency.WithVars)
 		err := runIndividual(dependencyRunnable, ordinal, context, config, dependencyScope)
@@ -181,14 +238,14 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 			//contextStepBuildScope := config_utils.MergeMapsSelfRender(ordinal, buildScope, contextStepVars)
 			contextStepVars, err := config.FetchEnvs(ordinal, cs.WithEnv, runnableBuildScope)
 			contextStepVars.MergeVariableMaps(contextEnvVars)
-			contextStepBuildScope := buildScope.Copy()
+			contextStepBuildScope := config_variable.CopyOrCreateNew(buildScope)
 			contextStepBuildScope.MergeVariableMaps(contextStepVars)
 			if err != nil {
 				return err
 			}
 			//scope = ozoneConfig.MergeMapsSelfRender(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
 			for _, step := range cs.Steps {
-				stepVars := step.WithVars.Copy()
+				stepVars := config_variable.CopyOrCreateNew(step.WithVars)
 				stepVars.MergeVariableMaps(contextStepBuildScope)
 				stepVars.MergeVariableMaps(contextStepVars)
 
@@ -252,7 +309,11 @@ func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *conf
 			log.Fatalln(err)
 		}
 	case "bashScript":
-		err := utilities.RunBashScript(varsMap)
+		script, ok := varsMap.GetVariable("SCRIPT")
+		if !ok {
+			log.Fatalf("Script not set for runnable step %s", r.Name)
+		}
+		_, err := utilities.RunBashScript(script.String(), varsMap)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -268,7 +329,11 @@ func runBuildable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *conf
 func runTestable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *config_variable.VariableMap) {
 	switch step.Name {
 	case "bashScript":
-		err := utilities.RunBashScript(varsMap)
+		script, ok := varsMap.GetVariable("SCRIPT")
+		if !ok {
+			log.Fatalf("Script not set for runnable step %s", r.Name)
+		}
+		_, err := utilities.RunBashScript(script.String(), varsMap)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -280,7 +345,11 @@ func runTestable(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *confi
 func runUtility(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *config_variable.VariableMap) {
 	switch step.Name {
 	case "bashScript":
-		err := utilities.RunBashScript(varsMap)
+		script, ok := varsMap.GetVariable("SCRIPT")
+		if !ok {
+			log.Fatalf("Script not set for runnable step %s", r.Name)
+		}
+		_, err := utilities.RunBashScript(script.String(), varsMap)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -300,7 +369,11 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *co
 		case "runDockerImage":
 			err = docker.Build(varsMap)
 		case "bashScript":
-			err = utilities.RunBashScript(varsMap)
+			script, ok := varsMap.GetVariable("SCRIPT")
+			if !ok {
+				log.Fatalf("Script not set for runnable step %s", r.Name)
+			}
+			_, err = utilities.RunBashScript(script.String(), varsMap)
 		default:
 			log.Fatalf("Builtin value not found: %s \n", step.Name)
 		}

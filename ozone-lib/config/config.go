@@ -56,6 +56,13 @@ type ContextEnv struct {
 	WithVars *VariableMap `yaml:"with_vars"`
 }
 
+type ContextConditional struct {
+	Context string `yaml:"context"`
+	//WhenChanged
+	WhenScript    []string `yaml:"when_script"`
+	WhenNotScript []string `yaml:"when_not_script"`
+}
+
 type Runnable struct {
 	Name        string   `yaml:"name"`
 	Service     string   `yaml:"service"`
@@ -63,9 +70,10 @@ type Runnable struct {
 	SourceFiles []string `yaml:"source_files"`
 	Depends     []*Step  `yaml:"depends_on"`
 	//WithEnv     	[]string      	`yaml:"with_env"`
-	ContextEnv   []*ContextEnv  `yaml:"context_envs"`
-	ContextSteps []*ContextStep `yaml:"context_steps"`
-	Type         RunnableType
+	ContextEnv          []*ContextEnv         `yaml:"context_envs"`
+	ContextConditionals []*ContextConditional `yaml:"context_conditionals"`
+	ContextSteps        []*ContextStep        `yaml:"context_steps"`
+	Type                RunnableType
 }
 
 type OzoneConfig struct {
@@ -225,7 +233,7 @@ func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope *Varia
 	varsMap := NewVariableMap()
 
 	for _, env := range envList {
-		renderedEnv, err := PongoRender(env, scope.ConvertMap())
+		renderedEnv, err := PongoRender(env, scope.ConvertMapPongo())
 		if err != nil {
 			return nil, err
 		}
