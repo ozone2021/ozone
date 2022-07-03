@@ -39,9 +39,10 @@ type Environment struct {
 }
 
 type Step struct {
-	Type     string       `yaml:"type"`
-	Name     string       `yaml:"name"`
-	WithVars *VariableMap `yaml:"with_vars"`
+	Type        string            `yaml:"type"`
+	Name        string            `yaml:"name"`
+	WithVars    *VariableMap      `yaml:"with_vars"`
+	VarOutputAs map[string]string `yaml:"var_output_as"`
 }
 
 type ContextStep struct {

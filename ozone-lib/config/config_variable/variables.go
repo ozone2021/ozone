@@ -59,14 +59,50 @@ func (vm *VariableMap) AddVariableWithoutOrdinality(variable *Variable) {
 	return
 }
 
+func (vm *VariableMap) GetOrdinal(name string) (int, error) {
+	ordinal, exists := vm.ordinals[name]
+	if !exists {
+		return 0, errors.New(fmt.Sprintf("Ordinal for %s doesn't exist", name))
+	}
+	return ordinal, nil
+}
+
 func (vm *VariableMap) GetVariable(name string) (*Variable, bool) {
 	variable, ok := vm.variables[name]
 	return variable, ok
+}
+func (vm *VariableMap) AsOutput(varOutputAs map[string]string) (*VariableMap, error) {
+	outputMap := NewVariableMap()
+	for currentName, targetName := range varOutputAs {
+		variable, exists := vm.GetVariable(currentName)
+		if exists {
+			copiedVar := variable.Copy()
+			copiedVar.name = targetName
+			ordinal, err := vm.GetOrdinal(currentName)
+			if err != nil {
+				return nil, err
+			}
+			outputMap.AddVariable(copiedVar, ordinal)
+		} else {
+			return nil, errors.New(fmt.Sprintf("Variable %s doesn't exist in VariableMap", currentName))
+		}
+	}
+	return outputMap, nil
 }
 
 //func (vm *VariableMap) getOrdinal(name string) int {
 //	return vm.ordinals[name]
 //}
+
+func (vm *VariableMap) IncrementOrdinal(incrementBy int) {
+	for key, ordinal := range vm.ordinals {
+		if ordinal == math.MaxInt {
+			vm.ordinals[key] = incrementBy
+		} else {
+			vm.ordinals[key] += incrementBy
+		}
+	}
+}
 
 func (vm *VariableMap) ConvertMap() map[string]string {
 	convertedMap := make(map[string]string)

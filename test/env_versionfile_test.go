@@ -2,28 +2,30 @@ package test
 
 import (
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
-	"github.com/ozone2021/ozone/ozone-lib/env"
 	"testing"
 )
 
 func TestVersionFile(t *testing.T) {
 	varsMap := config_variable.NewVariableMap()
 
-	varsMap.AddVariable(config_variable.NewStringVariable("./version", "1"), 1)
+	varsMap.AddVariable(config_variable.NewStringVariable("DOCKER_TAG", "the_docker_tag"), 1)
 
-	outputMap := config_variable.NewVariableMap()
-	err := env.FromVersionFile(1, varsMap, outputMap)
-
+	asOutput := make(map[string]string)
+	asOutput["DOCKER_TAG"] = "DOCKER_TAG_BASE"
+	outputMap, err := varsMap.AsOutput(asOutput)
 	if err != nil {
 		t.Error(err)
 	}
 
-	version, ok := varsMap.GetVariable("SERVICE_VERSION")
-	if !ok {
-		t.Error("SERVICE_VERSION should be set.")
+	value, exists := outputMap.GetVariable("DOCKER_TAG_BASE")
+	if !exists || value.String() != "the_docker_tag" {
+		t.Error("Value should exist and equal the_docker_tag")
 	}
-
-	if version.String() != "1.2" {
-		t.Error("Version should be 1.2")
+	ordinal, err := outputMap.GetOrdinal("DOCKER_TAG_BASE")
+	if err != nil {
+		t.Error(err)
+	}
+	if ordinal != 1 {
+		t.Error("Ordinal should equal 1")
 	}
 }

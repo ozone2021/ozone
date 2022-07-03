@@ -86,7 +86,8 @@ func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, contex
 	topLevelScope.AddVariable(config_variable.NewStringVariable("OZONE_WORKING_DIR", ozoneWorkingDir), ordinal)
 
 	for _, b := range builds {
-		err := runIndividual(b, ordinal, context, config, config_variable.CopyOrCreateNew(topLevelScope))
+		asOutput := make(map[string]string)
+		_, err := runIndividual(b, ordinal, context, config, config_variable.CopyOrCreateNew(topLevelScope), asOutput)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -108,7 +109,7 @@ func whenScript(script string, varsMap *config_variable.VariableMap) (bool, erro
 	}
 }
 
-func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, config *ozoneConfig.OzoneConfig, buildScope *config_variable.VariableMap) error {
+func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, config *ozoneConfig.OzoneConfig, buildScope *config_variable.VariableMap, asOutput map[string]string) (*config_variable.VariableMap, error) {
 	ordinal++
 
 	if runnable.Service != "" {
@@ -125,7 +126,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	for i, file := range runnable.SourceFiles {
 		rendered, err := buildScope.RenderSentence(file)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		runnable.SourceFiles[i] = rendered
 	}
@@ -135,7 +136,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	if hasCaching(runnable) {
 		cacheHash, err := getBuildHash(runnable)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		buildScope.AddVariable(config_variable.NewStringVariable("CACHE_HASH_ENTIRE", cacheHash), ordinal)
 	}
@@ -143,7 +144,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	figure.NewFigure(runnable.Name, "doom", true).Print()
 	if runnable.Type == ozoneConfig.BuildType && checkCache(runnable) == true {
 		log.Printf("Info: build files for %s unchanged from cache. \n", runnable.Name)
-		return nil
+		return nil, nil
 	}
 
 	contextEnvVars := config_variable.NewVariableMap()
@@ -152,16 +153,17 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		inPattern, err := config_utils.ContextInPattern(context, contextEnv.Context, buildScope)
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if inPattern {
 			fetchedEnvs, err := config.FetchEnvs(ordinal, contextEnv.WithEnv, buildScope)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			contextEnvVars.MergeVariableMaps(fetchedEnvs)
 		}
 	}
+	contextEnvVars.IncrementOrdinal(ordinal)
 
 	//runnableVars, err := config.FetchEnvs(runnable.WithEnv, buildScope)
 	//if err != nil  {
@@ -170,11 +172,18 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	runnableBuildScope := config_variable.CopyOrCreateNew(contextEnvVars)
 	runnableBuildScope.MergeVariableMaps(buildScope)
 
+	outputVars := config_variable.NewVariableMap()
+	contextOutputVars, err := runnableBuildScope.AsOutput(asOutput)
+	if err != nil {
+		return nil, err
+	}
+	outputVars.MergeVariableMaps(contextOutputVars)
+
 	shouldRun := true
 	for _, contextConditional := range runnable.ContextConditionals {
 		inPattern, err := config_utils.ContextInPattern(context, contextConditional.Context, runnableBuildScope)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if inPattern {
 			// WhenScript
@@ -184,11 +193,11 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 				case 0:
 					shouldRun = true
 				case 3:
-					return err
+					return nil, err
 				default:
 					shouldRun = false
 					log.Printf("Not running, contextConditional whenScript not satisfied: %s", script)
-					return nil
+					return nil, nil
 				}
 			}
 			// When Not script
@@ -198,9 +207,9 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 				case 0:
 					shouldRun = false
 					log.Printf("Not running, contextConditional whenNotScript not satisfied: %s", script)
-					return nil
+					return nil, nil
 				case 3:
-					return err
+					return nil, err
 				default:
 					shouldRun = true
 				}
@@ -208,9 +217,10 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		}
 	}
 	if !shouldRun {
-		return nil
+		return outputVars, nil
 	}
 
+	outputVarsFromDependentStep := config_variable.NewVariableMap()
 	for _, dependency := range runnable.Depends {
 		exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
 
@@ -220,17 +230,23 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 
 		dependencyScope := config_variable.CopyOrCreateNew(runnableBuildScope)
 		dependencyScope.MergeVariableMaps(contextEnvVars)
-		dependencyScope.MergeVariableMaps(dependency.WithVars)
-		err := runIndividual(dependencyRunnable, ordinal, context, config, dependencyScope)
+		dependencyWithVars := config_variable.CopyOrCreateNew(dependency.WithVars)
+		dependencyWithVars.IncrementOrdinal(ordinal)
+		dependencyScope.MergeVariableMaps(dependencyWithVars)
+		var err error
+		outputVarsFromDependentStep, err = runIndividual(dependencyRunnable, ordinal, context, config, dependencyScope, dependency.VarOutputAs)
 		if err != nil {
-			return err
+			return nil, err
 		}
+		outputVars.MergeVariableMaps(outputVarsFromDependentStep)
 	}
+
+	runnableBuildScope.MergeVariableMaps(outputVarsFromDependentStep)
 
 	for _, cs := range runnable.ContextSteps {
 		match, err := config_utils.ContextInPattern(context, cs.Context, runnableBuildScope)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if match {
 			//contextStepVars, err := config.FetchEnvs(ordinal, cs.WithEnv, runnableBuildScope)
@@ -241,18 +257,24 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 			contextStepBuildScope := config_variable.CopyOrCreateNew(buildScope)
 			contextStepBuildScope.MergeVariableMaps(contextStepVars)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			//scope = ozoneConfig.MergeMapsSelfRender(scope, runtimeVars) TODO are runtimeVarsNeeded at build?
 			for _, step := range cs.Steps {
 				stepVars := config_variable.CopyOrCreateNew(step.WithVars)
+				stepVars.IncrementOrdinal(ordinal)
 				stepVars.MergeVariableMaps(contextStepBuildScope)
 				stepVars.MergeVariableMaps(contextStepVars)
 
+				stepOutputVars, err := stepVars.AsOutput(step.VarOutputAs)
+				if err != nil {
+					return nil, err
+				}
+				outputVars.MergeVariableMaps(stepOutputVars)
 				fmt.Printf("Step: %s \n", step.Name)
 
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if step.Type == "builtin" {
 					switch runnable.Type {
@@ -276,7 +298,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		updateCache(runnable)
 	}
 
-	return nil
+	return outputVars, nil
 }
 
 func updateCache(runnable *ozoneConfig.Runnable) {
