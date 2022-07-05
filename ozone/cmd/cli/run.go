@@ -191,27 +191,30 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 				exitCode, err := utilities.RunBashScript(script, runnableBuildScope)
 				switch exitCode {
 				case 0:
-					shouldRun = true
+					continue
 				case 3:
 					return nil, err
 				default:
 					shouldRun = false
 					log.Printf("Not running, contextConditional whenScript not satisfied: %s", script)
-					return nil, nil
+					break
 				}
 			}
 			// When Not script
+			if shouldRun == false {
+				break
+			}
 			for _, script := range contextConditional.WhenNotScript {
 				exitCode, err := utilities.RunBashScript(script, runnableBuildScope)
 				switch exitCode {
 				case 0:
 					shouldRun = false
 					log.Printf("Not running, contextConditional whenNotScript not satisfied: %s", script)
-					return nil, nil
+					break
 				case 3:
 					return nil, err
 				default:
-					shouldRun = true
+					continue
 				}
 			}
 		}
