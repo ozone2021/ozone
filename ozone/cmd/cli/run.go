@@ -109,6 +109,20 @@ func whenScript(script string, varsMap *config_variable.VariableMap) (bool, erro
 	}
 }
 
+func mergeMapStringString(map1, map2 map[string]string) {
+	for k, v := range map2 {
+		map1[k] = v
+	}
+}
+
+func copyMapStringString(m map[string]string) map[string]string {
+	newMap := make(map[string]string)
+	for k, v := range m {
+		newMap[k] = v
+	}
+	return newMap
+}
+
 func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, config *ozoneConfig.OzoneConfig, buildScope *config_variable.VariableMap, asOutput map[string]string) (*config_variable.VariableMap, error) {
 	ordinal++
 
@@ -191,6 +205,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 				exitCode, err := utilities.RunBashScript(script, runnableBuildScope)
 				switch exitCode {
 				case 0:
+					shouldRun = true
 					continue
 				case 3:
 					return nil, err
@@ -214,12 +229,13 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 				case 3:
 					return nil, err
 				default:
+					shouldRun = true
 					continue
 				}
 			}
 		}
 	}
-	if !shouldRun {
+	if shouldRun == false {
 		return outputVars, nil
 	}
 
@@ -237,7 +253,11 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		dependencyWithVars.IncrementOrdinal(ordinal)
 		dependencyScope.MergeVariableMaps(dependencyWithVars)
 		var err error
-		outputVarsFromDependentStep, err = runIndividual(dependencyRunnable, ordinal, context, config, dependencyScope, dependency.VarOutputAs)
+
+		dependencyVarAsOutput := copyMapStringString(dependency.VarOutputAs)
+		mergeMapStringString(dependencyVarAsOutput, asOutput)
+		dependencyScope.MergeVariableMaps(outputVars)
+		outputVarsFromDependentStep, err = runIndividual(dependencyRunnable, ordinal, context, config, dependencyScope, dependencyVarAsOutput)
 		if err != nil {
 			return nil, err
 		}
