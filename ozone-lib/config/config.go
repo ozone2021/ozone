@@ -18,6 +18,7 @@ const (
 	BuildType       RunnableType = iota
 	DeployType      RunnableType = iota
 	TestType        RunnableType = iota
+	PipelineType    RunnableType = iota
 	PostUtilityType RunnableType = iota
 )
 
@@ -86,6 +87,7 @@ type OzoneConfig struct {
 	Builds        []*Runnable    `yaml:"builds"`
 	Deploys       []*Runnable    `yaml:"deploys"`
 	Tests         []*Runnable    `yaml:"tests"`
+	Pipelines     []*Runnable    `yaml:"pipelines"`
 	PostUtilities []*Runnable    `yaml:"post_utilities"`
 }
 
@@ -100,6 +102,9 @@ func (config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
 		return true, runnable
 	}
 	if has, runnable := config.HasTest(name); has == true {
+		return true, runnable
+	}
+	if has, runnable := config.HasPipeline(name); has == true {
 		return true, runnable
 	}
 	if has, runnable := config.HasPostUtility(name); has == true {
@@ -132,6 +137,10 @@ func (config *OzoneConfig) HasDeploy(name string) (bool, *Runnable) {
 
 func (config *OzoneConfig) HasTest(name string) (bool, *Runnable) {
 	return config.ListHasRunnableOfType(name, config.Tests, TestType)
+}
+
+func (config *OzoneConfig) HasPipeline(name string) (bool, *Runnable) {
+	return config.ListHasRunnableOfType(name, config.Pipelines, PipelineType)
 }
 
 func (config *OzoneConfig) HasPostUtility(name string) (bool, *Runnable) {
@@ -337,6 +346,9 @@ func ReadConfig() *OzoneConfig {
 	}
 	for _, b := range ozoneConfig.Tests {
 		b.Type = TestType
+	}
+	for _, b := range ozoneConfig.Pipelines {
+		b.Type = PipelineType
 	}
 	for _, b := range ozoneConfig.PostUtilities {
 		b.Type = PostUtilityType

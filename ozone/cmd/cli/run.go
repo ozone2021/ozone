@@ -78,7 +78,7 @@ func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
 	return hash, nil
 }
 
-func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string, runType ozoneConfig.RunnableType) {
+func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
 	ordinal := 0
 
 	topLevelScope := config_variable.CopyOrCreateNew(config.BuildVars)
@@ -89,7 +89,7 @@ func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, contex
 		asOutput := make(map[string]string)
 		_, err := runIndividual(b, ordinal, context, config, config_variable.CopyOrCreateNew(topLevelScope), asOutput)
 		if err != nil {
-			log.Fatalln(err)
+			log.Fatalf("Error %s in runnable %s", err, b.Name)
 		}
 	}
 }
@@ -121,6 +121,21 @@ func copyMapStringString(m map[string]string) map[string]string {
 		newMap[k] = v
 	}
 	return newMap
+}
+
+func runPipeline(pipelines []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
+	for _, pipeline := range pipelines {
+		var runnables []*ozoneConfig.Runnable
+		for _, dependency := range pipeline.Depends {
+			exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
+
+			if !exists {
+				log.Fatalf("Dependency %s on pipeline %s doesn't exist", dependency.Name, pipeline.Name)
+			}
+			runnables = append(runnables, dependencyRunnable)
+		}
+		run(runnables, config, context)
+	}
 }
 
 func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, config *ozoneConfig.OzoneConfig, buildScope *config_variable.VariableMap, asOutput map[string]string) (*config_variable.VariableMap, error) {
@@ -457,11 +472,12 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *co
 //	}
 //}
 
-func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable) {
+func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable, []*ozoneConfig.Runnable) {
 	var preUtilities []*ozoneConfig.Runnable
 	var buildables []*ozoneConfig.Runnable
 	var deployables []*ozoneConfig.Runnable
 	var testables []*ozoneConfig.Runnable
+	var pipelines []*ozoneConfig.Runnable
 	var postUtilities []*ozoneConfig.Runnable
 
 	for _, runnableName := range args {
@@ -474,15 +490,19 @@ func separateRunnables(args []string, config *ozoneConfig.OzoneConfig) ([]*ozone
 		if has, deploy := config.HasDeploy(runnableName); has == true {
 			deployables = append(deployables, deploy)
 		}
+		if has, pipeline := config.HasPipeline(runnableName); has == true {
+			pipelines = append(pipelines, pipeline)
+		}
 		if has, test := config.HasTest(runnableName); has == true {
-			deployables = append(testables, test)
+			testables = append(testables, test)
 		}
 		if has, utility := config.HasPostUtility(runnableName); has == true {
 			postUtilities = append(postUtilities, utility)
 		}
+
 	}
 
-	return preUtilities, buildables, deployables, testables, postUtilities
+	return preUtilities, buildables, deployables, testables, pipelines, postUtilities
 }
 
 var runCmd = &cobra.Command{
@@ -522,13 +542,14 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		preUtilities, builds, deploys, tests, postUtilities := separateRunnables(args, config)
+		preUtilities, builds, deploys, tests, pipelines, postUtilities := separateRunnables(args, config)
 
-		run(preUtilities, config, context, ozoneConfig.PreUtilityType)
-		run(builds, config, context, ozoneConfig.BuildType)
-		run(deploys, config, context, ozoneConfig.DeployType)
-		run(tests, config, context, ozoneConfig.TestType)
-		run(postUtilities, config, context, ozoneConfig.PostUtilityType)
+		run(preUtilities, config, context)
+		run(builds, config, context)
+		run(deploys, config, context)
+		runPipeline(pipelines, config, context)
+		run(tests, config, context)
+		run(postUtilities, config, context)
 		//tests(tests, config, context)
 
 	},
