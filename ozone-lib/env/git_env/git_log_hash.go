@@ -6,6 +6,7 @@ import (
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_keys"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -39,6 +40,7 @@ func GitLogHash(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 	}
 
 	if len(byteData) == 0 {
+		log.Printf("Command: %s", cmdString)
 		return errors.New(fmt.Sprintf("No git hash, maybe some files don't exist / relative path issue?: %s", filesJoined))
 	}
 
