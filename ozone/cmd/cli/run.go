@@ -149,16 +149,17 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	buildScope.AddVariable(config_variable.NewStringVariable("NAME", runnable.Name), ordinal)
 	//runnable.SourceFiles. TODO set name
 
-	if ordinal == 1 {
-		for i, file := range runnable.SourceFiles {
-			rendered, err := buildScope.RenderSentence(file)
-			if err != nil {
-				return nil, err
-			}
-			runnable.SourceFiles[i] = filepath.Join(ozoneWorkingDir, rendered)
+	var sourceFiles []string
+	for _, file := range runnable.SourceFiles {
+		rendered, err := buildScope.RenderSentence(file)
+		if err != nil {
+			return nil, err
 		}
+		sourceFiles = append(sourceFiles, filepath.Join(ozoneWorkingDir, rendered))
 	}
-	buildScope.AddVariable(config_variable.NewSliceVariable(config_keys.SOURCE_FILES_KEY, runnable.SourceFiles), ordinal)
+	if sourceFiles != nil {
+		buildScope.AddVariable(config_variable.NewSliceVariable(config_keys.SOURCE_FILES_KEY, sourceFiles), ordinal)
+	}
 	buildScope.SelfRender()
 
 	// TODO add support for list variables.
