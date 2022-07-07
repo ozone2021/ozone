@@ -46,6 +46,12 @@ func (vm *VariableMap) AddVariable(variable *Variable, ordinal int) {
 	}
 }
 
+func (vm *VariableMap) Print() {
+	for _, variable := range vm.variables {
+		log.Printf("%s=%s\n", variable.name, variable.value)
+	}
+}
+
 func (vm *VariableMap) AddVariableWithoutOrdinality(variable *Variable) {
 	if variable == nil {
 		return

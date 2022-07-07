@@ -57,7 +57,9 @@ func BuildDockerContainer(varsMap *VariableMap) error {
 		dockerfilePath,
 	)
 
-	log.Printf("Build cmd is: %s", cmdString)
+	log.Printf("Build cmd is: %s \n", cmdString)
+	log.Println("--- build_docker_file")
+	varsMap.Print()
 
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
