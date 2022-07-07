@@ -77,22 +77,6 @@ func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
 	return hash, nil
 }
 
-func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
-	ordinal := 0
-
-	topLevelScope := config_variable.CopyOrCreateNew(config.BuildVars)
-	topLevelScope.AddVariable(config_variable.NewStringVariable("CONTEXT", context), ordinal)
-	topLevelScope.AddVariable(config_variable.NewStringVariable("OZONE_WORKING_DIR", ozoneWorkingDir), ordinal)
-
-	for _, b := range builds {
-		asOutput := make(map[string]string)
-		_, err := runIndividual(b, ordinal, context, config, config_variable.CopyOrCreateNew(topLevelScope), asOutput)
-		if err != nil {
-			log.Fatalf("Error %s in runnable %s", err, b.Name)
-		}
-	}
-}
-
 func whenScript(script string, varsMap *config_variable.VariableMap) (bool, error) {
 	exitCode, err := utilities.RunBashScript(script, varsMap)
 	if err != nil {
@@ -137,6 +121,22 @@ func runPipeline(pipelines []*ozoneConfig.Runnable, config *ozoneConfig.OzoneCon
 	}
 }
 
+func run(builds []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
+	ordinal := 0
+
+	topLevelScope := config_variable.CopyOrCreateNew(config.BuildVars)
+	topLevelScope.AddVariable(config_variable.NewStringVariable("CONTEXT", context), ordinal)
+	topLevelScope.AddVariable(config_variable.NewStringVariable("OZONE_WORKING_DIR", ozoneWorkingDir), ordinal)
+
+	for _, b := range builds {
+		asOutput := make(map[string]string)
+		_, err := runIndividual(b, ordinal, context, config, config_variable.CopyOrCreateNew(topLevelScope), asOutput)
+		if err != nil {
+			log.Fatalf("Error %s in runnable %s", err, b.Name)
+		}
+	}
+}
+
 func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, config *ozoneConfig.OzoneConfig, buildScope *config_variable.VariableMap, asOutput map[string]string) (*config_variable.VariableMap, error) {
 	ordinal++
 
@@ -149,12 +149,14 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	buildScope.AddVariable(config_variable.NewStringVariable("NAME", runnable.Name), ordinal)
 	//runnable.SourceFiles. TODO set name
 
-	for i, file := range runnable.SourceFiles {
-		rendered, err := buildScope.RenderSentence(file)
-		if err != nil {
-			return nil, err
+	if ordinal == 1 {
+		for i, file := range runnable.SourceFiles {
+			rendered, err := buildScope.RenderSentence(file)
+			if err != nil {
+				return nil, err
+			}
+			runnable.SourceFiles[i] = filepath.Join(ozoneWorkingDir, rendered)
 		}
-		runnable.SourceFiles[i] = filepath.Join(ozoneWorkingDir, rendered)
 	}
 	buildScope.AddVariable(config_variable.NewSliceVariable(config_keys.SOURCE_FILES_KEY, runnable.SourceFiles), ordinal)
 	buildScope.SelfRender()
