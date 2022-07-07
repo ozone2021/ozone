@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"path"
+	"path/filepath"
 )
 
 func init() {
@@ -62,13 +63,11 @@ func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
 
 	filesDirsLastEditTimes := []int64{ozonefileEditTime}
 
-	for _, relativeFilePath := range runnable.SourceFiles {
-		fileDir := path.Join(ozoneWorkingDir, relativeFilePath)
-
-		editTime, err := cache.FileLastEdit(fileDir)
+	for _, filePath := range runnable.SourceFiles {
+		editTime, err := cache.FileLastEdit(filePath)
 
 		if err != nil {
-			return "", errors.New(fmt.Sprintf("Source file %s for runnable %s is missing.", fileDir, runnable.Name))
+			return "", errors.New(fmt.Sprintf("Source file %s for runnable %s is missing.", filePath, runnable.Name))
 		}
 
 		filesDirsLastEditTimes = append(filesDirsLastEditTimes, editTime)
@@ -157,7 +156,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 		if err != nil {
 			return nil, err
 		}
-		runnable.SourceFiles[i] = rendered
+		runnable.SourceFiles[i] = filepath.Join(ozoneWorkingDir, rendered)
 	}
 
 	// TODO add support for list variables.
