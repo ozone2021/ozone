@@ -33,6 +33,7 @@ func GitLogHash(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
 	cmd.Dir = dirPath
+	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	byteData, err := cmd.Output()
 	if err != nil {
