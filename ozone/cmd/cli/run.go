@@ -33,11 +33,11 @@ func hasCaching(runnable *ozoneConfig.Runnable) bool {
 	return runnable.SourceFiles != nil
 }
 
-func checkCache(runnable *ozoneConfig.Runnable) bool {
+func checkCache(runnable *ozoneConfig.Runnable, sourceFiles []string) bool {
 	if headless == true || hasCaching(runnable) == false {
 		return false
 	}
-	hash, err := getBuildHash(runnable)
+	hash, err := getBuildHash(runnable.Name, sourceFiles)
 	if err != nil {
 		log.Fatalln(err)
 		return false
@@ -52,7 +52,7 @@ func checkCache(runnable *ozoneConfig.Runnable) bool {
 	return cachedHash == hash
 }
 
-func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
+func getBuildHash(runnableName string, sourceFiles []string) (string, error) {
 	ozonefilePath := path.Join(ozoneWorkingDir, "Ozonefile")
 
 	ozonefileEditTime, err := cache.FileLastEdit(ozonefilePath)
@@ -63,11 +63,11 @@ func getBuildHash(runnable *ozoneConfig.Runnable) (string, error) {
 
 	filesDirsLastEditTimes := []int64{ozonefileEditTime}
 
-	for _, filePath := range runnable.SourceFiles {
+	for _, filePath := range sourceFiles {
 		editTime, err := cache.FileLastEdit(filePath)
 
 		if err != nil {
-			return "", errors.New(fmt.Sprintf("Source file %s for runnable %s is missing.", filePath, runnable.Name))
+			return "", errors.New(fmt.Sprintf("Source file %s for runnable %s is missing.", filePath, runnableName))
 		}
 
 		filesDirsLastEditTimes = append(filesDirsLastEditTimes, editTime)
@@ -165,7 +165,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	// TODO add support for list variables.
 
 	if hasCaching(runnable) {
-		cacheHash, err := getBuildHash(runnable)
+		cacheHash, err := getBuildHash(runnable.Name, sourceFiles)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +173,7 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	}
 
 	figure.NewFigure(runnable.Name, "doom", true).Print()
-	if runnable.Type == ozoneConfig.BuildType && checkCache(runnable) == true {
+	if runnable.Type == ozoneConfig.BuildType && checkCache(runnable, sourceFiles) == true {
 		log.Printf("Info: build files for %s unchanged from cache. \n", runnable.Name)
 		return nil, nil
 	}
@@ -335,14 +335,14 @@ func runIndividual(runnable *ozoneConfig.Runnable, ordinal int, context string, 
 	}
 	// TODO update cache
 	if headless == false && runnable.Type == ozoneConfig.BuildType && hasCaching(runnable) {
-		updateCache(runnable)
+		updateCache(runnable, sourceFiles)
 	}
 
 	return outputVars, nil
 }
 
-func updateCache(runnable *ozoneConfig.Runnable) {
-	hash, err := getBuildHash(runnable)
+func updateCache(runnable *ozoneConfig.Runnable, sourceFiles []string) {
+	hash, err := getBuildHash(runnable.Name, sourceFiles)
 	if err != nil {
 		log.Fatalln(err)
 	}
