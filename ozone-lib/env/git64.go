@@ -35,7 +35,6 @@ func StaticFromGitDirBranchNameHash(ordinal int, varsMap, fromIncludeMap *Variab
 		branchName = string(reference.Name())
 	}
 	branchName = strings.TrimPrefix(branchName, "refs/heads/")
-	log.Printf("Branchname %s \n", branchName)
 	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
 	if err != nil {
 		log.Fatal(err)
@@ -71,7 +70,6 @@ func DynamicFromGitDirBranchNameHash(ordinal int, varsMap, fromIncludeMap *Varia
 	if err != nil || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())
 	}
-	log.Printf("Branchname %s \n", branchName)
 
 	git64Hash := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString([]byte(branchName))
 
