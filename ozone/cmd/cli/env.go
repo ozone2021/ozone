@@ -23,6 +23,8 @@ var envCmd = &cobra.Command{
 	Use:  "e",
 	Long: `Env - get environment variables back`,
 	Run: func(cmd *cobra.Command, args []string) {
+		log.SetFlags(0)
+
 		headless, _ = cmd.Flags().GetBool("detached")
 
 		contextFlag, _ := cmd.Flags().GetString("context")
