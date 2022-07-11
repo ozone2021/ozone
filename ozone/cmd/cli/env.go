@@ -7,6 +7,7 @@ import (
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/spf13/cobra"
 	"log"
+	"os"
 )
 
 func init() {
@@ -24,6 +25,7 @@ var envCmd = &cobra.Command{
 	Long: `Env - get environment variables back`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.SetFlags(0)
+		log.SetOutput(os.Stdout)
 
 		headless, _ = cmd.Flags().GetBool("detached")
 
