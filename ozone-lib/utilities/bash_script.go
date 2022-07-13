@@ -15,7 +15,7 @@ func RunBashScript(script string, envVarMap *config_variable.VariableMap) (int, 
 	env := envVarMap.ConvertMap()
 
 	workingDir, ok := env["WORKING_DIR"]
-	if ok {
+	if !ok {
 		cmd.Dir = fmt.Sprintf("%s/%s", env["OZONE_WORKING_DIR"], workingDir)
 	}
 
