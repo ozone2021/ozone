@@ -25,9 +25,9 @@ func RunBashScript(script string, envVarMap *config_variable.VariableMap) (int, 
 		combinedEnv = append(combinedEnv, fmt.Sprintf("%s=%s", key, value)) // TODO this doesn't overwrite os.ENv vars
 	}
 
-	cmd.Env = combinedEnv
-	for k, v := range env {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	useEnv, ok := envVarMap.GetVariable("USE_ENV")
+	if !ok || ok && useEnv.String() != "false" {
+		cmd.Env = combinedEnv
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
