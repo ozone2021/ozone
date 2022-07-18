@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 )
 
@@ -16,7 +17,8 @@ func GitLogHash(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 	dirPath := "./"
 	dirPathVar, ok := varsMap.GetVariable("GIT_DIR")
 	if ok {
-		dirPath = dirPathVar.String()
+		ozoneWorkingDir, _ := varsMap.GetVariable("OZONE_WORKING_DIR")
+		dirPath = path.Join(ozoneWorkingDir.String(), dirPathVar.String())
 	}
 
 	filesVar, ok := varsMap.GetVariable(config_keys.SOURCE_FILES_KEY)
