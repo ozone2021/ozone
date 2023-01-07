@@ -3,9 +3,11 @@ package process_manager
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
-	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
 	"github.com/TwiN/go-color"
+	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"io"
 	"io/ioutil"
 	"log"
@@ -21,20 +23,19 @@ import (
 )
 
 type OzoneProcess struct {
-	Cmd			*exec.Cmd
-	Name		string
-	StartTime	int64
-	Port		int64
+	Cmd       *exec.Cmd
+	Name      string
+	StartTime int64
+	Port      int64
 }
-
 
 // map[string]process  to map directory Name to the processes
 type ProcessManager struct {
-	cache		*cache.Cache
-	ignores		map[string][]string
-	contexts	map[string]string
-	directories	map[string]string // maps working directory to temp dir
-	processes 	map[string]map[string]*OzoneProcess
+	cache       *cache.Cache
+	ignores     map[string][]string
+	contexts    map[string]string
+	directories map[string]string // maps working directory to temp dir
+	processes   map[string]map[string]*OzoneProcess
 }
 
 func New() *ProcessManager {
@@ -44,10 +45,10 @@ func New() *ProcessManager {
 	directories := make(map[string]string)
 	processes := make(map[string]map[string]*OzoneProcess)
 	return &ProcessManager{
-		cache: cache,
-		contexts: contexts,
-		ignores: ignores,
-		processes: processes,
+		cache:       cache,
+		contexts:    contexts,
+		ignores:     ignores,
+		processes:   processes,
 		directories: directories,
 	}
 }
@@ -63,14 +64,13 @@ func substituteOutput(input string, tempDir string) string {
 	return result
 }
 
-
 func (pm *ProcessManager) CheckCache(request *CacheQuery, response *StringReply) error {
-	response.Body = pm.cache.Check(request.OzoneWorkingDir, request.Service)
+	response.Body = pm.cache.Check(request.OzoneWorkingDir, request.RunnableName)
 	return nil
 }
 
 func (pm *ProcessManager) UpdateCache(request *CacheQuery, response *BoolReply) error {
-	didUpdate := pm.cache.Update(request.OzoneWorkingDir, request.Service, request.OzoneFileAndDirHash)
+	didUpdate := pm.cache.Update(request.OzoneWorkingDir, request.RunnableName, request.OzoneFileAndDirHash)
 	response.Body = didUpdate
 	return nil
 }
@@ -87,7 +87,7 @@ func (pm *ProcessManager) Test(request *int, reply *int) error {
 	return nil
 }
 
-func deleteEmpty (s []string) []string {
+func deleteEmpty(s []string) []string {
 	var r []string
 	for _, str := range s {
 		if str != "" {
@@ -123,7 +123,6 @@ func (pm *ProcessManager) Halt(haltQuery *HaltQuery, reply *error) error {
 	} else {
 		delete(pm.processes[dir], haltQuery.Service)
 	}
-
 
 	return nil
 }
@@ -196,7 +195,7 @@ func (pm *ProcessManager) Status(dirQuery *DirQuery, reply *StringReply) error {
 	fmt.Fprintln(writer, "service\tstatus\tport")
 	for name, process := range pm.processes[dir] {
 		running := process.Cmd.ProcessState.ExitCode() == -1
-		runningString := color.Ize(color.Green,"running")
+		runningString := color.Ize(color.Green, "running")
 		if !running {
 			runningString = fmt.Sprintf("exited code: %d", process.Cmd.ProcessState.ExitCode())
 		}
@@ -333,7 +332,7 @@ func (pm *ProcessManager) handleAsynchronous(
 	name string,
 	cmd *exec.Cmd,
 	logFile *os.File,
-	env map[string]string,
+	env *config_variable.VariableMap,
 	ozoneWorkingDirectory string,
 	ignoreErr bool) error {
 
@@ -365,7 +364,12 @@ func (pm *ProcessManager) handleAsynchronous(
 	}
 	fmt.Printf("NONBLOCKING \n")
 
-	port, err := strconv.ParseInt(env["PORT"], 10, 64)
+	portStringVar, ok := env.GetVariable("PORT")
+	if !ok {
+		return errors.New("PORT needed")
+	}
+
+	port, err := strconv.ParseInt(portStringVar.String(), 10, 64)
 	if err != nil {
 		return err
 	}
@@ -373,7 +377,7 @@ func (pm *ProcessManager) handleAsynchronous(
 		Cmd:       cmd,
 		Name:      name,
 		StartTime: time.Now().Unix(),
-		Port: 		port,
+		Port:      port,
 	}
 
 	_, ok = pm.processes[ozoneWorkingDirectory]

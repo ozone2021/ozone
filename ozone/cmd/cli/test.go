@@ -8,12 +8,12 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(testCmd)
 }
 
-var versionCmd = &cobra.Command{
-	Use:   "test",
-	Long:  `List running processes`,
+var testCmd = &cobra.Command{
+	Use:  "test",
+	Long: `List running processes`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("testing")
 		client, err := rpc.DialHTTP("tcp", ":8000")

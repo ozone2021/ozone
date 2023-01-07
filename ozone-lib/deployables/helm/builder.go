@@ -3,6 +3,7 @@ package helm
 import (
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"os"
@@ -12,18 +13,15 @@ import (
 func getHelmParams() []string {
 	return []string{
 		"INSTALL_NAME",
-		"FULL_TAG",
-		"K8S_SERVICE",
 		"CHART_DIR",
-		"DOMAIN",
 		//"GITLAB_PROJECT_CODE",
 		//"BUILD_ARGS",
 	}
 }
 
-func Deploy(serviceName string, env map[string]string) error {
+func Deploy(serviceName string, envVarMap *config_variable.VariableMap) error {
 	for _, arg := range getHelmParams() {
-		if err := utils.ParamsOK("helmChart", arg, env); err != nil {
+		if err := utils.ParamsOK("helmChart", arg, envVarMap); err != nil {
 			return err
 		}
 	}
@@ -33,34 +31,14 @@ func Deploy(serviceName string, env map[string]string) error {
 		log.Println(err)
 	}
 
+	env := envVarMap.ConvertMapPongo()
+
 	installName := env["INSTALL_NAME"]
 	chartDir := env["CHART_DIR"]
-	k8sServiceName := env["K8S_SERVICE"]
-	domain := env["DOMAIN"]
-	subdomain := env["SUBDOMAIN"]
-	tag := env["FULL_TAG"]
 
-	containerPort, ok := env["CONTAINER_PORT"]
-	if ok {
-		utils.WarnIfNullVar(serviceName, containerPort,"CONTAINER_PORT")
-		containerPort = fmt.Sprintf("--set service.containerPort=%s", containerPort)
-	} else {
-		containerPort = ""
-	}
-
-	servicePort, ok := env["SERVICE_PORT"]
-	if ok {
-		utils.WarnIfNullVar(serviceName, servicePort,"SERVICE_PORT")
-		servicePort = fmt.Sprintf("--set service.servicePort=%s", servicePort)
-	} else {
-		servicePort = ""
-	}
-
-	namespace, ok := env["NAMESPACE"]
-	if ok {
-		namespace = fmt.Sprintf("-n %s --create-namespace", namespace)
-	} else {
-		namespace = ""
+	args, ok := env["HELM_ARGS"]
+	if !ok {
+		args = ""
 	}
 
 	valuesFile, ok := env["VALUES_FILE"]
@@ -70,17 +48,10 @@ func Deploy(serviceName string, env map[string]string) error {
 		valuesFile = ""
 	}
 
-	cmdString := fmt.Sprintf("helm upgrade --recreate-pods -i %s %s --set ingress.hosts[0].host=%s.%s%s --set image.fullTag=%s --set service.name=%s %s %s %s %s",
+	cmdString := fmt.Sprintf("helm upgrade -i %s %s %s %s",
 		installName,
 		valuesFile,
-		k8sServiceName,
-		subdomain,
-		domain,
-		tag,
-		k8sServiceName,
-		containerPort,
-		servicePort,
-		namespace,
+		args,
 		chartDir,
 	)
 
@@ -96,27 +67,5 @@ func Deploy(serviceName string, env map[string]string) error {
 		return err
 	}
 	cmd.Wait()
-	//query := &process_manager.ProcessCreateQuery{
-	//	serviceName,
-	//	ozoneWorkingDir,
-	//	ozoneWorkingDir,
-	//	cmdString,
-	//	true,
-	//	false,
-	//	env,
-	//}
-	//
-	//var reply *error
-	//
-	//client, err := rpc.DialHTTP("tcp", ":8000")
-	//if err != nil {
-	//	log.Fatal("dialing:", err)
-	//}
-	//err = client.Call("ProcessManager.AddProcess", query, reply)
-	//if err != nil {
-	//	log.Println(cmdString)
-	//	log.Fatal("helm error:", err)
-	//	return err
-	//}
 	return nil
 }

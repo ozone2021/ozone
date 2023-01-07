@@ -3,7 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
+	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/env"
+	"github.com/ozone2021/ozone/ozone-lib/env/git_env"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -12,72 +14,84 @@ import (
 type RunnableType int
 
 const (
-	PreUtilityType 	RunnableType = iota
-	BuildType 		RunnableType = iota
-	DeployType 		RunnableType = iota
-	TestType		RunnableType = iota
-	PostUtilityType	RunnableType = iota
+	PreUtilityType  RunnableType = iota
+	BuildType       RunnableType = iota
+	DeployType      RunnableType = iota
+	TestType        RunnableType = iota
+	PipelineType    RunnableType = iota
+	PostUtilityType RunnableType = iota
 )
 
 type ContextInfo struct {
-	Default			string			`yaml:"default"`
-	List			[]string		`yaml:"list"`
+	Default string   `yaml:"default"`
+	List    []string `yaml:"list"`
 }
 
 type Include struct {
-	Name 			string				`yaml:"name"`
-	WithVars		map[string]string	`yaml:"with_vars"`
-	Type			string				`yaml:"type"`
+	Name     string       `yaml:"name"`
+	WithVars *VariableMap `yaml:"with_vars"`
+	Type     string       `yaml:"type"`
 }
 
 type Environment struct {
-	Name 			string				`yaml:"name"`
-	WithVars		map[string]string	`yaml:"with_vars"`
-	Includes		[]*Include			`yaml:"include"`
+	Name     string       `yaml:"name"`
+	WithVars *VariableMap `yaml:"with_vars"`
+	Includes []*Include   `yaml:"include"`
 }
 
 type Step struct {
-	Type     string            `yaml:"type"`
-	Name     string            `yaml:"name"`
-	WithVars map[string]string `yaml:"with_vars"`
+	Type        string            `yaml:"type"`
+	Name        string            `yaml:"name"`
+	WithVars    *VariableMap      `yaml:"with_vars"`
+	VarOutputAs map[string]string `yaml:"var_output_as"`
 }
 
 type ContextStep struct {
-	Context string		`yaml:"context"`
-	Steps   []*Step		`yaml:"steps"`
-	WithEnv	[]string	`yaml:"with_env"`
+	Context string   `yaml:"context"`
+	Steps   []*Step  `yaml:"steps"`
+	WithEnv []string `yaml:"with_env"`
 }
 
 type ContextEnv struct {
-	Context string		`yaml:"context"`
-	WithEnv	[]string	`yaml:"with_env"`
+	Context  string       `yaml:"context"`
+	WithEnv  []string     `yaml:"with_env"`
+	WithVars *VariableMap `yaml:"with_vars"`
 }
 
+type ContextConditional struct {
+	Context string `yaml:"context"`
+	//WhenChanged
+	WhenScript    []string `yaml:"when_script"`
+	WhenNotScript []string `yaml:"when_not_script"`
+}
 
 type Runnable struct {
-	Name        	string			`yaml:"name"`
-	Service			string			`yaml:"service"`
-	Dir         	string			`yaml:"dir"`
-	Depends			[]*Step			`yaml:"depends_on"`
+	Name        string   `yaml:"name"`
+	Service     string   `yaml:"service"`
+	Dir         string   `yaml:"dir"`
+	SourceFiles []string `yaml:"source_files"`
+	Depends     []*Step  `yaml:"depends_on"`
 	//WithEnv     	[]string      	`yaml:"with_env"`
-	ContextEnv		[]*ContextEnv	`yaml:"context_envs"`
-	ContextSteps	[]*ContextStep 	`yaml:"context_steps"`
-	Type			RunnableType
+	ContextEnv          []*ContextEnv         `yaml:"context_envs"`
+	ContextConditionals []*ContextConditional `yaml:"context_conditionals"`
+	ContextSteps        []*ContextStep        `yaml:"context_steps"`
+	Type                RunnableType
 }
 
 type OzoneConfig struct {
-	ProjectName		string				`yaml:"project"`
-	ContextInfo		ContextInfo			`yaml:"context"`
-	BuildVars 		map[string]string	`yaml:"build_vars"`
-	Environments	[]*Environment		`yaml:"environments"`
-	PreUtilities	[]*Runnable			`yaml:"pre_utilities"`
-	Builds			[]*Runnable			`yaml:"builds"`
-	Deploys			[]*Runnable			`yaml:"deploys"`
-	Tests			[]*Runnable			`yaml:"tests"`
-	PostUtilities	[]*Runnable			`yaml:"post_utilities"`
+	ProjectName   string         `yaml:"project"`
+	ContextInfo   ContextInfo    `yaml:"context"`
+	BuildVars     *VariableMap   `yaml:"build_vars"`
+	Environments  []*Environment `yaml:"environments"`
+	PreUtilities  []*Runnable    `yaml:"pre_utilities"`
+	Builds        []*Runnable    `yaml:"builds"`
+	Deploys       []*Runnable    `yaml:"deploys"`
+	Tests         []*Runnable    `yaml:"tests"`
+	Pipelines     []*Runnable    `yaml:"pipelines"`
+	PostUtilities []*Runnable    `yaml:"post_utilities"`
 }
 
-func(config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
+func (config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
 	if has, runnable := config.HasPreUtility(name); has == true {
 		return true, runnable
 	}
@@ -90,6 +104,9 @@ func(config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
 	if has, runnable := config.HasTest(name); has == true {
 		return true, runnable
 	}
+	if has, runnable := config.HasPipeline(name); has == true {
+		return true, runnable
+	}
 	if has, runnable := config.HasPostUtility(name); has == true {
 		return true, runnable
 	}
@@ -97,7 +114,7 @@ func(config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
 	return false, nil
 }
 
-func(config *OzoneConfig) HasContext(name string) bool {
+func (config *OzoneConfig) HasContext(name string) bool {
 	for _, c := range config.ContextInfo.List {
 		if name == c {
 			return true
@@ -106,27 +123,31 @@ func(config *OzoneConfig) HasContext(name string) bool {
 	return false
 }
 
-func(config *OzoneConfig) HasPreUtility(name string) (bool, *Runnable) {
+func (config *OzoneConfig) HasPreUtility(name string) (bool, *Runnable) {
 	return config.ListHasRunnableOfType(name, config.PreUtilities, PreUtilityType)
 }
 
-func(config *OzoneConfig) HasBuild(name string) (bool, *Runnable) {
+func (config *OzoneConfig) HasBuild(name string) (bool, *Runnable) {
 	return config.ListHasRunnableOfType(name, config.Builds, BuildType)
 }
 
-func(config *OzoneConfig) HasDeploy(name string) (bool, *Runnable) {
+func (config *OzoneConfig) HasDeploy(name string) (bool, *Runnable) {
 	return config.ListHasRunnableOfType(name, config.Deploys, DeployType)
 }
 
-func(config *OzoneConfig) HasTest(name string) (bool, *Runnable) {
+func (config *OzoneConfig) HasTest(name string) (bool, *Runnable) {
 	return config.ListHasRunnableOfType(name, config.Tests, TestType)
 }
 
-func(config *OzoneConfig) HasPostUtility(name string) (bool, *Runnable) {
+func (config *OzoneConfig) HasPipeline(name string) (bool, *Runnable) {
+	return config.ListHasRunnableOfType(name, config.Pipelines, PipelineType)
+}
+
+func (config *OzoneConfig) HasPostUtility(name string) (bool, *Runnable) {
 	return config.ListHasRunnableOfType(name, config.PostUtilities, PostUtilityType)
 }
 
-func(config *OzoneConfig) DeploysHasService(service string) bool {
+func (config *OzoneConfig) DeploysHasService(service string) bool {
 	for _, runnable := range config.Deploys {
 		if runnable.Service == service {
 			return true
@@ -135,7 +156,7 @@ func(config *OzoneConfig) DeploysHasService(service string) bool {
 	return false
 }
 
-func(config *OzoneConfig) ListHasRunnableOfType(name string, runnables []*Runnable, givenType RunnableType) (bool, *Runnable) {
+func (config *OzoneConfig) ListHasRunnableOfType(name string, runnables []*Runnable, givenType RunnableType) (bool, *Runnable) {
 	for _, runnable := range runnables {
 		if runnable.Name == name && runnable.Type == givenType {
 			return true, runnable
@@ -144,36 +165,39 @@ func(config *OzoneConfig) ListHasRunnableOfType(name string, runnables []*Runnab
 	return false, nil
 }
 
-func(config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) (map[string]string, error) {
+func (config *OzoneConfig) fetchEnv(ordinal int, envName string, scopeMap *VariableMap) (*VariableMap, error) {
+	// TODO ordinal
 	nameFound := false
-	varsMap := make(map[string]string)
+	varsMap := NewVariableMap()
 	for _, e := range config.Environments {
 		if e.Name == envName {
 			nameFound = true
 			if len(e.Includes) != 0 {
 				for _, incl := range e.Includes {
-					var inclVarsMap map[string]string
+					var inclVarsMap *VariableMap
 					var err error
 					if incl.Type == "builtin" {
-						inclParamVarsMap := MergeMapsSelfRender(incl.WithVars, scopeMap)
-						inclVarsMap, err = config.fetchBuiltinEnvFromInclude(incl.Name, inclParamVarsMap)
+						inclParamVarsMap := CopyOrCreateNew(incl.WithVars)
+						inclParamVarsMap.MergeVariableMaps(scopeMap)
+						inclVarsMap, err = config.fetchBuiltinEnvFromInclude(ordinal, incl.Name, inclParamVarsMap)
 						if err != nil {
 							return nil, err
 						}
 					} else {
-						inclVarsMap, err = config.fetchEnv(incl.Name, scopeMap)
+						inclVarsMap, err = config.fetchEnv(ordinal, incl.Name, scopeMap)
 						if err != nil {
 							return nil, err
 						}
 					}
 
-					inclVarsRendered := RenderNoMerge(inclVarsMap, scopeMap)
-					varsMap = MergeMapsSelfRender(varsMap, inclVarsRendered)
+					inclVarsMap.RenderNoMerge(ordinal, scopeMap)
+					varsMap.MergeVariableMaps(inclVarsMap)
 				}
 			}
-			renderedEnvVars := RenderNoMerge(e.WithVars, scopeMap)
+			renderedEnvVars := CopyOrCreateNew(e.WithVars)
+			renderedEnvVars.RenderNoMerge(ordinal, scopeMap)
 
-			varsMap = MergeMapsSelfRender(varsMap, renderedEnvVars)
+			varsMap.MergeVariableMaps(renderedEnvVars)
 		}
 	}
 	if nameFound == false {
@@ -183,23 +207,28 @@ func(config *OzoneConfig) fetchEnv(envName string, scopeMap map[string]string) (
 	return varsMap, nil
 }
 
-func(config *OzoneConfig) fetchBuiltinEnvFromInclude(envName string, varsMap map[string]string) (map[string]string, error) {
+func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName string, varsMap *VariableMap) (*VariableMap, error) {
 	var err error
-	fromIncludeMap := make(map[string]string)
+	fromIncludeMap := NewVariableMap()
 
+	// TODO
 	switch envName {
 	case "env/from_k8s_secret_file":
-		fromIncludeMap, err = env.FromSecretFile(varsMap)
+		err = env.FromSecretFile(ordinal, varsMap, fromIncludeMap)
 	case "env/from_k8s_secret64":
-		fromIncludeMap, err = env.FromSecret64(varsMap)
+		err = env.FromSecret64(ordinal, varsMap, fromIncludeMap)
 	case "env/from_env_file":
-		fromIncludeMap, err = env.FromEnvFile(varsMap)
+		err = env.FromEnvFile(ordinal, varsMap, fromIncludeMap)
+	case "env/from_version_file":
+		err = env.FromVersionFile(ordinal, varsMap, fromIncludeMap)
+	case "env/git_log_hash":
+		err = git_env.GitLogHash(ordinal, varsMap, fromIncludeMap)
 	case "env/git_directory_branch_hash":
-		fromIncludeMap, err = env.DynamicFromGitDirBranchNameHash(varsMap)
+		err = env.DynamicFromGitDirBranchNameHash(ordinal, varsMap, fromIncludeMap)
 	case "env/git_directory_branch_static":
-		fromIncludeMap, err = env.StaticFromGitDirBranchNameHash(varsMap)
+		err = env.StaticFromGitDirBranchNameHash(ordinal, varsMap, fromIncludeMap)
 	case "env/git_submodule_commit_hash":
-		fromIncludeMap, err = env.GitSubmoduleHash(varsMap)
+		err = env.GitSubmoduleHash(ordinal, varsMap, fromIncludeMap)
 	}
 
 	if err != nil {
@@ -209,21 +238,89 @@ func(config *OzoneConfig) fetchBuiltinEnvFromInclude(envName string, varsMap map
 	return fromIncludeMap, nil
 }
 
-func(config *OzoneConfig) FetchEnvs(envList []string, scope map[string]string) (map[string]string, error) {
-	varsMap := make(map[string]string)
+func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope *VariableMap) (*VariableMap, error) {
+	ordinal++
+	varsMap := NewVariableMap()
 
 	for _, env := range envList {
-		env = renderVars(env, scope)
-		fetchedMap, err := config.fetchEnv(env, scope)
+		renderedEnv, err := PongoRender(env, scope.ConvertMapPongo())
 		if err != nil {
 			return nil, err
 		}
-		varsMap = MergeMapsSelfRender(varsMap, fetchedMap)
+
+		fetchedMap, err := config.fetchEnv(ordinal, renderedEnv, scope)
+		if err != nil {
+			return nil, err
+		}
+		err = varsMap.MergeVariableMaps(fetchedMap)
+		if err != nil {
+			return nil, err
+		}
+		varsMap.MergeVariableMaps(fetchedMap)
 	}
-	varsMap = RenderNoMerge(varsMap, scope)
+	varsMap.RenderNoMerge(ordinal, scope)
 	return varsMap, nil
 }
 
+//func (r *Runnable) UnmarshalYAML(unmarshal func(interface{}) error) error {
+//	var yamlObj map[string]interface{}
+//	if err := unmarshal(&yamlObj); err != nil {
+//		return err
+//	}
+//
+//	r.Name = yamlObj["name"].(string)
+//	service, ok := yamlObj["service"].(string)
+//	if ok {
+//		r.Service = service
+//	}
+//
+//	dir, ok := yamlObj["dir"].(string)
+//	if ok {
+//		r.Dir = dir
+//	}
+//
+//	sourceFiles, ok := yamlObj["source_files"].([]string)
+//	if ok {
+//		r.SourceFiles = NewSliceVariable(config_keys.SOURCE_FILES_KEY, sourceFiles)
+//	}
+//
+//	dependencyBytes, ok := yamlObj["depends_on"].([]byte)
+//	var steps []*Step
+//	if ok {
+//		if err := json.Unmarshal(dependencyBytes, &steps); err != nil {
+//			return err
+//		}
+//		r.Depends = steps
+//	}
+//
+//	contextEnvBytes, ok := yamlObj["context_envs"].([]byte)
+//	var envs []*ContextEnv
+//	if ok {
+//		if err := json.Unmarshal(contextEnvBytes, &envs); err != nil {
+//			return err
+//		}
+//		r.ContextEnv = envs
+//	}
+//
+//	contextSteps, ok := yamlObj["context_steps"].([]byte)
+//	var csteps []*ContextStep
+//	if ok {
+//		if err := json.Unmarshal(contextSteps, &csteps); err != nil {
+//			return err
+//		}
+//		r.ContextEnv = envs
+//	}
+//
+//	var contextInfo ContextInfo
+//	b, ok := yamlObj["context"].([]byte)
+//	if ok {
+//		if err := json.Unmarshal(b, &contextInfo); err != nil {
+//			return err
+//		}
+//	}
+//
+//	return nil
+//}
 
 func ReadConfig() *OzoneConfig {
 	ozoneConfig := OzoneConfig{}
@@ -232,7 +329,6 @@ func ReadConfig() *OzoneConfig {
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-
 
 	err = yaml.Unmarshal(dat, &ozoneConfig)
 	if err != nil {
@@ -251,16 +347,23 @@ func ReadConfig() *OzoneConfig {
 	for _, b := range ozoneConfig.Tests {
 		b.Type = TestType
 	}
+	for _, b := range ozoneConfig.Pipelines {
+		b.Type = PipelineType
+	}
 	for _, b := range ozoneConfig.PostUtilities {
 		b.Type = PostUtilityType
 	}
 
-	ozoneConfig.BuildVars["PROJECT"] = ozoneConfig.ProjectName
-	osEnv := OSEnvToVarsMap()
-	ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, osEnv)
-	ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
+	//ozoneConfig.BuildVars["PROJECT"] = ozoneConfig.ProjectName
+	//osEnv := OSEnvToVarsMap()
+	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, osEnv)
+	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
 
+	err = ozoneConfig.BuildVars.RenderFilters()
+
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	return &ozoneConfig
 }
-

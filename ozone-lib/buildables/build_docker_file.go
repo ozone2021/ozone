@@ -3,6 +3,7 @@ package buildables
 import (
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"os"
@@ -11,8 +12,8 @@ import (
 
 func getParams() []string {
 	return []string{
-		"DIR",
-		"FULL_TAG",
+		//"DIR",
+		"DOCKER_FULL_TAG",
 		"SERVICE",
 		//"DOCKER_BUILD_DIR",
 		//"GITLAB_PROJECT_CODE",
@@ -20,32 +21,33 @@ func getParams() []string {
 	}
 }
 
-func BuildDockerContainer(varsMap map[string]string) error {
+func BuildDockerContainer(varsMap *VariableMap) error {
 	for _, arg := range getParams() {
 		if err := utils.ParamsOK("BuildDockerContainer", arg, varsMap); err != nil {
 			return err
 		}
 	}
 
-	dockerBuildDir, ok := varsMap["DOCKER_BUILD_DIR"]
+	dockerBuildDir, ok := varsMap.GetVariable("DOCKER_BUILD_DIR")
 	if !ok {
-		dockerBuildDir = varsMap["OZONE_WORKING_DIR"]
+		dockerBuildDir, _ = varsMap.GetVariable("OZONE_WORKING_DIR")
 	}
-	sourceDir := varsMap["DIR"]
-	cmdCallDir := varsMap["OZONE_WORKING_DIR"]
-	tag := varsMap["FULL_TAG"]
 
-	buildArgs, ok := varsMap["BUILD_ARGS"]
-	if !ok {
-		buildArgs = ""
-	}
-	buildArgs = fmt.Sprintf("%s --build-arg DIR=%s", buildArgs, sourceDir)
+	//sourceDirArg := varsMap.GetVariable("DIR").Fstring("--build-arg DIR=%s")
 
-	dockerfilePath, ok := varsMap["DOCKERFILE"]
+	cmdCallDir, _ := varsMap.GetVariable("OZONE_WORKING_DIR")
+	tag, _ := varsMap.GetVariable("DOCKER_FULL_TAG")
+
+	buildArgs := ""
+	buildArgsVar, ok := varsMap.GetVariable("DOCKER_BUILD_ARGS")
 	if ok {
-		dockerfilePath = fmt.Sprintf("-f %s", dockerfilePath)
-	} else {
-		dockerfilePath = ""
+		buildArgs = fmt.Sprintf("%s", buildArgsVar)
+	}
+
+	dockerfilePath := ""
+	dockerfilePathVar, ok := varsMap.GetVariable("DOCKERFILE")
+	if ok {
+		buildArgs = fmt.Sprintf("%s -f %s", buildArgs, dockerfilePathVar)
 	}
 
 	cmdString := fmt.Sprintf("docker build -t %s %s %s %s",
@@ -55,11 +57,11 @@ func BuildDockerContainer(varsMap map[string]string) error {
 		dockerfilePath,
 	)
 
-	log.Printf("Build cmd is: %s", cmdString)
+	log.Printf("Build cmd is: %s \n", cmdString)
 
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
-	cmd.Dir = cmdCallDir
+	cmd.Dir = cmdCallDir.String()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
 	err := cmd.Run()

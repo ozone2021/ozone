@@ -4,6 +4,7 @@ import (
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
+	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"os"
@@ -11,7 +12,7 @@ import (
 
 func getDockerRunParams() []string {
 	return []string{
-		"FULL_TAG",
+		"DOCKER_FULL_TAG",
 		"PORT",
 		"NETWORK",
 		"SERVICE",
@@ -19,16 +20,16 @@ func getDockerRunParams() []string {
 	}
 }
 
-func VarsMapToDockerEnvString(varsMap map[string]string) string {
-	envString := ""
-	for key, value := range varsMap {
-		envString = fmt.Sprintf("%s-e %s=%s ", envString, key, value)
-	}
-	return envString
-}
+//func VarsMapToDockerEnvString(varsMap *VariableMap) string {
+//	envString := ""
+//	for key, value := range varsMap {
+//		envString = fmt.Sprintf("%s-e %s=%s ", envString, key, value)
+//	}
+//	return envString
+//}
 
-func CreateNetworkIfNotExists(serviceName string, env map[string]string) error {
-	network := env["NETWORK"]
+func CreateNetworkIfNotExists(serviceName string, env *VariableMap) error {
+	network, _ := env.GetVariable("NETWORK")
 
 	cmdString := fmt.Sprintf("docker network create -d bridge %s",
 		network,
@@ -54,7 +55,7 @@ func CreateNetworkIfNotExists(serviceName string, env map[string]string) error {
 	return nil
 }
 
-func DeleteContainerIfExists(serviceName string, env map[string]string) error {
+func DeleteContainerIfExists(serviceName string, env *VariableMap) error {
 	cmdString := fmt.Sprintf("docker rm -f %s",
 		serviceName,
 	)
@@ -78,9 +79,7 @@ func DeleteContainerIfExists(serviceName string, env map[string]string) error {
 	return nil
 }
 
-
-
-func Build(env map[string]string) error {
+func Build(env *VariableMap) error {
 	for _, arg := range getDockerRunParams() {
 		if err := utils.ParamsOK("DeployDocker", arg, env); err != nil {
 			return err
@@ -92,18 +91,19 @@ func Build(env map[string]string) error {
 		log.Println(err)
 	}
 
-	serviceName := env["SERVICE"]
-	CreateNetworkIfNotExists(serviceName, env)
-	DeleteContainerIfExists(serviceName, env)
+	serviceName, _ := env.GetVariable("SERVICE")
 
-	containerImage := env["FULL_TAG"]
-	network := env["NETWORK"]
-	port := env["PORT"]
-	envString := VarsMapToDockerEnvString(env)
+	CreateNetworkIfNotExists(serviceName.String(), env)
+	DeleteContainerIfExists(serviceName.String(), env)
 
-	cmdString := fmt.Sprintf("docker run --rm -t -v __OUTPUT__:__OUTPUT__ --network %s %s -p %s:%s --name %s %s",
+	containerImage, _ := env.GetVariable("DOCKER_FULL_TAG")
+	network, _ := env.GetVariable("NETWORK")
+	port, _ := env.GetVariable("PORT")
+	//envString := VarsMapToDockerEnvString(env)
+
+	cmdString := fmt.Sprintf("docker run --rm -t -v __OUTPUT__:__OUTPUT__ --network %s   -p %s:%s --name %s %s",
 		network,
-		envString,
+		//envString,
 		port,
 		port,
 		serviceName,
@@ -111,7 +111,7 @@ func Build(env map[string]string) error {
 	)
 
 	query := &process_manager.ProcessCreateQuery{
-		serviceName,
+		serviceName.String(),
 		"/",
 		ozoneWorkingDir,
 		cmdString,
@@ -120,7 +120,7 @@ func Build(env map[string]string) error {
 		env,
 	}
 
-	if err := process_manager_client.AddProcess(query); err != nil{
+	if err := process_manager_client.AddProcess(query); err != nil {
 		return err
 	}
 

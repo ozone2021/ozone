@@ -1,14 +1,15 @@
 package executable
 
 import (
-    "fmt"
+	"fmt"
+	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"log"
 	"net/rpc"
 	"os"
-	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 )
 
-func Build(serviceName string, env map[string]string) error {
+func Build(serviceName string, env *config_variable.VariableMap) error {
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		return err

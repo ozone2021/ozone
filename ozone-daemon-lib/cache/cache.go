@@ -1,88 +1,83 @@
 package cache
 
 import (
-    "crypto"
-    "fmt"
-    "os"
-    "reflect"
+	"crypto"
+	"fmt"
+	"os"
+	"reflect"
 )
 
 type Cache struct {
-    entries         map[string][]*CacheEntry
+	entries map[string][]*CacheEntry
 }
 
 type CacheEntry struct {
-    ServiceName         string
-    Hash                string
+	ServiceName string
+	Hash        string
 }
 
 func New() *Cache {
-    entries := make(map[string][]*CacheEntry)
+	entries := make(map[string][]*CacheEntry)
 
-    return &Cache{
-        entries: entries,
-    }
+	return &Cache{
+		entries: entries,
+	}
 }
 
 func (cache *Cache) find(ozoneWorkingDir string, serviceName string) *CacheEntry {
-    entries, ok := cache.entries[ozoneWorkingDir]
+	entries, ok := cache.entries[ozoneWorkingDir]
 
-    if ok {
-        for _, ce := range entries {
-            if ce.ServiceName == serviceName {
-                return ce
-            }
-        }
-    }
+	if ok {
+		for _, ce := range entries {
+			if ce.ServiceName == serviceName {
+				return ce
+			}
+		}
+	}
 
-    return nil
+	return nil
 }
 
-func (cache *Cache) Check(ozoneWorkingDir string, service string) (string) {
-    if ce := cache.find(ozoneWorkingDir, service); ce != nil {
-        return ce.Hash
-    }
-    return ""
+func (cache *Cache) Check(ozoneWorkingDir string, service string) string {
+	if ce := cache.find(ozoneWorkingDir, service); ce != nil {
+		return ce.Hash
+	}
+	return ""
 }
-
-
 
 func remove(s []*CacheEntry, i int) []*CacheEntry {
-    s[len(s)-1], s[i] = s[i], s[len(s)-1]
-    return s[:len(s)-1]
+	s[len(s)-1], s[i] = s[i], s[len(s)-1]
+	return s[:len(s)-1]
 }
 
 func (cache *Cache) Update(ozoneWorkingDir string, service string, ozoneFileAndDirHash string) bool {
-    if ce := cache.find(ozoneWorkingDir, service); ce != nil {
-        ce.Hash = ozoneFileAndDirHash
-        return true
-    }
-    cacheEntry := CacheEntry{
-        ServiceName: service,
-        Hash: ozoneFileAndDirHash,
-    }
-    cache.entries[ozoneWorkingDir] = append(cache.entries[ozoneWorkingDir], &cacheEntry)
-    return true
+	if ce := cache.find(ozoneWorkingDir, service); ce != nil {
+		ce.Hash = ozoneFileAndDirHash
+		return true
+	}
+	cacheEntry := CacheEntry{
+		ServiceName: service,
+		Hash:        ozoneFileAndDirHash,
+	}
+	cache.entries[ozoneWorkingDir] = append(cache.entries[ozoneWorkingDir], &cacheEntry)
+	return true
 }
-
-
 
 func FileLastEdit(stringPath string) (int64, error) {
-    file, err := os.Stat(stringPath)
+	file, err := os.Stat(stringPath)
 
-    if err != nil {
-        return 0, err
-    }
+	if err != nil {
+		return 0, err
+	}
 
-    return file.ModTime().Unix(), nil
+	return file.ModTime().Unix(), nil
 }
 
-func Hash(objs ...interface{}) string {
-    digester := crypto.MD5.New()
-    for _, ob := range objs {
-        fmt.Fprint(digester, reflect.TypeOf(ob))
-        fmt.Fprint(digester, ob)
-    }
-    return fmt.Sprintf("%x", digester.Sum(nil))
+func Hash(lastUpdateTimes ...int64) string {
+	digester := crypto.MD5.New()
+	for _, ob := range lastUpdateTimes {
+		fmt.Fprint(digester, reflect.TypeOf(ob))
+		fmt.Fprint(digester, ob)
+	}
+	return fmt.Sprintf("%x", digester.Sum(nil))
 }
-

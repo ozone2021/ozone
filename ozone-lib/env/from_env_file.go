@@ -1,20 +1,27 @@
 package env
 
 import (
+	"errors"
 	"github.com/joho/godotenv"
+	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 )
 
-func FromEnvFile(varsParamMap map[string]string) (map[string]string, error) {
-	envFile, ok := varsParamMap["ENV_FILE"]
-	var varsMap map[string]string
-	var err error
-	if ok {
-		varsMap, err = godotenv.Read(envFile)
-	} else {
-		varsMap, err = godotenv.Read()
+func FromEnvFile(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
+	envFile, ok := varsMap.GetVariable("ENV_FILE")
+
+	if !ok {
+		return errors.New("ENV_FILE needed.")
 	}
+
+	varsMapStringString, err := godotenv.Read(envFile.String())
+
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return varsMap, nil
+
+	for k, v := range varsMapStringString {
+		fromIncludeMap.AddVariable(NewStringVariable(k, v), ordinal)
+	}
+
+	return nil
 }
