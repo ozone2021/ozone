@@ -396,6 +396,12 @@ func (vm *VariableMap) Render(v *Variable) (*Variable, error) {
 		return nil, errors.New("Unknown type in variable render.")
 	}
 
+	var err error
+	output.name, err = vm.RenderSentence(v.name)
+	if err != nil {
+		return nil, err
+	}
+
 	return output, nil
 }
 

@@ -1,0 +1,20 @@
+---
+version: 1.2
+project: ozone-test
+context:
+    default: local
+    list:
+      - local
+build_vars:
+  services:
+    - NODEJS
+    - ML-AI
+environments:
+  - name: prepend-123
+    for: SERVICE:services
+    with_vars:
+      "{{SERVICE}}_123": "it's {{SERVICE}} with 123 added"
+
+  - name: prepend-123-all-services
+    include:
+      - name: prepend-123
