@@ -1,0 +1,55 @@
+---
+version: 1.2
+project: ozone-test
+context:
+    default: local
+    list:
+      - local
+      - local-k8s
+      - pull-request
+      - static
+build_vars:
+  NETWORK: '{{PROJECT}}'
+  NS_CONTEXTS: 'pull-request|static'
+environments:
+  - name: base
+    include:
+      - name: k8s/from_secret
+        type: builtin
+        with_vars:
+          SECRET_FILE: ./secret.yml
+
+  - name: docker-builder-tag-latest
+    include:
+      - name: env/git_log_hash
+        type: builtin
+    with_vars:
+      DOCKER_BUILDER_TAG_LATEST: "{{DOCKER_REGISTRY}}/{{SERVICE}}-builder:latest"
+
+  - name: docker-builder-tag-dynamic
+    include:
+      - name: env/git_log_hash
+        type: builtin
+    with_vars:
+      DOCKER_BUILDER_TAG: "{{DOCKER_REGISTRY}}/{{SERVICE}}-builder:latest"
+
+  - name: docker-tag-latest
+    with_vars:
+      DOCKER_FULL_TAG: "{{DOCKER_REGISTRY}}/{{SERVICE}}:latest"
+
+  - name: docker-tag-dynamic
+    include:
+      - name: env/git_log_hash
+        type: builtin
+    with_vars:
+     DOCKER_CONTAINER_VERSION_TAG: "{{GIT_LOG_HASH}}"
+     DOCKER_FULL_TAG: "{{DOCKER_REGISTRY}}/{{SERVICE}}:{{DOCKER_CONTAINER_VERSION_TAG}}"
+
+  - name: 
+
+  - name: pull-request
+    include:
+      - name: ns
+      - name: repo
+      - name: docker-tag-dynamic
+

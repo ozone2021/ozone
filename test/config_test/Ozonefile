@@ -1,0 +1,27 @@
+---
+version: 1.2
+project: ozone-test
+context:
+    default: local
+    list:
+      - local
+build_vars:
+  DOCKER_REGISTRY: "{{DOCKER_REGISTRY | default_if_none:'registry.local'}}"
+  services:
+    - NODEJS
+    - ML-AI
+environments:
+  - name: docker-tag-latest
+    with_vars:
+      DOCKER_FULL_TAG: "{{DOCKER_REGISTRY}}/{{SERVICE}}:latest"
+
+  - name: prepend-123
+    for: SERVICE:services
+    include:
+      - name: docker-tag-latest
+    with_vars:
+      "{{SERVICE}}_FULL_TAG": "{{DOCKER_FULL_TAG}}"
+
+  - name: prepend-123-all-services
+    include:
+      - name: prepend-123

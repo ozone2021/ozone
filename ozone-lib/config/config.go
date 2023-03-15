@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
+	"strings"
 )
 
 type RunnableType int
@@ -35,8 +36,14 @@ type Include struct {
 
 type Environment struct {
 	Name     string       `yaml:"name"`
+	For      *For         `yaml:"for,omitempty"`
 	WithVars *VariableMap `yaml:"with_vars"`
 	Includes []*Include   `yaml:"include"`
+}
+
+type For struct {
+	Source string
+	Target string
 }
 
 type Step struct {
@@ -114,6 +121,27 @@ func (config *OzoneConfig) FetchRunnable(name string) (bool, *Runnable) {
 	return false, nil
 }
 
+func (f *For) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var stringVal string
+	if err := unmarshal(&stringVal); err != nil {
+		return err
+	}
+
+	parts := strings.Split(stringVal, ":")
+
+	if len(parts) != 2 {
+		errors.New("For loop has wrong format. Should be:   <value>:<list>")
+	}
+
+	f.Target = parts[0]
+	f.Source = parts[1]
+	return nil
+}
+
+func (env *Environment) isForLoop() bool {
+	return env.For != nil
+}
+
 func (config *OzoneConfig) HasContext(name string) bool {
 	for _, c := range config.ContextInfo.List {
 		if name == c {
@@ -165,45 +193,131 @@ func (config *OzoneConfig) ListHasRunnableOfType(name string, runnables []*Runna
 	return false, nil
 }
 
+func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope *VariableMap) (*VariableMap, error) {
+	ordinal++
+	varsMap := NewVariableMap()
+
+	for _, env := range envList {
+		renderedEnv, err := PongoRender(env, scope.ConvertMapPongo())
+		if err != nil {
+			return nil, err
+		}
+
+		fetchedMap, err := config.fetchEnv(ordinal, renderedEnv, scope)
+		if err != nil {
+			return nil, err
+		}
+		err = varsMap.MergeVariableMaps(fetchedMap)
+		if err != nil {
+			return nil, err
+		}
+		varsMap.MergeVariableMaps(fetchedMap)
+	}
+	varsMap.RenderNoMerge(ordinal, scope)
+	return varsMap, nil
+}
+
 func (config *OzoneConfig) fetchEnv(ordinal int, envName string, scopeMap *VariableMap) (*VariableMap, error) {
-	// TODO ordinal
 	nameFound := false
 	varsMap := NewVariableMap()
 	for _, e := range config.Environments {
 		if e.Name == envName {
 			nameFound = true
-			if len(e.Includes) != 0 {
-				for _, incl := range e.Includes {
-					var inclVarsMap *VariableMap
-					var err error
-					if incl.Type == "builtin" {
-						inclParamVarsMap := CopyOrCreateNew(incl.WithVars)
-						inclParamVarsMap.MergeVariableMaps(scopeMap)
-						inclVarsMap, err = config.fetchBuiltinEnvFromInclude(ordinal, incl.Name, inclParamVarsMap)
-						if err != nil {
-							return nil, err
-						}
-					} else {
-						inclVarsMap, err = config.fetchEnv(ordinal, incl.Name, scopeMap)
-						if err != nil {
-							return nil, err
-						}
-					}
-
-					inclVarsMap.RenderNoMerge(ordinal, scopeMap)
-					varsMap.MergeVariableMaps(inclVarsMap)
-				}
+			var fetchedVars *VariableMap
+			var err error
+			if e.isForLoop() {
+				fetchedVars, err = config.fetchLoopEnv(ordinal, e, scopeMap)
+			} else {
+				fetchedVars, err = config.fetchSingleEnv(ordinal, e, scopeMap)
 			}
-			renderedEnvVars := CopyOrCreateNew(e.WithVars)
-			renderedEnvVars.RenderNoMerge(ordinal, scopeMap)
-
-			varsMap.MergeVariableMaps(renderedEnvVars)
+			if err != nil {
+				return nil, err
+			}
+			err = varsMap.MergeVariableMaps(fetchedVars)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	if nameFound == false {
 		return nil, errors.New(fmt.Sprintf("Environment %s not found \n", envName))
 	}
 
+	return varsMap, nil
+}
+
+func (config *OzoneConfig) fetchLoopEnv(ordinal int, e *Environment, scopeMap *VariableMap) (*VariableMap, error) {
+	varsMap := CopyOrCreateNew(nil)
+
+	sourceName := e.For.Source
+	targetName := e.For.Target
+
+	source, exists := scopeMap.GetVariable(sourceName)
+	if !exists {
+		return nil, errors.New(fmt.Sprintf("Source not found in for loop %s", sourceName))
+	}
+	if source.GetVarType() != SliceType {
+		return nil, errors.New(fmt.Sprintf("Source not slice type in for loop %s", sourceName))
+	}
+	for _, value := range source.GetSliceValue() {
+		eachScope := CopyOrCreateNew(scopeMap)
+		eachScope.AddVariable(NewStringVariable(targetName, value), ordinal)
+
+		includesVarMap, err := config.fetchEnvIncludes(ordinal, e, scopeMap)
+		if err != nil {
+			return nil, err
+		}
+
+		eachVarsMap := CopyOrCreateNew(e.WithVars)
+		eachScope.MergeVariableMaps(includesVarMap)
+		eachVarsMap.RenderNoMerge(ordinal, eachScope)
+
+		varsMap.MergeVariableMaps(eachVarsMap)
+	}
+
+	return varsMap, nil
+}
+
+func (config *OzoneConfig) fetchSingleEnv(ordinal int, e *Environment, scopeMap *VariableMap) (*VariableMap, error) {
+	fetchedIncludeVars, err := config.fetchEnvIncludes(ordinal, e, scopeMap)
+	if err != nil {
+		return fetchedIncludeVars, err
+	}
+
+	renderedEnvVars := CopyOrCreateNew(e.WithVars)
+	renderedEnvVars.MergeVariableMaps(fetchedIncludeVars)
+	renderedEnvVars.RenderNoMerge(ordinal, scopeMap)
+
+	return renderedEnvVars, nil
+}
+
+func (config *OzoneConfig) fetchEnvIncludes(ordinal int, e *Environment, scopeMap *VariableMap) (*VariableMap, error) {
+	varsMap := NewVariableMap()
+
+	if len(e.Includes) == 0 {
+		return varsMap, nil
+	}
+
+	for _, incl := range e.Includes {
+		var inclVarsMap *VariableMap
+		var err error
+		if incl.Type == "builtin" {
+			inclParamVarsMap := CopyOrCreateNew(incl.WithVars)
+			inclParamVarsMap.MergeVariableMaps(scopeMap)
+			inclVarsMap, err = config.fetchBuiltinEnvFromInclude(ordinal, incl.Name, inclParamVarsMap)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			inclVarsMap, err = config.fetchEnv(ordinal, incl.Name, scopeMap)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		inclVarsMap.RenderNoMerge(ordinal, scopeMap)
+		varsMap.MergeVariableMaps(inclVarsMap)
+	}
 	return varsMap, nil
 }
 
@@ -236,30 +350,6 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 	}
 
 	return fromIncludeMap, nil
-}
-
-func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope *VariableMap) (*VariableMap, error) {
-	ordinal++
-	varsMap := NewVariableMap()
-
-	for _, env := range envList {
-		renderedEnv, err := PongoRender(env, scope.ConvertMapPongo())
-		if err != nil {
-			return nil, err
-		}
-
-		fetchedMap, err := config.fetchEnv(ordinal, renderedEnv, scope)
-		if err != nil {
-			return nil, err
-		}
-		err = varsMap.MergeVariableMaps(fetchedMap)
-		if err != nil {
-			return nil, err
-		}
-		varsMap.MergeVariableMaps(fetchedMap)
-	}
-	varsMap.RenderNoMerge(ordinal, scope)
-	return varsMap, nil
 }
 
 //func (r *Runnable) UnmarshalYAML(unmarshal func(interface{}) error) error {
