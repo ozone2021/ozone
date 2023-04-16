@@ -2,8 +2,8 @@ package _go
 
 import (
 	"fmt"
-	"github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
+	"github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"log"
 	"os"
@@ -18,7 +18,7 @@ func Build(serviceName string, relativeDir string, file string, varsMap *config_
 		relativeDir,
 		file)
 
-	query := &process_manager.ProcessCreateQuery{
+	query := &process_manager_queries.ProcessCreateQuery{
 		serviceName,
 		ozoneWorkingDir,
 		ozoneWorkingDir,

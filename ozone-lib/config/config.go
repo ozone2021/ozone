@@ -77,10 +77,10 @@ type Runnable struct {
 	Service     string   `yaml:"service"`
 	Dir         string   `yaml:"dir"`
 	SourceFiles []string `yaml:"source_files"`
-	Depends     []*Step  `yaml:"depends_on"`
 	//WithEnv     	[]string      	`yaml:"with_env"`
 	ContextEnv          []*ContextEnv         `yaml:"context_envs"`
 	ContextConditionals []*ContextConditional `yaml:"context_conditionals"`
+	Depends             []*Step               `yaml:"depends_on"`
 	ContextSteps        []*ContextStep        `yaml:"context_steps"`
 	Type                RunnableType
 }
@@ -213,7 +213,7 @@ func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope *Varia
 		}
 		varsMap.MergeVariableMaps(fetchedMap)
 	}
-	varsMap.RenderNoMerge(ordinal, scope)
+	varsMap.RenderNoMerge(scope)
 	return varsMap, nil
 }
 
@@ -270,7 +270,7 @@ func (config *OzoneConfig) fetchLoopEnv(ordinal int, e *Environment, scopeMap *V
 
 		eachVarsMap := CopyOrCreateNew(e.WithVars)
 		eachScope.MergeVariableMaps(includesVarMap)
-		eachVarsMap.RenderNoMerge(ordinal, eachScope)
+		eachVarsMap.RenderNoMerge(eachScope)
 
 		varsMap.MergeVariableMaps(eachVarsMap)
 	}
@@ -286,7 +286,7 @@ func (config *OzoneConfig) fetchSingleEnv(ordinal int, e *Environment, scopeMap 
 
 	renderedEnvVars := CopyOrCreateNew(e.WithVars)
 	renderedEnvVars.MergeVariableMaps(fetchedIncludeVars)
-	renderedEnvVars.RenderNoMerge(ordinal, scopeMap)
+	renderedEnvVars.RenderNoMerge(scopeMap)
 
 	return renderedEnvVars, nil
 }
@@ -315,7 +315,7 @@ func (config *OzoneConfig) fetchEnvIncludes(ordinal int, e *Environment, scopeMa
 			}
 		}
 
-		inclVarsMap.RenderNoMerge(ordinal, scopeMap)
+		inclVarsMap.RenderNoMerge(scopeMap)
 		varsMap.MergeVariableMaps(inclVarsMap)
 	}
 	return varsMap, nil

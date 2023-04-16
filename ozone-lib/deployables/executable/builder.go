@@ -2,7 +2,7 @@ package executable
 
 import (
 	"fmt"
-	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"log"
 	"net/rpc"

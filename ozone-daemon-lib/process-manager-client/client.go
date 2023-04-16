@@ -3,7 +3,7 @@ package process_manager_client
 import (
 	"encoding/gob"
 	"fmt"
-	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	"log"
 	"net/rpc"
 	"os"

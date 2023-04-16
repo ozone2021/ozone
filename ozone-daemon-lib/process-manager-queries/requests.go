@@ -1,4 +1,4 @@
-package process_manager
+package process_manager_queries
 
 import . "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 

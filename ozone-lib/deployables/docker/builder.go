@@ -2,8 +2,8 @@ package docker
 
 import (
 	"fmt"
-	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
+	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"

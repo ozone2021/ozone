@@ -519,28 +519,7 @@ var runCmd = &cobra.Command{
 	Use:  "r",
 	Long: `List running processes`,
 	Run: func(cmd *cobra.Command, args []string) {
-		headless, _ = cmd.Flags().GetBool("detached")
-
-		contextFlag, _ := cmd.Flags().GetString("context")
-		if contextFlag == "" {
-			if headless == true {
-				log.Fatalln("--context must be set if --headless mode used")
-			} else {
-				var err error
-				context, err = process_manager_client.FetchContext(ozoneWorkingDir)
-				if err != nil {
-					log.Fatalln("FetchContext error:", err)
-				}
-			}
-		} else if contextFlag != "" {
-			if !config.HasContext(contextFlag) {
-				log.Fatalf("Context %s doesn't exist in Ozonefile", contextFlag)
-			}
-			context = contextFlag
-		}
-		if context == "" {
-			context = config.ContextInfo.Default
-		}
+		context := config_utils.FetchContext(cmd, ozoneWorkingDir, config)
 
 		contextBanner := fmt.Sprintf("context::: %s", context)
 		figure.NewFigure(contextBanner, "doom", true).Print()

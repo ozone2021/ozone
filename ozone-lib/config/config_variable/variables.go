@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/flosch/pongo2/v4"
+	"github.com/ozone2021/ozone/ozone-lib/config/cli_utils"
 	"log"
 	"math"
 	"os"
@@ -46,9 +47,10 @@ func (vm *VariableMap) AddVariable(variable *Variable, ordinal int) {
 	}
 }
 
-func (vm *VariableMap) Print() {
+func (vm *VariableMap) Print(indent int) {
+	indent = cli_utils.IncreaseIndent(indent)
 	for _, variable := range vm.variables {
-		log.Printf("%s=%s\n", variable.name, variable.value)
+		cli_utils.PrintWithIndent(fmt.Sprintf("%s=%s", variable.name, variable.value), indent)
 	}
 }
 
@@ -168,7 +170,7 @@ func (vm *VariableMap) MergeVariableMaps(overwrite *VariableMap) error {
 	return nil
 }
 
-func (vm *VariableMap) RenderNoMerge(ordinal int, scope *VariableMap) error {
+func (vm *VariableMap) RenderNoMerge(scope *VariableMap) error {
 	combinedScope := scope.copy()
 	osEnv := OSEnvToVarsMap()
 	err := combinedScope.MergeVariableMaps(osEnv)

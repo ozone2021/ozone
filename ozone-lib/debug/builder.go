@@ -1,10 +1,10 @@
 package debug
 
 import (
+	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	"log"
 	"net/rpc"
 	"os"
-	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 )
 
 func Build() {

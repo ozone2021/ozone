@@ -25,7 +25,15 @@ Conditional script should return 3 for exit that is a real error. All others sho
 
 # Bugs
 
-Breaks if build_vars empty
+#### Breaks if build_vars empty.
+
+#### Caching doesn't take into account external vars changing, nor any source files of called runnables.
+
+Hashing the entire worktree would fix external vars.
+
+Source files need merged all the way down to the bottom of the call stack.
+
+The resultant hash should be added to the root of the call stack.
 
 # Refactoring
 

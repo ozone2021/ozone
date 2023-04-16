@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/TwiN/go-color"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
+	"github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"io"
 	"io/ioutil"
@@ -64,18 +65,18 @@ func substituteOutput(input string, tempDir string) string {
 	return result
 }
 
-func (pm *ProcessManager) CheckCache(request *CacheQuery, response *StringReply) error {
+func (pm *ProcessManager) CheckCache(request *process_manager_queries.CacheQuery, response *process_manager_queries.StringReply) error {
 	response.Body = pm.cache.Check(request.OzoneWorkingDir, request.RunnableName)
 	return nil
 }
 
-func (pm *ProcessManager) UpdateCache(request *CacheQuery, response *BoolReply) error {
+func (pm *ProcessManager) UpdateCache(request *process_manager_queries.CacheQuery, response *process_manager_queries.BoolReply) error {
 	didUpdate := pm.cache.Update(request.OzoneWorkingDir, request.RunnableName, request.OzoneFileAndDirHash)
 	response.Body = didUpdate
 	return nil
 }
 
-func (pm *ProcessManager) TempDirRequest(request *DirQuery, response *StringReply) error {
+func (pm *ProcessManager) TempDirRequest(request *process_manager_queries.DirQuery, response *process_manager_queries.StringReply) error {
 	log.Printf("Request %s \n", request.OzoneWorkingDir)
 	tempDir := pm.createTempDirIfNotExists(request.OzoneWorkingDir)
 	log.Println(tempDir)
@@ -97,7 +98,7 @@ func deleteEmpty(s []string) []string {
 	return r
 }
 
-func (pm *ProcessManager) Halt(haltQuery *HaltQuery, reply *error) error {
+func (pm *ProcessManager) Halt(haltQuery *process_manager_queries.HaltQuery, reply *error) error {
 	dir := haltQuery.OzoneWorkingDir
 	for _, process := range pm.processes[dir] {
 		if haltQuery.Service == "" || haltQuery.Service == process.Name {
@@ -149,7 +150,7 @@ func (pm *ProcessManager) serviceIsIgnored(service, ozoneWorkingDirectory string
 	return false
 }
 
-func (pm *ProcessManager) Ignore(query *IgnoreQuery, reply *error) error {
+func (pm *ProcessManager) Ignore(query *process_manager_queries.IgnoreQuery, reply *error) error {
 	ozoneWorkingDirectory := query.OzoneWorkingDir
 	_, ok := pm.ignores[ozoneWorkingDirectory]
 	if !ok {
@@ -166,7 +167,7 @@ func (pm *ProcessManager) Ignore(query *IgnoreQuery, reply *error) error {
 	return nil
 }
 
-func (pm *ProcessManager) FetchContext(dirQuery *DirQuery, reply *StringReply) error {
+func (pm *ProcessManager) FetchContext(dirQuery *process_manager_queries.DirQuery, reply *process_manager_queries.StringReply) error {
 	context, ok := pm.contexts[dirQuery.OzoneWorkingDir]
 
 	if ok {
@@ -175,13 +176,13 @@ func (pm *ProcessManager) FetchContext(dirQuery *DirQuery, reply *StringReply) e
 	return nil
 }
 
-func (pm *ProcessManager) SetContext(contextSetQuery *ContextSetQuery, reply *StringReply) error {
+func (pm *ProcessManager) SetContext(contextSetQuery *process_manager_queries.ContextSetQuery, reply *process_manager_queries.StringReply) error {
 	pm.contexts[contextSetQuery.OzoneWorkingDir] = contextSetQuery.Context
 
 	return nil
 }
 
-func (pm *ProcessManager) Status(dirQuery *DirQuery, reply *StringReply) error {
+func (pm *ProcessManager) Status(dirQuery *process_manager_queries.DirQuery, reply *process_manager_queries.StringReply) error {
 	dir := dirQuery.OzoneWorkingDir
 	fmt.Printf("Status for %s \n", dir)
 
@@ -238,7 +239,7 @@ func CommandFromFields(cmdString string) ([]string, []string) {
 	return cmdFields, argFields
 }
 
-func (pm *ProcessManager) AddProcess(processQuery *ProcessCreateQuery, reply *error) error {
+func (pm *ProcessManager) AddProcess(processQuery *process_manager_queries.ProcessCreateQuery, reply *error) error {
 	if pm.serviceIsIgnored(processQuery.Name, processQuery.OzoneWorkingDir) {
 		return nil
 	}
@@ -407,7 +408,7 @@ func handleLogs(in *bufio.Scanner, logFile *os.File) {
 	}
 }
 
-func (pm *ProcessManager) Debug(processQuery *ProcessCreateQuery, reply *int) error {
+func (pm *ProcessManager) Debug(processQuery *process_manager_queries.ProcessCreateQuery, reply *int) error {
 	for i, pMap := range pm.processes {
 		for name, _ := range pMap {
 			fmt.Printf("dir %s process name is %s \n", i, name)
