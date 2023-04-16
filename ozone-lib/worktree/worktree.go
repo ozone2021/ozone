@@ -1,11 +1,11 @@
 package worktree
 
 import (
-	"fmt"
 	"github.com/ozone2021/ozone/ozone-lib/config"
-	. "github.com/ozone2021/ozone/ozone-lib/config/cli_utils"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
+	"gopkg.in/yaml.v3"
 	"log"
+	"os"
 )
 
 type WorktreeStep struct {
@@ -38,14 +38,14 @@ type CallStack struct {
 }
 
 type Worktree struct {
-	ProjectName   string       `yaml:"project"`
-	Context       string       `yaml:"context"`
-	SystemEnvVars *VariableMap `yaml:"system_vars"`
-	BuildVars     *VariableMap `yaml:"build_vars"`
-	*CallStack    `yaml:"call_stack"`
+	ProjectName string       `yaml:"project"`
+	Context     string       `yaml:"context"`
+	WorkDir     string       `yaml:"work_dir"`
+	BuildVars   *VariableMap `yaml:"build_vars"`
+	CallStacks  []*CallStack `yaml:"call_stack"`
 }
 
-func NewWorktree(context string, config *config.OzoneConfig) *Worktree {
+func NewWorktree(context, ozoneWorkingDir string, config *config.OzoneConfig) *Worktree {
 	systemEnvVars := OSEnvToVarsMap()
 
 	renderedBuildVars := config.BuildVars
@@ -53,24 +53,33 @@ func NewWorktree(context string, config *config.OzoneConfig) *Worktree {
 	renderedBuildVars.SelfRender()
 
 	worktree := &Worktree{
-		ProjectName:   config.ProjectName,
-		Context:       context,
-		SystemEnvVars: systemEnvVars,
-		BuildVars:     renderedBuildVars,
+		ProjectName: config.ProjectName,
+		Context:     context,
+		WorkDir:     ozoneWorkingDir,
+		BuildVars:   renderedBuildVars,
 	}
 
 	return worktree
 }
 
+func (wt *Worktree) AddRunnable(name string) {
+
+}
+
 func (wt *Worktree) PrintWorktree() {
 	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 
-	indent := 0
+	//indent := 0
+	//
+	//PrintWithIndent(fmt.Sprintf("Project: %s", wt.ProjectName), indent)
+	//PrintWithIndent(fmt.Sprintf("Context: %s", wt.Context), indent)
+	//PrintWithIndent(fmt.Sprintf("Buildvars: "), indent)
+	//wt.BuildVars.Print(indent)
+	//fmt.Sprintf("Project: %s\n", wt.ProjectName)
+	//fmt.Sprintf("Context: %s\n", wt.ProjectName)
+	//b, _ := yaml.Marshal(wt)
 
-	PrintWithIndent(fmt.Sprintf("Project: %s", wt.ProjectName), indent)
-	PrintWithIndent(fmt.Sprintf("Context: %s", wt.Context), indent)
-	PrintWithIndent(fmt.Sprintf("Buildvars: "), indent)
-	wt.BuildVars.Print(indent)
-	fmt.Sprintf("Project: %s\n", wt.ProjectName)
-	fmt.Sprintf("Context: %s\n", wt.ProjectName)
+	yamlEncoder := yaml.NewEncoder(os.Stdout)
+	yamlEncoder.SetIndent(2) // this is what you're looking for
+	yamlEncoder.Encode(&wt)
 }

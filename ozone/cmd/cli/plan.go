@@ -19,7 +19,7 @@ var planCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		context := config_utils.FetchContext(cmd, ozoneWorkingDir, config)
 
-		worktree := worktree2.NewWorktree(context, config)
+		worktree := worktree2.NewWorktree(context, ozoneWorkingDir, config)
 
 		worktree.PrintWorktree()
 	},

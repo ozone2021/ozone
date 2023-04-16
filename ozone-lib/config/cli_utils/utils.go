@@ -7,6 +7,18 @@ import (
 
 const DEFAULT_INDENT = 2
 
+type VariableStringCliOutput struct {
+	Name    string `yaml:"name"`
+	Value   string `yaml:"value"`
+	Ordinal int    `yaml:"ordinal"`
+}
+
+type VariableStringSliceCliOutput struct {
+	Name    string   `yaml:"name"`
+	Value   []string `yaml:"value"`
+	Ordinal int      `yaml:"ordinal"`
+}
+
 func IncreaseIndent(indent int) int {
 	return indent + DEFAULT_INDENT
 }

@@ -130,6 +130,32 @@ func (vm *VariableMap) ConvertMapPongo() pongo2.Context {
 	return convertedMap
 }
 
+func (vm *VariableMap) MarshalYAML() (interface{}, error) {
+	var variables []interface{}
+
+	for name, value := range vm.variables {
+		ordinal, ok := vm.ordinals[name]
+		if !ok {
+			return nil, errors.New(fmt.Sprintf("Couldn't find ordinal for variable: %s", name))
+		}
+		switch value.varType {
+		case StringType:
+			variables = append(variables, &cli_utils.VariableStringCliOutput{
+				Name:    name,
+				Value:   value.GetStringValue(),
+				Ordinal: ordinal,
+			})
+		case SliceType:
+			variables = append(variables, &cli_utils.VariableStringSliceCliOutput{
+				Name:    name,
+				Value:   value.GetSliceValue(),
+				Ordinal: ordinal,
+			})
+		}
+	}
+	return variables, nil
+}
+
 // Must set ordinal first.
 func (vm *VariableMap) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var yamlObj map[string]interface{}
