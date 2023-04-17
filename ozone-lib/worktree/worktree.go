@@ -16,10 +16,34 @@ type WorktreeStep struct {
 	WithEnv []string       `yaml:"with_env"`
 }
 
-type WorktreeConditionals struct {
-	Satisfied     bool     `yaml:"satisfied"`
-	WhenScript    []string `yaml:"when_script"`
-	WhenNotScript []string `yaml:"when_not_script"`
+type DifferentialScope struct {
+	parentScope *VariableMap
+	scope       *VariableMap
+}
+
+func NewDifferentialScope(parentScope *VariableMap, scope *VariableMap) *DifferentialScope {
+	return &DifferentialScope{
+		parentScope: parentScope,
+		scope:       scope,
+	}
+}
+
+func (ds *DifferentialScope) GetScope() *VariableMap {
+	return ds.scope
+}
+
+func (ds *DifferentialScope) MarshalYAML() (interface{}, error) {
+	if ds == nil {
+		return nil, nil
+	}
+	diff, err := ds.parentScope.Diff(ds.scope)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := yaml.Marshal(diff)
+
+	return string(b), err
 }
 
 //	ContextConditionals []*ContextConditional `yaml:"context_conditionals"` # TODO save whether satisified
@@ -30,7 +54,7 @@ type WorktreeRunnable struct {
 	Service      string                `yaml:"service"`
 	SourceFiles  []string              `yaml:"source_files"`
 	Dir          string                `yaml:"dir"`
-	Env          *VariableMap          `yaml:"envs"`
+	BuildScope   *DifferentialScope    `yaml:"scope"`
 	Conditionals *WorktreeConditionals `yaml:"conditionals"`
 	Type         config.RunnableType   `yaml:"RunnableType"`
 }
@@ -107,6 +131,7 @@ func (wt *Worktree) FetchContextEnvs(ordinal int, buildScope *VariableMap, runna
 func (wt *Worktree) ConvertConfigRunnableStackItemToWorktreeRunnable(configRunnableStackItem *ConfigRunnableStackItem, ordinal int) (*WorktreeRunnable, error) {
 	configRunnable := configRunnableStackItem.ConfigRunnable
 	buildScope := configRunnableStackItem.buildScope
+	parentScope := configRunnableStackItem.parentScope
 
 	addCallstackScopeVars(configRunnable, buildScope, ordinal)
 
@@ -118,14 +143,16 @@ func (wt *Worktree) ConvertConfigRunnableStackItemToWorktreeRunnable(configRunna
 	runnableBuildScope := CopyOrCreateNew(contextEnvs)
 	runnableBuildScope.MergeVariableMaps(buildScope)
 
+	diffBuildScope := NewDifferentialScope(parentScope, runnableBuildScope)
+
 	workTreeRunnable := &WorktreeRunnable{
 		Name:         configRunnable.Name,
 		Ordinal:      ordinal,
 		Service:      configRunnable.Service,
 		SourceFiles:  wt.getConfigRunnableSourceFiles(configRunnable, buildScope),
 		Dir:          configRunnable.Dir,
-		Env:          contextEnvs,
-		Conditionals: &WorktreeConditionals{},
+		BuildScope:   diffBuildScope,
+		Conditionals: ConvertContextConditional(runnableBuildScope, configRunnable, wt.Context),
 		Type:         configRunnable.Type,
 	}
 
@@ -134,7 +161,16 @@ func (wt *Worktree) ConvertConfigRunnableStackItemToWorktreeRunnable(configRunna
 
 type ConfigRunnableStackItem struct {
 	ConfigRunnable *config.Runnable
+	parentScope    *VariableMap
 	buildScope     *VariableMap
+}
+
+func NewConfigRunnableStackItem(configRunnable *config.Runnable, parentScope *VariableMap, buildScope *VariableMap) *ConfigRunnableStackItem {
+	return &ConfigRunnableStackItem{
+		ConfigRunnable: configRunnable,
+		parentScope:    parentScope,
+		buildScope:     buildScope,
+	}
 }
 
 func addCallstackScopeVars(runnable *config.Runnable, buildScope *VariableMap, ordinal int) {
@@ -164,18 +200,16 @@ func (wt *Worktree) AddCallstacks(builds []*config.Runnable, config *config.Ozon
 }
 
 func (wt *Worktree) addCallstack(rootConfigRunnable *config.Runnable, ordinal int, context string, ozoneConfig *config.OzoneConfig, buildScope *VariableMap, asOutput map[string]string) error {
-	ordinal++
 	var allSourceFiles []string
 	var worktreeRunnables []*WorktreeRunnable
 
 	configRunnableDeque := lane.NewDeque[*ConfigRunnableStackItem]()
-	configRunnableDeque.Append(&ConfigRunnableStackItem{
-		ConfigRunnable: rootConfigRunnable,
-		buildScope:     buildScope,
-	})
+	configRunnableDeque.Append(NewConfigRunnableStackItem(rootConfigRunnable, buildScope, buildScope))
 
 	for configRunnableDeque.Empty() == false {
+		ordinal++
 		configRunnableStackItem, _ := configRunnableDeque.Shift()
+		configRunnable := configRunnableStackItem.ConfigRunnable
 
 		worktreeRunnable, err := wt.ConvertConfigRunnableStackItemToWorktreeRunnable(configRunnableStackItem, ordinal)
 		if err != nil {
@@ -185,33 +219,65 @@ func (wt *Worktree) addCallstack(rootConfigRunnable *config.Runnable, ordinal in
 
 		worktreeRunnables = append(worktreeRunnables, worktreeRunnable)
 
-		// TODO prepend queue with all configRunnableChildren
+		for _, dependency := range configRunnable.Depends {
+			exists, dependencyRunnable := wt.config.FetchRunnable(dependency.Name)
 
+			if !exists {
+				log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, worktreeRunnable.Name)
+			}
+
+			parentScope := CopyOrCreateNew(worktreeRunnable.BuildScope.GetScope())
+			dependencyScope := CopyOrCreateNew(parentScope)
+			//dependencyScope.MergeVariableMaps(contextEnvVars) TODO think this happens now in ConvertConfigRunnableStackItemToWorktreeRunnable
+			dependencyWithVars := CopyOrCreateNew(dependency.WithVars)
+			dependencyWithVars.IncrementOrdinal(ordinal) // TODO test this
+			dependencyScope.MergeVariableMaps(dependencyWithVars)
+			var err error
+
+			//dependencyVarAsOutput := copyMapStringString(dependency.VarOutputAs)
+			//mergeMapStringString(dependencyVarAsOutput, asOutput)
+			//dependencyScope.MergeVariableMaps(outputVars) TODO I don't think steps should inherit the env
+
+			configRunnableDeque.Prepend(NewConfigRunnableStackItem(dependencyRunnable, parentScope, dependencyScope))
+
+			if err != nil {
+				return err
+			}
+			//outputVars.MergeVariableMaps(outputVarsFromDependentStep) TODO I don't think steps should inherit the env
+			//fullEnvFromDependentStep.MergeVariableMaps(envFromDependentStep)
+		}
+
+		// TODO prepend queue with all configRunnableChildren
 	}
 
 	callStack := &CallStack{
-		Hash:      "", // All source files + system environment variables + build vars
-		Runnables: worktreeRunnables,
+		Hash:        "", // All source files + system environment variables + build vars
+		Runnables:   worktreeRunnables,
+		SourceFiles: allSourceFiles,
 	}
 	wt.CallStacks = append(wt.CallStacks, callStack)
 
 	return nil
 }
 
+func mergeMapStringString(map1, map2 map[string]string) {
+	for k, v := range map2 {
+		map1[k] = v
+	}
+}
+
+func copyMapStringString(m map[string]string) map[string]string {
+	newMap := make(map[string]string)
+	for k, v := range m {
+		newMap[k] = v
+	}
+	return newMap
+}
+
 func (wt *Worktree) PrintWorktree() {
 	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 
-	//indent := 0
-	//
-	//PrintWithIndent(fmt.Sprintf("Project: %s", wt.ProjectName), indent)
-	//PrintWithIndent(fmt.Sprintf("Context: %s", wt.Context), indent)
-	//PrintWithIndent(fmt.Sprintf("Buildvars: "), indent)
-	//wt.BuildVars.Print(indent)
-	//fmt.Sprintf("Project: %s\n", wt.ProjectName)
-	//fmt.Sprintf("Context: %s\n", wt.ProjectName)
-	//b, _ := yaml.Marshal(wt)
-
 	yamlEncoder := yaml.NewEncoder(os.Stdout)
-	yamlEncoder.SetIndent(2) // this is what you're looking for
+	yamlEncoder.SetIndent(2)
 	yamlEncoder.Encode(&wt)
 }

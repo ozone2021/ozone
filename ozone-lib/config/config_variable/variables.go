@@ -67,6 +67,22 @@ func (vm *VariableMap) AddVariableWithoutOrdinality(variable *Variable) {
 	return
 }
 
+// TODO this isn't really a diff, it only shows what exists
+func (vm *VariableMap) Diff(otherMap *VariableMap) (*VariableMap, error) {
+	diffMap := NewVariableMap()
+	for name, otherVariable := range otherMap.variables {
+		ourVariable, exists := vm.GetVariable(name)
+		if !exists || !otherVariable.Equals(ourVariable) {
+			ordinal, err := otherMap.GetOrdinal(name)
+			if err != nil {
+				return nil, err
+			}
+			diffMap.AddVariable(otherVariable, ordinal)
+		}
+	}
+	return diffMap, nil
+}
+
 func (vm *VariableMap) GetOrdinal(name string) (int, error) {
 	ordinal, exists := vm.ordinals[name]
 	if !exists {
@@ -272,6 +288,18 @@ func NewSliceVariable(name string, value []string) *Variable {
 		value:   value,
 		varType: SliceType,
 	}
+}
+
+func (v *Variable) Equals(other *Variable) bool {
+	if v.name != other.name || v.varType != other.varType {
+		return false
+	}
+	for k, val := range v.value {
+		if val != other.value[k] {
+			return false
+		}
+	}
+	return true
 }
 
 func (v *Variable) Copy() *Variable {

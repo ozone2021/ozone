@@ -22,7 +22,7 @@ func init() {
 
 var envCmd = &cobra.Command{
 	Use:  "e",
-	Long: `Env - get environment variables back`,
+	Long: `BuildScope - get environment variables back`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.SetFlags(0)
 		log.SetOutput(os.Stdout)

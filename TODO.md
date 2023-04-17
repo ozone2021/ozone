@@ -64,3 +64,6 @@ build_vars:
 # Testing
 
 #### Rendering of build vars needs tested.
+
+#### Test context conditional.
+What about scripts with args?
