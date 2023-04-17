@@ -67,3 +67,10 @@ build_vars:
 
 #### Test context conditional.
 What about scripts with args?
+
+
+# High priority
+
+DIR not rendering in worktree var.
+
+
