@@ -72,5 +72,5 @@ What about scripts with args?
 # High priority
 
 DIR not rendering in worktree var.
-
+FULL_TAG not set properly. Parent scope wrong for rootRunnable
 
