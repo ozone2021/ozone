@@ -58,5 +58,9 @@ build_vars:
 #### this doesn't. Needs hyphens. No decent error thrown.
 build_vars:
   services:
-    - NODEJS
-    - ML-AI
+    NODEJS
+  [Ozonefile](..%2Fdeleteme%2FOzonefile)  ML-AI
+
+# Testing
+
+#### Rendering of build vars needs tested.
