@@ -275,9 +275,15 @@ func (config *OzoneConfig) fetchLoopEnv(ordinal int, e *Environment, scopeMap *V
 
 		eachVarsMap := CopyOrCreateNew(e.WithVars)
 		eachScope.MergeVariableMaps(includesVarMap)
-		eachVarsMap.MergeVariableMaps(eachScope)
+		err = eachScope.MergeVariableMaps(eachVarsMap)
+		if err != nil {
+			log.Fatalln(err)
+		}
 
-		varsMap.MergeVariableMaps(eachVarsMap)
+		err = varsMap.MergeVariableMaps(eachScope)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 
 	return varsMap, nil

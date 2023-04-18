@@ -41,6 +41,8 @@ fetchEnv should use a stack instead of recursion.
 
 refactor cmd/run.go
 
+## Custom yaml unmarshall should unmarshal to Variables and not just string/[]string
+
 # Features
 
 ## Env name prefix
@@ -61,6 +63,14 @@ build_vars:
     NODEJS
   [Ozonefile](..%2Fdeleteme%2FOzonefile)  ML-AI
 
+
+# Document
+
+#### List addition works now
+
+#### sourcefileprepend
+only prepends to the source files for the callstack, not for the ones in the buildscope, it stays relative.
+
 # Testing
 
 #### Rendering of build vars needs tested.
@@ -71,6 +81,4 @@ What about scripts with args?
 
 # High priority
 
-DIR not rendering in runspec var.
-FULL_TAG not set properly. Parent scope wrong for rootRunnable
 

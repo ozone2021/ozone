@@ -209,7 +209,7 @@ func (vm *VariableMap) MergeVariableMaps(overwrite *VariableMap) error {
 		}
 		vm.AddVariable(variable, overwrite.ordinals[overwriteVariable.name])
 	}
-	for i := 0; i < 3; i++ { // VariableVariables
+	for i := 0; i < 2; i++ { // VariableVariables
 		err := vm.SelfRender()
 		if err != nil {
 			return err
@@ -549,19 +549,31 @@ func (v *Variable) GetSliceValue() []string {
 // TODO this is where we convert the lists to exploded semi colons.
 // Normal env vars go straight across.
 
+func regexp2FindAllString(re *regexp2.Regexp, s string) []*regexp2.Match {
+	var matches []*regexp2.Match
+	m, _ := re.FindStringMatch(s)
+	for m != nil {
+		matches = append(matches, m)
+		m, _ = re.FindNextMatch(m)
+	}
+	return matches
+}
+
 func collectVariableAndFilters(sentence string) []*VarDeclaration {
 	r := regexp2.MustCompile(VariablePattern, 0)
-	match, _ := r.FindStringMatch(sentence)
+	matches := regexp2FindAllString(r, sentence)
 
 	var collectedVars []*VarDeclaration
 
-	if match != nil {
-		subs := match.Groups()
-		collectedVars = append(collectedVars, &VarDeclaration{
-			Declaration: subs[0].Captures[0].String(),
-			VarName:     subs[1].Captures[0].String(),
-			Filter:      subs[2].Captures[0].String(),
-		})
+	if matches != nil {
+		for _, match := range matches {
+			subs := match.Groups()
+			collectedVars = append(collectedVars, &VarDeclaration{
+				Declaration: subs[0].Captures[0].String(),
+				VarName:     subs[1].Captures[0].String(),
+				Filter:      subs[2].Captures[0].String(),
+			})
+		}
 	}
 
 	return collectedVars
