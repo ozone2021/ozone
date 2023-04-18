@@ -9,15 +9,15 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(planCmd)
-	planCmd.PersistentFlags().BoolP("detached", "d", false, "detached is for running headless, without docker daemon (you will likely want detached for server based ci/cd. Use the daemon for local)")
+	rootCmd.AddCommand(run2Cmd)
+	run2Cmd.PersistentFlags().BoolP("detached", "d", false, "detached is for running headless, without docker daemon (you will likely want detached for server based ci/cd. Use the daemon for local)")
 }
 
-var planCmd = &cobra.Command{
-	Use:  "plan",
+var run2Cmd = &cobra.Command{
+	Use:  "run2",
 	Long: `Shows a dry run of what is going to be ran.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		config = ozoneConfig.ReadConfig(cmd)
+
 		context := config_utils.FetchContext(cmd, ozoneWorkingDir, config)
 
 		worktree := worktree2.NewWorktree(context, ozoneWorkingDir, config)
@@ -34,7 +34,7 @@ var planCmd = &cobra.Command{
 		}
 
 		worktree.AddCallstacks(builds, config, context)
+		worktree.ExecuteCallstacks()
 
-		worktree.PrintWorktree()
 	},
 }

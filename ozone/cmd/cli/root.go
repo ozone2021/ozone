@@ -11,7 +11,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "ozone",
 	Short: "Environment and run management, localhost orchestrator",
-	Long: ``,
+	Long:  ``,
 }
 
 var ozoneWorkingDir = ""
@@ -20,7 +20,8 @@ var context string
 var headless bool
 
 func init() {
-	config = ozoneConfig.ReadConfig()
+	rootCmd.PersistentFlags().StringP("context", "c", "", fmt.Sprintf("context (default is %s)", "TODO")) // TODO
+	rootCmd.PersistentFlags().BoolP("detached", "d", false, "detached is for running headless, without docker daemon (you will likely want detached for server based ci/cd. Use the daemon for local)")
 
 	var err error
 	ozoneWorkingDir, err = os.Getwd()
@@ -41,4 +42,3 @@ func Execute() {
 		os.Exit(1)
 	}
 }
-

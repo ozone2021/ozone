@@ -12,8 +12,8 @@ import (
 
 func init() {
 	rootCmd.AddCommand(envCmd)
-	config = ozoneConfig.ReadConfig()
-	envCmd.PersistentFlags().StringP("context", "c", "", fmt.Sprintf("context (default is %s)", config.ContextInfo.Default))
+
+	envCmd.PersistentFlags().StringP("context", "c", "", fmt.Sprintf("context (default is %s)", "TODO")) // config.ContextInfo.Default) TODO
 	envCmd.PersistentFlags().BoolP("detached", "d", false, "detached is for running headless, without docker daemon (you will likely want detached for server based ci/cd. Use the daemon for local)")
 	envCmd.PersistentFlags().StringP("format", "f", "", "pongo2 format for env output")
 	envCmd.PersistentFlags().StringP("runnable", "r", "", "Runnable name")
@@ -26,6 +26,8 @@ var envCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		log.SetFlags(0)
 		log.SetOutput(os.Stdout)
+
+		config = ozoneConfig.ReadConfig(cmd)
 
 		headless, _ = cmd.Flags().GetBool("detached")
 

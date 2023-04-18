@@ -6,6 +6,7 @@ import (
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/env"
 	"github.com/ozone2021/ozone/ozone-lib/env/git_env"
+	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -86,6 +87,7 @@ type Runnable struct {
 }
 
 type OzoneConfig struct {
+	Headless      bool           `yaml:"headless"`
 	ProjectName   string         `yaml:"project"`
 	ContextInfo   ContextInfo    `yaml:"context"`
 	BuildVars     *VariableMap   `yaml:"build_vars"`
@@ -412,8 +414,10 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 //	return nil
 //}
 
-func ReadConfig() *OzoneConfig {
-	ozoneConfig := OzoneConfig{}
+func ReadConfig(cmd *cobra.Command) *OzoneConfig {
+	headless, _ := cmd.Flags().GetBool("detached")
+
+	ozoneConfig := OzoneConfig{Headless: headless}
 
 	dat, err := ioutil.ReadFile("./Ozonefile")
 	if err != nil {

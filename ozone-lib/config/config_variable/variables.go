@@ -229,7 +229,7 @@ func (vm *VariableMap) RenderNoMerge(scope *VariableMap) error {
 	return nil
 }
 
-func CopyOrCreateNew(vm *VariableMap) *VariableMap {
+func CopyOrCreateNew(vm *VariableMap) *VariableMap { // Should create with ordinal
 	if vm == nil {
 		return NewVariableMap()
 	}
