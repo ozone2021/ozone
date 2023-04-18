@@ -1,4 +1,4 @@
-package worktree
+package runspec
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/ozone2021/ozone/ozone-lib/buildables"
 	"github.com/ozone2021/ozone/ozone-lib/config"
+	"github.com/ozone2021/ozone/ozone-lib/config/config_keys"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/deployables/docker"
@@ -21,7 +22,7 @@ import (
 	"path/filepath"
 )
 
-type WorktreeStep struct {
+type RunspecStep struct {
 	Type        string             `yaml:"type"`
 	Name        string             `yaml:"name"`
 	Scope       *DifferentialScope `yaml:"scope"`
@@ -60,16 +61,16 @@ func (ds *DifferentialScope) MarshalYAML() (interface{}, error) {
 
 //	ContextConditionals []*ContextConditional `yaml:"context_conditionals"` # TODO save whether satisified
 //  Steps is the depends and contextSteps merged
-type WorktreeRunnable struct {
-	Name         string                `yaml:"name"`
-	Ordinal      int                   `yaml:"ordinal"`
-	Service      string                `yaml:"service"`
-	SourceFiles  []string              `yaml:"source_files"`
-	Dir          string                `yaml:"dir"`
-	BuildScope   *DifferentialScope    `yaml:"scope"`
-	Conditionals *WorktreeConditionals `yaml:"conditionals"`
-	Steps        []*WorktreeStep       `yaml:"steps"`
-	Type         config.RunnableType   `yaml:"RunnableType"`
+type RunspecRunnable struct {
+	Name         string               `yaml:"name"`
+	Ordinal      int                  `yaml:"ordinal"`
+	Service      string               `yaml:"service"`
+	SourceFiles  []string             `yaml:"source_files"`
+	Dir          string               `yaml:"dir"`
+	BuildScope   *DifferentialScope   `yaml:"scope"`
+	Conditionals *RunspecConditionals `yaml:"conditionals"`
+	Steps        []*RunspecStep       `yaml:"steps"`
+	Type         config.RunnableType  `yaml:"RunnableType"`
 }
 
 type CallStack struct {
@@ -77,7 +78,7 @@ type CallStack struct {
 	RootRunnableType config.RunnableType `yaml:"root_runnable_type"`
 	Hash             string              `yaml:"hash"`
 	SourceFiles      []string            `yaml:"source_files"`
-	Runnables        []*WorktreeRunnable `yaml:"runnables"`
+	Runnables        []*RunspecRunnable  `yaml:"runnables"`
 }
 
 func (cs *CallStack) hasCaching() bool {
@@ -109,7 +110,7 @@ func (cs *CallStack) getBuildHash(ozoneWorkingDir string) (string, error) {
 	return hash, nil
 }
 
-type Worktree struct {
+type Runspec struct {
 	config       *config.OzoneConfig
 	ProjectName  string       `yaml:"project"`
 	Context      string       `yaml:"context"`
@@ -118,14 +119,14 @@ type Worktree struct {
 	CallStacks   []*CallStack `yaml:"call_stack"`
 }
 
-func NewWorktree(context, ozoneWorkingDir string, config *config.OzoneConfig) *Worktree {
+func NewRunspec(context, ozoneWorkingDir string, config *config.OzoneConfig) *Runspec {
 	systemEnvVars := OSEnvToVarsMap()
 
 	renderedBuildVars := config.BuildVars
 	renderedBuildVars.RenderNoMerge(systemEnvVars)
 	renderedBuildVars.SelfRender()
 
-	worktree := &Worktree{
+	runspec := &Runspec{
 		config:       config,
 		ProjectName:  config.ProjectName,
 		Context:      context,
@@ -133,24 +134,31 @@ func NewWorktree(context, ozoneWorkingDir string, config *config.OzoneConfig) *W
 		BuildVars:    renderedBuildVars,
 	}
 
-	return worktree
+	return runspec
 }
 
-func (wt *Worktree) getConfigRunnableSourceFiles(configRunnable *config.Runnable, buildScope *VariableMap) []string {
-	var sourceFiles []string
-	for _, file := range configRunnable.SourceFiles {
-		rendered, err := buildScope.RenderSentence(file)
-		if err != nil {
-			log.Fatalf("Error: %s while getting source file: %s in configRunnable: %s", err, file, configRunnable.Name)
-		}
-		sourceFiles = append(sourceFiles, filepath.Join(wt.OzoneWorkDir, rendered))
+func (wt *Runspec) getConfigRunnableSourceFiles(configRunnable *config.Runnable, buildScope *VariableMap, ordinal int) []string {
+	sourceFiles, err := buildScope.RenderList(configRunnable.SourceFiles)
+	if err != nil {
+		log.Fatalln("Couldn't render source files for runnable %s with err: %s", configRunnable.Name, err)
 	}
-	buildScope.SelfRender()
 
-	return sourceFiles
+	sourceFilesVar := NewSliceVariable(config_keys.SOURCE_FILES_KEY, sourceFiles)
+	buildScope.AddVariable(sourceFilesVar, ordinal)
+
+	outputSourceFiles := make([]string, len(sourceFiles))
+	for k, v := range sourceFiles {
+		renderedPrepend, err := buildScope.RenderSentence(configRunnable.SourceFilesPrepend)
+		if err != nil {
+			log.Fatalln("Couldn't render sourceFilePrepend for runnable %s with err: %s", configRunnable.Name, err)
+		}
+		outputSourceFiles[k] = filepath.Join(wt.OzoneWorkDir, renderedPrepend, v)
+	}
+
+	return outputSourceFiles
 }
 
-func (wt *Worktree) FetchContextEnvs(ordinal int, buildScope *VariableMap, runnable *config.Runnable) (*VariableMap, error) {
+func (wt *Runspec) FetchContextEnvs(ordinal int, buildScope *VariableMap, runnable *config.Runnable) (*VariableMap, error) {
 	contextEnvVars := NewVariableMap()
 	for _, contextEnv := range runnable.ContextEnv {
 		buildScope.MergeVariableMaps(contextEnv.WithVars)
@@ -172,8 +180,8 @@ func (wt *Worktree) FetchContextEnvs(ordinal int, buildScope *VariableMap, runna
 	return contextEnvVars, nil
 }
 
-func (wt *Worktree) ContextStepsFlatten(configRunnable *config.Runnable, buildscope *VariableMap, ordinal int) ([]*WorktreeStep, error) {
-	var steps []*WorktreeStep
+func (wt *Runspec) ContextStepsFlatten(configRunnable *config.Runnable, buildscope *VariableMap, ordinal int) ([]*RunspecStep, error) {
+	var steps []*RunspecStep
 	for _, cs := range configRunnable.ContextSteps {
 		match, err := config_utils.ContextInPattern(wt.Context, cs.Context, buildscope)
 		if err != nil || !match {
@@ -198,7 +206,7 @@ func (wt *Worktree) ContextStepsFlatten(configRunnable *config.Runnable, buildsc
 			//outputVars.MergeVariableMaps(stepOutputVars)
 			fmt.Printf("Step: %s \n", step.Name)
 
-			steps = append(steps, &WorktreeStep{
+			steps = append(steps, &RunspecStep{
 				Type: step.Type,
 				Name: step.Name,
 				Scope: &DifferentialScope{
@@ -213,12 +221,15 @@ func (wt *Worktree) ContextStepsFlatten(configRunnable *config.Runnable, buildsc
 	return steps, nil
 }
 
-func (wt *Worktree) ConvertConfigRunnableStackItemToWorktreeRunnable(configRunnableStackItem *ConfigRunnableStackItem, ordinal int) (*WorktreeRunnable, error) {
+func (wt *Runspec) ConvertConfigRunnableStackItemToRunspecRunnable(configRunnableStackItem *ConfigRunnableStackItem, ordinal int) (*RunspecRunnable, error) {
 	configRunnable := configRunnableStackItem.ConfigRunnable
 	buildScope := configRunnableStackItem.buildScope
 	parentScope := configRunnableStackItem.parentScope
 
-	addCallstackScopeVars(configRunnable, buildScope, ordinal)
+	service, dir := addCallstackScopeVars(configRunnable, buildScope, ordinal)
+
+	sourceFiles := wt.getConfigRunnableSourceFiles(configRunnable, buildScope, ordinal)
+	buildScope.AddVariable(NewSliceVariable(config_keys.SOURCE_FILES_KEY, sourceFiles), ordinal)
 
 	contextEnvs, err := wt.FetchContextEnvs(ordinal, buildScope, configRunnable)
 	if err != nil {
@@ -234,19 +245,19 @@ func (wt *Worktree) ConvertConfigRunnableStackItemToWorktreeRunnable(configRunna
 		return nil, err
 	}
 
-	workTreeRunnable := &WorktreeRunnable{
+	runspecRunnable := &RunspecRunnable{
 		Name:         configRunnable.Name,
 		Ordinal:      ordinal,
-		Service:      configRunnable.Service,
-		SourceFiles:  wt.getConfigRunnableSourceFiles(configRunnable, buildScope),
-		Dir:          configRunnable.Dir,
+		Service:      service,
+		SourceFiles:  sourceFiles,
+		Dir:          dir,
 		BuildScope:   diffBuildScope,
 		Conditionals: ConvertContextConditional(runnableBuildScope, configRunnable, wt.Context),
 		Steps:        steps,
 		Type:         configRunnable.Type,
 	}
 
-	return workTreeRunnable, nil
+	return runspecRunnable, nil
 }
 
 type ConfigRunnableStackItem struct {
@@ -263,36 +274,43 @@ func NewConfigRunnableStackItem(configRunnable *config.Runnable, parentScope *Va
 	}
 }
 
-func addCallstackScopeVars(runnable *config.Runnable, buildScope *VariableMap, ordinal int) {
+func addCallstackScopeVars(runnable *config.Runnable, buildScope *VariableMap, ordinal int) (string, string) {
+	service, _ := buildScope.RenderSentence(runnable.Service)
+	dir, _ := buildScope.RenderSentence(runnable.Dir)
+
 	if runnable.Service != "" {
-		buildScope.AddVariableWithoutOrdinality(NewStringVariable("SERVICE", runnable.Service))
+		buildScope.AddVariableWithoutOrdinality(NewStringVariable("SERVICE", service))
 	}
 	if runnable.Dir != "" {
-		buildScope.AddVariable(NewStringVariable("DIR", runnable.Dir), ordinal)
+		buildScope.AddVariable(NewStringVariable("DIR", dir), ordinal)
 	}
 	buildScope.AddVariable(NewStringVariable("NAME", runnable.Name), ordinal)
+
+	buildScope.SelfRender()
+
+	return service, dir
 }
 
-func (wt *Worktree) ExecuteCallstacks() error {
+func (wt *Runspec) ExecuteCallstacks() error {
 	for _, callstack := range wt.CallStacks {
 		if callstack.RootRunnableType == config.BuildType && wt.checkCache(callstack) == true {
 			log.Printf("Info: build files for %s unchanged from cache. \n", callstack.RootRunnableName)
 			continue
 		}
-		for _, worktreeRunnable := range callstack.Runnables {
-			worktreeRunnable.RunSteps()
+		for _, runspecRunnable := range callstack.Runnables {
+			runspecRunnable.RunSteps()
 		}
 	}
 	return nil
 }
 
-func (wtr *WorktreeRunnable) RunSteps() {
+func (wtr *RunspecRunnable) RunSteps() {
 	for _, step := range wtr.Steps {
 		step.RunStep(wtr.Type)
 	}
 }
 
-func (step *WorktreeStep) RunStep(runnableType config.RunnableType) {
+func (step *RunspecStep) RunStep(runnableType config.RunnableType) {
 	if step.Type == "builtin" {
 		switch runnableType {
 		case config.PreUtilityType:
@@ -309,7 +327,7 @@ func (step *WorktreeStep) RunStep(runnableType config.RunnableType) {
 	}
 }
 
-func (step *WorktreeStep) runBuildable() {
+func (step *RunspecStep) runBuildable() {
 	switch step.Name {
 	case "buildDockerImage":
 		fmt.Println("Building docker image.")
@@ -335,7 +353,7 @@ func (step *WorktreeStep) runBuildable() {
 	}
 }
 
-func (step *WorktreeStep) runTestable() {
+func (step *RunspecStep) runTestable() {
 	switch step.Name {
 	case "bashScript":
 		script, ok := step.Scope.scope.GetVariable("SCRIPT")
@@ -351,7 +369,7 @@ func (step *WorktreeStep) runTestable() {
 	}
 }
 
-func (step *WorktreeStep) runUtility() {
+func (step *RunspecStep) runUtility() {
 	switch step.Name {
 	case "bashScript":
 		script, ok := step.Scope.scope.GetVariable("SCRIPT")
@@ -367,7 +385,7 @@ func (step *WorktreeStep) runUtility() {
 	}
 }
 
-func (step *WorktreeStep) runDeployables() {
+func (step *RunspecStep) runDeployables() {
 	serviceVar, ok := step.Scope.scope.GetVariable("SERVICE")
 	if !ok {
 		log.Fatalf("SERVICE not set for runnable step %s", step.Name)
@@ -397,7 +415,7 @@ func (step *WorktreeStep) runDeployables() {
 	}
 }
 
-//func (wtr *WorktreeRunnable) runPipeline(pipelines []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
+//func (wtr *RunspecRunnable) runPipeline(pipelines []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
 //	for _, pipeline := range pipelines {
 //		var runnables []*ozoneConfig.Runnable
 //		for _, dependency := range pipeline.Depends {
@@ -413,7 +431,7 @@ func (step *WorktreeStep) runDeployables() {
 //}
 
 // True means cache hit
-func (wt *Worktree) checkCache(callstack *CallStack) bool {
+func (wt *Runspec) checkCache(callstack *CallStack) bool {
 	if wt.config.Headless == true || callstack.hasCaching() == false {
 		return false
 	}
@@ -431,7 +449,7 @@ func (wt *Worktree) checkCache(callstack *CallStack) bool {
 	return cachedHash == hash
 }
 
-func (wt *Worktree) AddCallstacks(builds []*config.Runnable, config *config.OzoneConfig, context string) {
+func (wt *Runspec) AddCallstacks(builds []*config.Runnable, config *config.OzoneConfig, context string) {
 	ordinal := 0
 
 	topLevelScope := CopyOrCreateNew(config.BuildVars)
@@ -448,9 +466,9 @@ func (wt *Worktree) AddCallstacks(builds []*config.Runnable, config *config.Ozon
 	}
 }
 
-func (wt *Worktree) addCallstack(rootConfigRunnable *config.Runnable, ordinal int, context string, ozoneConfig *config.OzoneConfig, buildScope *VariableMap, asOutput map[string]string) error {
+func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int, context string, ozoneConfig *config.OzoneConfig, buildScope *VariableMap, asOutput map[string]string) error {
 	var allSourceFiles []string
-	var worktreeRunnables []*WorktreeRunnable
+	var runspecRunnables []*RunspecRunnable
 
 	configRunnableDeque := lane.NewDeque[*ConfigRunnableStackItem]()
 	configRunnableDeque.Append(NewConfigRunnableStackItem(rootConfigRunnable, buildScope, buildScope))
@@ -460,24 +478,24 @@ func (wt *Worktree) addCallstack(rootConfigRunnable *config.Runnable, ordinal in
 		configRunnableStackItem, _ := configRunnableDeque.Shift()
 		configRunnable := configRunnableStackItem.ConfigRunnable
 
-		worktreeRunnable, err := wt.ConvertConfigRunnableStackItemToWorktreeRunnable(configRunnableStackItem, ordinal)
+		runspecRunnable, err := wt.ConvertConfigRunnableStackItemToRunspecRunnable(configRunnableStackItem, ordinal)
 		if err != nil {
 			return err
 		}
-		allSourceFiles = append(allSourceFiles, worktreeRunnable.SourceFiles...)
+		allSourceFiles = append(allSourceFiles, runspecRunnable.SourceFiles...)
 
-		worktreeRunnables = append(worktreeRunnables, worktreeRunnable)
+		runspecRunnables = append(runspecRunnables, runspecRunnable)
 
 		for _, dependency := range configRunnable.Depends {
 			exists, dependencyRunnable := wt.config.FetchRunnable(dependency.Name)
 
 			if !exists {
-				log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, worktreeRunnable.Name)
+				log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, runspecRunnable.Name)
 			}
 
-			parentScope := CopyOrCreateNew(worktreeRunnable.BuildScope.GetScope())
+			parentScope := CopyOrCreateNew(runspecRunnable.BuildScope.GetScope())
 			dependencyScope := CopyOrCreateNew(parentScope)
-			//dependencyScope.MergeVariableMaps(contextEnvVars) TODO think this happens now in ConvertConfigRunnableStackItemToWorktreeRunnable
+			//dependencyScope.MergeVariableMaps(contextEnvVars) TODO think this happens now in ConvertConfigRunnableStackItemToRunspecRunnable
 			dependencyWithVars := CopyOrCreateNew(dependency.WithVars)
 			dependencyWithVars.IncrementOrdinal(ordinal) // TODO test this
 			dependencyScope.MergeVariableMaps(dependencyWithVars)
@@ -503,7 +521,7 @@ func (wt *Worktree) addCallstack(rootConfigRunnable *config.Runnable, ordinal in
 		RootRunnableName: rootConfigRunnable.Name,
 		RootRunnableType: rootConfigRunnable.Type,
 		Hash:             "", // All source files + system environment variables + build vars
-		Runnables:        worktreeRunnables,
+		Runnables:        runspecRunnables,
 		SourceFiles:      allSourceFiles,
 	}
 	wt.CallStacks = append(wt.CallStacks, callStack)
@@ -511,7 +529,7 @@ func (wt *Worktree) addCallstack(rootConfigRunnable *config.Runnable, ordinal in
 	return nil
 }
 
-func (wt *Worktree) PrintWorktree() {
+func (wt *Runspec) PrintRunspec() {
 	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 
 	yamlEncoder := yaml.NewEncoder(os.Stdout)

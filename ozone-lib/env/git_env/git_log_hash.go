@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
-	"github.com/ozone2021/ozone/ozone-lib/config/config_keys"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"log"
 	"os"
@@ -21,7 +20,7 @@ func GitLogHash(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 		dirPath = path.Join(ozoneWorkingDir.String(), dirPathVar.String())
 	}
 
-	filesVar, ok := varsMap.GetVariable(config_keys.SOURCE_FILES_KEY)
+	filesVar, ok := varsMap.GetVariable("GIT_SOURCE_FILES")
 	if !ok {
 		return errors.New("Source files must be set")
 	}

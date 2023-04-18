@@ -29,7 +29,7 @@ Conditional script should return 3 for exit that is a real error. All others sho
 
 #### Caching doesn't take into account external vars changing, nor any source files of called runnables.
 
-Hashing the entire worktree would fix external vars.
+Hashing the entire runspec would fix external vars.
 
 Source files need merged all the way down to the bottom of the call stack.
 
@@ -71,6 +71,6 @@ What about scripts with args?
 
 # High priority
 
-DIR not rendering in worktree var.
+DIR not rendering in runspec var.
 FULL_TAG not set properly. Parent scope wrong for rootRunnable
 

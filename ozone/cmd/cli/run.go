@@ -472,8 +472,8 @@ func runDeployables(step *ozoneConfig.Step, r *ozoneConfig.Runnable, varsMap *co
 //				fmt.Println("Context")
 //				for _, step := range es.Steps {
 //					fmt.Printf("step %s", step.Type)
-//					// TODO merge in step.WithVars into varsMap
-//					stepVars := mergeMaps(varsMap, step.WithVars)
+//					// TODO merge in step.InputVars into varsMap
+//					stepVars := mergeMaps(varsMap, step.InputVars)
 //				}
 //			}
 //		}

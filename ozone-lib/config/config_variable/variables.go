@@ -3,17 +3,17 @@ package config_variable
 import (
 	"errors"
 	"fmt"
+	"github.com/dlclark/regexp2"
 	"github.com/flosch/pongo2/v4"
 	"github.com/ozone2021/ozone/ozone-lib/config/cli_utils"
 	"log"
 	"math"
 	"os"
 	"reflect"
-	"regexp"
 	"strings"
 )
 
-const VariablePattern = `\{\{\s*([^}|\s]*)\s*(\s*\\|\s*[^}]*)?\s*\}\}`
+const VariablePattern = `\{{2}(?!{)\s*([^}|^{|\s]*)\s*(\s*\\|\s*[^}]*)?\s*\}\}`
 const WhiteSpace = `\S(\s+)`
 const ReplacementSymbol = `®`
 const ConfigOrdinal = math.MaxInt
@@ -209,16 +209,23 @@ func (vm *VariableMap) MergeVariableMaps(overwrite *VariableMap) error {
 		}
 		vm.AddVariable(variable, overwrite.ordinals[overwriteVariable.name])
 	}
+	for i := 0; i < 3; i++ { // VariableVariables
+		err := vm.SelfRender()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (vm *VariableMap) RenderNoMerge(scope *VariableMap) error {
 	combinedScope := scope.copy()
-	osEnv := OSEnvToVarsMap()
-	err := combinedScope.MergeVariableMaps(osEnv)
-	if err != nil {
-		return err
-	}
+	//osEnv := OSEnvToVarsMap()
+	//err := combinedScope.MergeVariableMaps(osEnv)
+	//if err != nil {
+	//	return err
+	//}
 	for _, variable := range vm.variables {
 		rendered, err := combinedScope.Render(variable)
 		if err != nil {
@@ -312,6 +319,10 @@ func (v *Variable) Copy() *Variable {
 
 func (v *Variable) GetVarType() VarType {
 	return v.varType
+}
+
+func (v *Variable) SetVarType(t VarType) {
+	v.varType = t
 }
 
 func (v *Variable) String() string {
@@ -438,16 +449,11 @@ func (vm *VariableMap) Render(v *Variable) (*Variable, error) {
 		}
 		output.value = []string{renderedValue}
 	case SliceType:
-		var newArray []string
-
-		for _, item := range v.GetSliceValue() {
-			rendered, err := vm.RenderSentence(item)
-			if err != nil {
-				return nil, err
-			}
-			newArray = append(newArray, rendered)
+		rendered, err := vm.RenderList(v.GetSliceValue())
+		if err != nil {
+			return nil, err
 		}
-		output.value = newArray
+		output.value = rendered
 	default:
 		return nil, errors.New("Unknown type in variable render.")
 	}
@@ -486,6 +492,23 @@ func (vm *VariableMap) Render(v *Variable) (*Variable, error) {
 //
 //	return nil
 //}
+
+func (vm *VariableMap) RenderList(list []string) ([]string, error) {
+	var parts []string
+	for _, item := range list {
+		renderedSentence, err := vm.RenderSentence(item)
+		if err != nil {
+			return nil, err // TODO wrap error
+		}
+
+		if strings.Contains(renderedSentence, ";") {
+			parts = append(parts, strings.Split(renderedSentence, ";")...)
+		} else {
+			parts = append(parts, renderedSentence)
+		}
+	}
+	return parts, nil
+}
 
 func (vm *VariableMap) RenderSentence(sentence string) (string, error) {
 	collectedVars := collectVariableAndFilters(sentence)
@@ -527,15 +550,17 @@ func (v *Variable) GetSliceValue() []string {
 // Normal env vars go straight across.
 
 func collectVariableAndFilters(sentence string) []*VarDeclaration {
-	r := regexp.MustCompile(VariablePattern)
-	subs := r.FindAllStringSubmatch(sentence, -1)
+	r := regexp2.MustCompile(VariablePattern, 0)
+	match, _ := r.FindStringMatch(sentence)
 
 	var collectedVars []*VarDeclaration
-	for _, sub := range subs {
+
+	if match != nil {
+		subs := match.Groups()
 		collectedVars = append(collectedVars, &VarDeclaration{
-			Declaration: sub[0],
-			VarName:     sub[1],
-			Filter:      sub[2],
+			Declaration: subs[0].Captures[0].String(),
+			VarName:     subs[1].Captures[0].String(),
+			Filter:      subs[2].Captures[0].String(),
 		})
 	}
 

@@ -1,4 +1,4 @@
-package worktree
+package runspec
 
 import (
 	"github.com/ozone2021/ozone/ozone-lib/config"
@@ -8,15 +8,15 @@ import (
 	"log"
 )
 
-type WorktreeConditionals struct {
+type RunspecConditionals struct {
 	empty         bool
 	Satisfied     bool            `yaml:"satisfied"`
 	WhenScript    map[string]bool `yaml:"when_script"`
 	WhenNotScript map[string]bool `yaml:"when_not_script"`
 }
 
-func NewWorktreeConditionals() *WorktreeConditionals {
-	return &WorktreeConditionals{
+func NewRunspecConditionals() *RunspecConditionals {
+	return &RunspecConditionals{
 		empty:         true,
 		Satisfied:     true,
 		WhenScript:    make(map[string]bool),
@@ -24,7 +24,7 @@ func NewWorktreeConditionals() *WorktreeConditionals {
 	}
 }
 
-func (wtc *WorktreeConditionals) AddWhenScriptResult(script string, outcome bool) {
+func (wtc *RunspecConditionals) AddWhenScriptResult(script string, outcome bool) {
 	wtc.empty = false
 	if outcome == false {
 		wtc.Satisfied = false
@@ -32,7 +32,7 @@ func (wtc *WorktreeConditionals) AddWhenScriptResult(script string, outcome bool
 	wtc.WhenScript[script] = outcome
 }
 
-func (wtc *WorktreeConditionals) AddWhenNotScriptResult(script string, outcome bool) {
+func (wtc *RunspecConditionals) AddWhenNotScriptResult(script string, outcome bool) {
 	wtc.empty = false
 	if outcome == false {
 		wtc.Satisfied = false
@@ -40,8 +40,8 @@ func (wtc *WorktreeConditionals) AddWhenNotScriptResult(script string, outcome b
 	wtc.WhenNotScript[script] = outcome
 }
 
-func ConvertContextConditional(buildScope *VariableMap, configRunnable *config.Runnable, context string) *WorktreeConditionals {
-	wtc := NewWorktreeConditionals()
+func ConvertContextConditional(buildScope *VariableMap, configRunnable *config.Runnable, context string) *RunspecConditionals {
+	wtc := NewRunspecConditionals()
 
 	for _, contextConditional := range configRunnable.ContextConditionals {
 		inPattern, err := config_utils.ContextInPattern(context, contextConditional.Context, buildScope)

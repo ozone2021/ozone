@@ -15,6 +15,8 @@ import (
 
 type RunnableType int
 
+const BASE_ORDINAL = 0
+
 const (
 	PreUtilityType  RunnableType = iota
 	BuildType       RunnableType = iota
@@ -30,9 +32,9 @@ type ContextInfo struct {
 }
 
 type Include struct {
-	Name     string       `yaml:"name"`
-	WithVars *VariableMap `yaml:"with_vars"`
-	Type     string       `yaml:"type"`
+	Name      string       `yaml:"name"`
+	InputVars *VariableMap `yaml:"input_vars"`
+	Type      string       `yaml:"type"`
 }
 
 type Environment struct {
@@ -74,10 +76,11 @@ type ContextConditional struct {
 }
 
 type Runnable struct {
-	Name        string   `yaml:"name"`
-	Service     string   `yaml:"service"`
-	Dir         string   `yaml:"dir"`
-	SourceFiles []string `yaml:"source_files"`
+	Name               string   `yaml:"name"`
+	Service            string   `yaml:"service"`
+	Dir                string   `yaml:"dir"`
+	SourceFiles        []string `yaml:"source_files"`
+	SourceFilesPrepend string   `yaml:"source_files_prepend"`
 	//WithEnv     	[]string      	`yaml:"with_env"`
 	ContextEnv          []*ContextEnv         `yaml:"context_envs"`
 	ContextConditionals []*ContextConditional `yaml:"context_conditionals"`
@@ -263,16 +266,16 @@ func (config *OzoneConfig) fetchLoopEnv(ordinal int, e *Environment, scopeMap *V
 	}
 	for _, value := range source.GetSliceValue() {
 		eachScope := CopyOrCreateNew(scopeMap)
-		eachScope.AddVariable(NewStringVariable(targetName, value), ordinal)
+		eachScope.AddVariable(NewStringVariable(targetName, value), BASE_ORDINAL) // TODO
 
-		includesVarMap, err := config.fetchEnvIncludes(ordinal, e, scopeMap)
+		includesVarMap, err := config.fetchEnvIncludes(ordinal, e, eachScope)
 		if err != nil {
 			return nil, err
 		}
 
 		eachVarsMap := CopyOrCreateNew(e.WithVars)
 		eachScope.MergeVariableMaps(includesVarMap)
-		eachVarsMap.RenderNoMerge(eachScope)
+		eachVarsMap.MergeVariableMaps(eachScope)
 
 		varsMap.MergeVariableMaps(eachVarsMap)
 	}
@@ -303,15 +306,15 @@ func (config *OzoneConfig) fetchEnvIncludes(ordinal int, e *Environment, scopeMa
 	for _, incl := range e.Includes {
 		var inclVarsMap *VariableMap
 		var err error
+		inclParamVarsMap := CopyOrCreateNew(incl.InputVars)
+		inclParamVarsMap.MergeVariableMaps(scopeMap)
 		if incl.Type == "builtin" {
-			inclParamVarsMap := CopyOrCreateNew(incl.WithVars)
-			inclParamVarsMap.MergeVariableMaps(scopeMap)
 			inclVarsMap, err = config.fetchBuiltinEnvFromInclude(ordinal, incl.Name, inclParamVarsMap)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			inclVarsMap, err = config.fetchEnv(ordinal, incl.Name, scopeMap)
+			inclVarsMap, err = config.fetchEnv(ordinal, incl.Name, inclParamVarsMap)
 			if err != nil {
 				return nil, err
 			}
