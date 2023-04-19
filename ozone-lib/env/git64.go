@@ -2,6 +2,7 @@ package env
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
@@ -66,6 +67,9 @@ func DynamicFromGitDirBranchNameHash(ordinal int, varsMap, fromIncludeMap *Varia
 	}
 
 	branchNameVar, ok := varsMap.GetVariable("GIT_BRANCH")
+	if !ok {
+		return errors.New("GIT_BRANCH not set")
+	}
 	branchName := branchNameVar.String()
 	if err != nil || branchName == "{{GIT_BRANCH}}" {
 		branchName = string(reference.Name())

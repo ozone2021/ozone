@@ -51,6 +51,9 @@ Special Env var PREFIX would prepend something to all env vars, for easier debug
 
 # Error handling
 
+#### env/env/git_branch_ticket_number
+Double env at the start typo doesn't throw error for non existent env.
+
 #### this works
 build_vars:
   services:
