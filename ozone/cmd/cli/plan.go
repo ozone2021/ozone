@@ -2,7 +2,6 @@ package cli
 
 import (
 	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
-	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
 	runspec2 "github.com/ozone2021/ozone/ozone-lib/runspec"
 	"github.com/spf13/cobra"
 	"log"
@@ -10,16 +9,12 @@ import (
 
 func init() {
 	rootCmd.AddCommand(planCmd)
-	planCmd.PersistentFlags().BoolP("detached", "d", false, "detached is for running headless, without docker daemon (you will likely want detached for server based ci/cd. Use the daemon for local)")
 }
 
 var planCmd = &cobra.Command{
 	Use:  "plan",
 	Long: `Shows a dry run of what is going to be ran.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		config = ozoneConfig.ReadConfig(cmd)
-		context := config_utils.FetchContext(cmd, ozoneWorkingDir, config)
-
 		runspec := runspec2.NewRunspec(context, ozoneWorkingDir, config)
 
 		var builds []*ozoneConfig.Runnable

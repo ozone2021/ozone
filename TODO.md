@@ -51,6 +51,8 @@ Special Env var PREFIX would prepend something to all env vars, for easier debug
 
 # Error handling
 
+#### Context not found throws segfault
+
 #### env/env/git_branch_ticket_number
 Double env at the start typo doesn't throw error for non existent env.
 
@@ -81,6 +83,16 @@ only prepends to the source files for the callstack, not for the ones in the bui
 #### Test context conditional.
 What about scripts with args?
 
+
+## Github action
+
+### To install
+
+Deffo.
+
+### To run?
+
+Probably
 
 # High priority
 

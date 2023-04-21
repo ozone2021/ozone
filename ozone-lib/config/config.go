@@ -6,7 +6,6 @@ import (
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/env"
 	"github.com/ozone2021/ozone/ozone-lib/env/git_env"
-	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -425,9 +424,7 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 //	return nil
 //}
 
-func ReadConfig(cmd *cobra.Command) *OzoneConfig {
-	headless, _ := cmd.Flags().GetBool("detached")
-
+func ReadConfig(headless bool) *OzoneConfig {
 	ozoneConfig := OzoneConfig{Headless: headless}
 
 	dat, err := ioutil.ReadFile("./Ozonefile")

@@ -4,7 +4,6 @@ import (
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
 	"github.com/ozone2021/ozone/ozone-lib/config"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
-	"github.com/spf13/cobra"
 	"log"
 	"strings"
 )
@@ -24,10 +23,8 @@ func ContextInPattern(context, pattern string, scope *VariableMap) (bool, error)
 	return false, nil
 }
 
-func FetchContext(cmd *cobra.Command, ozoneWorkingDir string, config *config.OzoneConfig) string {
+func FetchContext(headless bool, contextFlag string, ozoneWorkingDir string, config *config.OzoneConfig) string {
 	context := ""
-	headless, _ := cmd.Flags().GetBool("detached")
-	contextFlag, _ := cmd.Flags().GetString("context")
 	if contextFlag == "" {
 		if headless == true {
 			log.Fatalln("--context must be set if --headless mode used")
