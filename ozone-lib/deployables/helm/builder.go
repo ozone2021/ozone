@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 func getHelmParams() []string {
@@ -36,9 +37,11 @@ func Deploy(serviceName string, envVarMap *config_variable.VariableMap) error {
 	installName := env["INSTALL_NAME"]
 	chartDir := env["CHART_DIR"]
 
-	args, ok := env["HELM_ARGS"]
-	if !ok {
-		args = ""
+	argsString := ""
+	argsVar, ok := envVarMap.GetVariable("HELM_ARGS")
+	if ok {
+		argsString = argsVar.GetStringValue()
+		argsString = strings.Join(strings.Split(argsString, ";"), " ")
 	}
 
 	valuesFile, ok := env["VALUES_FILE"]
@@ -51,7 +54,7 @@ func Deploy(serviceName string, envVarMap *config_variable.VariableMap) error {
 	cmdString := fmt.Sprintf("helm upgrade -i %s %s %s %s",
 		installName,
 		valuesFile,
-		args,
+		argsString,
 		chartDir,
 	)
 

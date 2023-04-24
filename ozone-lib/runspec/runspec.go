@@ -298,7 +298,9 @@ func (wt *Runspec) ExecuteCallstacks() error {
 			continue
 		}
 		for _, runspecRunnable := range callstack.Runnables {
-			runspecRunnable.RunSteps()
+			if runspecRunnable.Conditionals.Satisfied == true {
+				runspecRunnable.RunSteps()
+			}
 		}
 	}
 	return nil

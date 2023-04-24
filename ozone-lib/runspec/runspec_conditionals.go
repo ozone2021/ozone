@@ -56,7 +56,7 @@ func ConvertContextConditional(buildScope *VariableMap, configRunnable *config.R
 				case 0:
 					wtc.AddWhenScriptResult(script, true)
 				case 3: // TODO document special ozone exit code to force error
-					log.Printf("TODO catch these errors inside the conditionals struct: %s \n", err)
+					log.Fatalln("Something went wrong with conditional script: %script, err: %s \n", script, err)
 				default:
 					wtc.AddWhenScriptResult(script, false)
 					log.Printf("Not running, contextConditional whenScript not satisfied: %s", script)
@@ -69,7 +69,8 @@ func ConvertContextConditional(buildScope *VariableMap, configRunnable *config.R
 				case 0:
 					wtc.AddWhenNotScriptResult(script, false)
 				case 3: // TODO document special ozone exit code
-					log.Printf("TODO catch these errors inside the conditionals struct: %s \n", err)
+					wtc.AddWhenNotScriptResult(script, false)
+					log.Fatalln("Something went wrong with conditional script: %script, err: %s \n", script, err)
 				default:
 					wtc.AddWhenNotScriptResult(script, true)
 				}

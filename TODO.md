@@ -51,6 +51,10 @@ Special Env var PREFIX would prepend something to all env vars, for easier debug
 
 # Error handling
 
+#### context_condition should be context_conditionals
+
+And throw error if incorrect
+
 #### Context not found throws segfault
 
 #### env/env/git_branch_ticket_number
@@ -93,6 +97,8 @@ Deffo.
 ### To run?
 
 Probably
+
+# Change license so that any paid services must pay to use 
 
 # High priority
 
