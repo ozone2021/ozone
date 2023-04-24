@@ -78,9 +78,5 @@ func ConvertContextConditional(buildScope *VariableMap, configRunnable *config.R
 		}
 	}
 
-	if wtc.empty {
-		return nil
-	}
-
 	return wtc
 }
