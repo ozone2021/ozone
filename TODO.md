@@ -51,6 +51,9 @@ Special Env var PREFIX would prepend something to all env vars, for easier debug
 
 # Error handling
 
+#### ozone -d -c  run2 deploy-all
+no context passed but it doesn't error
+
 #### context_condition should be context_conditionals
 
 And throw error if incorrect

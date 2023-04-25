@@ -184,8 +184,11 @@ func (wt *Runspec) ContextStepsFlatten(configRunnable *config.Runnable, buildsco
 	var steps []*RunspecStep
 	for _, cs := range configRunnable.ContextSteps {
 		match, err := config_utils.ContextInPattern(wt.Context, cs.Context, buildscope)
-		if err != nil || !match {
-			return nil, err
+		if err != nil {
+			log.Fatalln("Err in ContextStep context %s in runnable %s, err: %s", cs.Context, configRunnable.Name, err)
+		}
+		if !match {
+			continue
 		}
 
 		contextStepVars, err := wt.config.FetchEnvs(ordinal, cs.WithEnv, buildscope)
