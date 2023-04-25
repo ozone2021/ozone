@@ -112,26 +112,27 @@ func (cs *CallStack) getBuildHash(ozoneWorkingDir string) (string, error) {
 
 type Runspec struct {
 	config       *config.OzoneConfig
-	ProjectName  string       `yaml:"project"`
-	Context      string       `yaml:"context"`
-	OzoneWorkDir string       `yaml:"work_dir"` // move into config
-	BuildVars    *VariableMap `yaml:"build_vars"`
-	CallStacks   []*CallStack `yaml:"call_stack"`
+	ProjectName  string                               `yaml:"project"`
+	Context      string                               `yaml:"context"`
+	OzoneWorkDir string                               `yaml:"work_dir"` // move into config
+	BuildVars    *VariableMap                         `yaml:"build_vars"`
+	CallStacks   map[config.RunnableType][]*CallStack `yaml:"call_stack"`
 }
 
-func NewRunspec(context, ozoneWorkingDir string, config *config.OzoneConfig) *Runspec {
+func NewRunspec(context, ozoneWorkingDir string, ozoneConfig *config.OzoneConfig) *Runspec {
 	systemEnvVars := OSEnvToVarsMap()
 
-	renderedBuildVars := config.BuildVars
+	renderedBuildVars := ozoneConfig.BuildVars
 	renderedBuildVars.RenderNoMerge(systemEnvVars)
 	renderedBuildVars.SelfRender()
 
 	runspec := &Runspec{
-		config:       config,
-		ProjectName:  config.ProjectName,
+		config:       ozoneConfig,
+		ProjectName:  ozoneConfig.ProjectName,
 		Context:      context,
 		OzoneWorkDir: ozoneWorkingDir,
 		BuildVars:    renderedBuildVars,
+		CallStacks:   make(map[config.RunnableType][]*CallStack),
 	}
 
 	return runspec
@@ -295,17 +296,28 @@ func addCallstackScopeVars(runnable *config.Runnable, buildScope *VariableMap, o
 }
 
 func (wt *Runspec) ExecuteCallstacks() error {
-	for _, callstack := range wt.CallStacks {
-		if callstack.RootRunnableType == config.BuildType && wt.checkCache(callstack) == true {
-			log.Printf("Info: build files for %s unchanged from cache. \n", callstack.RootRunnableName)
-			continue
-		}
-		for _, runspecRunnable := range callstack.Runnables {
-			if runspecRunnable.Conditionals.Satisfied == true {
-				runspecRunnable.RunSteps()
+	runOrder := []config.RunnableType{
+		config.PreUtilityType,
+		config.BuildType,
+		config.DeployType,
+		config.TestType,
+		config.PipelineType,
+		config.PostUtilityType,
+	}
+	for _, runnableType := range runOrder {
+		for _, callstack := range wt.CallStacks[runnableType] {
+			if callstack.RootRunnableType == config.BuildType && wt.checkCache(callstack) == true {
+				log.Printf("Info: build files for %s unchanged from cache. \n", callstack.RootRunnableName)
+				continue
+			}
+			for _, runspecRunnable := range callstack.Runnables {
+				if runspecRunnable.Conditionals.Satisfied == true {
+					runspecRunnable.RunSteps()
+				}
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -530,7 +542,7 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 		Runnables:        runspecRunnables,
 		SourceFiles:      allSourceFiles,
 	}
-	wt.CallStacks = append(wt.CallStacks, callStack)
+	wt.CallStacks[callStack.RootRunnableType] = append(wt.CallStacks[callStack.RootRunnableType], callStack)
 
 	return nil
 }
