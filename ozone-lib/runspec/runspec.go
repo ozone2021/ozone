@@ -504,7 +504,9 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 
 		runspecRunnables = append(runspecRunnables, runspecRunnable)
 
-		for _, dependency := range configRunnable.Depends {
+		// Prepend in reverse order so that the first dependency is top of the stack.
+		for i := len(configRunnable.Depends) - 1; i >= 0; i-- {
+			dependency := configRunnable.Depends[i]
 			exists, dependencyRunnable := wt.config.FetchRunnable(dependency.Name)
 
 			if !exists {
