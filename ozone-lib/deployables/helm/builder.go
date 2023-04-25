@@ -40,8 +40,8 @@ func Deploy(serviceName string, envVarMap *config_variable.VariableMap) error {
 	argsString := ""
 	argsVar, ok := envVarMap.GetVariable("HELM_ARGS")
 	if ok {
-		argsString = argsVar.GetStringValue()
-		argsString = strings.Join(strings.Split(argsString, ";"), " ")
+		argsStringSlice := argsVar.GetSliceValue()
+		argsString = strings.Join(argsStringSlice, " ")
 	}
 
 	valuesFile, ok := env["VALUES_FILE"]

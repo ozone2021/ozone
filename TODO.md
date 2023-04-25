@@ -51,6 +51,9 @@ Special Env var PREFIX would prepend something to all env vars, for easier debug
 
 # Error handling
 
+#### helm deployable
+argsVar.GetStringValue() doesn't error when it's a slice
+
 #### ozone -d -c  run2 deploy-all
 no context passed but it doesn't error
 
