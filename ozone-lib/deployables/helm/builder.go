@@ -14,7 +14,7 @@ import (
 func getHelmParams() []string {
 	return []string{
 		"INSTALL_NAME",
-		"CHART_DIR",
+		"HELM_CHART",
 		//"GITLAB_PROJECT_CODE",
 		//"BUILD_ARGS",
 	}
@@ -35,7 +35,7 @@ func Deploy(serviceName string, envVarMap *config_variable.VariableMap) error {
 	env := envVarMap.ConvertMapPongo()
 
 	installName := env["INSTALL_NAME"]
-	chartDir := env["CHART_DIR"]
+	helmChart := env["HELM_CHART"]
 
 	argsString := ""
 	argsVar, ok := envVarMap.GetVariable("HELM_ARGS")
@@ -55,7 +55,7 @@ func Deploy(serviceName string, envVarMap *config_variable.VariableMap) error {
 		installName,
 		valuesFile,
 		argsString,
-		chartDir,
+		helmChart,
 	)
 
 	log.Printf("Helm cmd is: %s", cmdString)
