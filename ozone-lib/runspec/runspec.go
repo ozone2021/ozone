@@ -324,6 +324,7 @@ func (wt *Runspec) ExecuteCallstacks() error {
 func (wtr *RunspecRunnable) RunSteps() {
 	for _, step := range wtr.Steps {
 		step.Scope.scope.MergeVariableMaps(wtr.BuildScope.scope)
+		log.Printf("Running step %s \n", step.Name)
 		step.RunStep(wtr.Type)
 	}
 }

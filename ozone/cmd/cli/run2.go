@@ -8,7 +8,7 @@ import (
 )
 
 var run2Cmd = &cobra.Command{
-	Use:  "run2",
+	Use:  "run",
 	Long: `Shows a dry run of what is going to be ran.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
