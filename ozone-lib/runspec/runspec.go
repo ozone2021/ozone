@@ -59,8 +59,8 @@ func (ds *DifferentialScope) MarshalYAML() (interface{}, error) {
 	return string(b), err
 }
 
-//	ContextConditionals []*ContextConditional `yaml:"context_conditionals"` # TODO save whether satisified
-//  Steps is the depends and contextSteps merged
+//		ContextConditionals []*ContextConditional `yaml:"context_conditionals"` # TODO save whether satisified
+//	 Steps is the depends and contextSteps merged
 type RunspecRunnable struct {
 	Name         string               `yaml:"name"`
 	Ordinal      int                  `yaml:"ordinal"`
@@ -405,18 +405,13 @@ func (step *RunspecStep) runUtility() {
 }
 
 func (step *RunspecStep) runDeployables() {
-	serviceVar, ok := step.Scope.scope.GetVariable("SERVICE")
-	if !ok {
-		log.Fatalf("SERVICE not set for runnable step %s", step.Name)
-	}
-	service := serviceVar.GetStringValue()
 	if step.Type == "builtin" {
 		var err error
 		switch step.Name {
 		case "executable":
-			err = executable.Build(service, step.Scope.scope)
+			err = executable.Build(step.Scope.scope)
 		case "helm":
-			err = helm.Deploy(service, step.Scope.scope)
+			err = helm.Deploy(step.Scope.scope)
 		case "runDockerImage":
 			err = docker.Build(step.Scope.scope)
 		case "bashScript":

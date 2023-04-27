@@ -20,7 +20,7 @@ func getHelmParams() []string {
 	}
 }
 
-func Deploy(serviceName string, envVarMap *config_variable.VariableMap) error {
+func Deploy(envVarMap *config_variable.VariableMap) error {
 	for _, arg := range getHelmParams() {
 		if err := utils.ParamsOK("helmChart", arg, envVarMap); err != nil {
 			return err

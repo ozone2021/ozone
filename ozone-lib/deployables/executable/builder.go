@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-func Build(serviceName string, env *config_variable.VariableMap) error {
+func Build(env *config_variable.VariableMap) error {
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		return err
@@ -17,7 +17,7 @@ func Build(serviceName string, env *config_variable.VariableMap) error {
 	cmdString := fmt.Sprintf("__OUTPUT__/executable")
 
 	query := &process_manager.ProcessCreateQuery{
-		serviceName,
+		"serviceName-TODO not all runnables have a service",
 		"__OUTPUT__/",
 		ozoneWorkingDir,
 		cmdString,
