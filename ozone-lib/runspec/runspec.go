@@ -369,6 +369,12 @@ func (step *RunspecStep) runBuildable() {
 		if err != nil {
 			log.Fatalln(err)
 		}
+	case "tagDockerImageAs":
+		fmt.Println("Tagging docker image.")
+		err := buildables.TagDockerImageAs(step.Scope.scope)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 }
 
