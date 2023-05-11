@@ -1,12 +1,14 @@
 package buildables
 
 import (
+	"errors"
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 func getTagDockerImageAsParams() []string {
@@ -25,6 +27,10 @@ func TagDockerImageAs(varsMap *VariableMap) error {
 
 	sourceTag, _ := varsMap.GetVariable("SOURCE_TAG")
 	targetTag, _ := varsMap.GetVariable("TARGET_TAG")
+
+	if strings.Contains(targetTag.String(), "Merged branch is not release branch.") {
+		return errors.New("Merged branch is not release branch.")
+	}
 	cmdString := fmt.Sprintf("docker tag %s %s", sourceTag, targetTag)
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
@@ -32,7 +38,7 @@ func TagDockerImageAs(varsMap *VariableMap) error {
 	cmd.Stderr = os.Stdout
 	err := cmd.Run()
 	if err != nil {
-		fmt.Println("docker TagDockerImageAs err")
+		fmt.Printf("%s\n", cmdString)
 		return err
 	}
 	cmd.Wait()
