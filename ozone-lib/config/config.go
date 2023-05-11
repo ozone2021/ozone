@@ -285,6 +285,11 @@ func (config *OzoneConfig) fetchLoopEnv(ordinal int, e *Environment, scopeMap *V
 		}
 	}
 
+	err := varsMap.DeleteVariableByName(targetName)
+	if err != nil {
+		return nil, err
+	}
+
 	return varsMap, nil
 }
 

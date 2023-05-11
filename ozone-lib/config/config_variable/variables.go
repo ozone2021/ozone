@@ -47,6 +47,17 @@ func (vm *VariableMap) AddVariable(variable *Variable, ordinal int) {
 	}
 }
 
+func (vm *VariableMap) DeleteVariableByName(variableName string) error {
+	_, exists := vm.variables[variableName]
+	if !exists {
+		return errors.New(fmt.Sprintf("Variable %s doesn't exist in DeleteVariableByName \n", variableName))
+	}
+	delete(vm.variables, variableName)
+	delete(vm.ordinals, variableName)
+
+	return nil
+}
+
 func (vm *VariableMap) Print(indent int) {
 	indent = cli_utils.IncreaseIndent(indent)
 	for _, variable := range vm.variables {
