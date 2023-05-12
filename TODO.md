@@ -51,6 +51,8 @@ Special Env var PREFIX would prepend something to all env vars, for easier debug
 
 # Error handling
 
+## Check for duplicate runnable names
+
 #### helm deployable
 argsVar.GetStringValue() doesn't error when it's a slice
 
