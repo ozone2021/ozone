@@ -31,7 +31,7 @@ func TagDockerImageAs(varsMap *VariableMap) error {
 	if strings.Contains(targetTag.String(), "Merged branch is not release branch.") {
 		return errors.New("Merged branch is not release branch.")
 	}
-	cmdString := fmt.Sprintf("docker tag %s %s", sourceTag, targetTag)
+	cmdString := fmt.Sprintf("docker pull %s && docker tag %s %s", sourceTag, sourceTag, targetTag)
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
 	cmd.Stdout = os.Stdout
