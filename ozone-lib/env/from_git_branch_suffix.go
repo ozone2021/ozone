@@ -44,7 +44,9 @@ func DynamicFromGitReleaseBranch(ordinal int, varsMap, fromIncludeMap *VariableM
 
 	releaseVersion := strings.ToLower(branchNameParts[1])
 
-	namespace := fmt.Sprintf("release-%s", releaseVersion)
+	releaseVersionRFC1123 := strings.ReplaceAll(releaseVersion, ".", "-")
+
+	namespace := fmt.Sprintf("release-%s", releaseVersionRFC1123)
 	fromIncludeMap.AddVariable(NewStringVariable("NAMESPACE", namespace), ordinal)
 	fromIncludeMap.AddVariable(NewStringVariable("SUBDOMAIN", fmt.Sprintf("%s.", namespace)), ordinal)
 
