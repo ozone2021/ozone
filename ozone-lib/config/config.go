@@ -75,16 +75,17 @@ type ContextConditional struct {
 }
 
 type Runnable struct {
-	Name               string   `yaml:"name"`
-	Service            string   `yaml:"service"`
-	Dir                string   `yaml:"dir"`
-	SourceFiles        []string `yaml:"source_files"`
-	SourceFilesPrepend string   `yaml:"source_files_prepend"`
-	//WithEnv     	[]string      	`yaml:"with_env"`
+	Name                string                `yaml:"name"`
+	Service             string                `yaml:"service"`
+	Dir                 string                `yaml:"dir"`
+	SourceFiles         []string              `yaml:"source_files"`
+	SourceFilesPrepend  string                `yaml:"source_files_prepend"`
+	WithVars            *VariableMap          `yaml:"with_vars"`
 	ContextEnv          []*ContextEnv         `yaml:"context_envs"`
 	ContextConditionals []*ContextConditional `yaml:"context_conditionals"`
 	Depends             []*Step               `yaml:"depends_on"`
 	ContextSteps        []*ContextStep        `yaml:"context_steps"`
+	Steps               []*Step               `yaml:"steps"`
 	Type                RunnableType
 }
 

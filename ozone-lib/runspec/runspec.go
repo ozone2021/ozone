@@ -181,10 +181,10 @@ func (wt *Runspec) FetchContextEnvs(ordinal int, buildScope *VariableMap, runnab
 	return contextEnvVars, nil
 }
 
-func (wt *Runspec) ContextStepsFlatten(configRunnable *config.Runnable, buildscope *VariableMap, ordinal int) ([]*RunspecStep, error) {
+func (wt *Runspec) ContextStepsFlatten(configRunnable *config.Runnable, scope *VariableMap, ordinal int) ([]*RunspecStep, error) {
 	var steps []*RunspecStep
 	for _, cs := range configRunnable.ContextSteps {
-		match, err := config_utils.ContextInPattern(wt.Context, cs.Context, buildscope)
+		match, err := config_utils.ContextInPattern(wt.Context, cs.Context, scope)
 		if err != nil {
 			log.Fatalln("Err in ContextStep context %s in runnable %s, err: %s", cs.Context, configRunnable.Name, err)
 		}
@@ -192,8 +192,8 @@ func (wt *Runspec) ContextStepsFlatten(configRunnable *config.Runnable, buildsco
 			continue
 		}
 
-		contextStepVars, err := wt.config.FetchEnvs(ordinal, cs.WithEnv, buildscope)
-		contextStepVars.MergeVariableMaps(buildscope)
+		contextStepVars, err := wt.config.FetchEnvs(ordinal, cs.WithEnv, scope)
+		contextStepVars.MergeVariableMaps(scope)
 		if err != nil {
 			return nil, err
 		}
@@ -208,18 +208,38 @@ func (wt *Runspec) ContextStepsFlatten(configRunnable *config.Runnable, buildsco
 			//	return nil, err
 			//}
 			//outputVars.MergeVariableMaps(stepOutputVars)
-			fmt.Printf("Step: %s \n", step.Name)
 
 			steps = append(steps, &RunspecStep{
 				Type: step.Type,
 				Name: step.Name,
 				Scope: &DifferentialScope{
-					parentScope: buildscope,
+					parentScope: scope,
 					scope:       stepVars,
 				},
 				VarOutputAs: nil,
 			})
 		}
+	}
+
+	return steps, nil
+}
+
+func (wt *Runspec) StepsToRunspecSteps(configRunnable *config.Runnable, buildscope *VariableMap, ordinal int) ([]*RunspecStep, error) {
+	var steps []*RunspecStep
+	for _, step := range configRunnable.Steps {
+		stepVars := CopyOrCreateNew(step.WithVars)
+		stepVars.IncrementOrdinal(ordinal) // TODO should be part of Copy/CreateNew
+		stepVars.MergeVariableMaps(buildscope)
+
+		steps = append(steps, &RunspecStep{
+			Type: step.Type,
+			Name: step.Name,
+			Scope: &DifferentialScope{
+				parentScope: buildscope,
+				scope:       stepVars,
+			},
+			VarOutputAs: nil,
+		})
 	}
 
 	return steps, nil
@@ -242,12 +262,20 @@ func (wt *Runspec) ConvertConfigRunnableStackItemToRunspecRunnable(configRunnabl
 
 	runnableBuildScope := CopyOrCreateNew(contextEnvs)
 	runnableBuildScope.MergeVariableMaps(buildScope)
+	runnableBuildScope.MergeVariableMaps(configRunnable.WithVars)
 	diffBuildScope := NewDifferentialScope(parentScope, runnableBuildScope)
 
-	steps, err := wt.ContextStepsFlatten(configRunnable, buildScope, ordinal)
+	contextSteps, err := wt.ContextStepsFlatten(configRunnable, runnableBuildScope, ordinal)
 	if err != nil {
 		return nil, err
 	}
+
+	steps, err := wt.StepsToRunspecSteps(configRunnable, buildScope, ordinal)
+	if err != nil {
+		return nil, err
+	}
+
+	combinedSteps := append(contextSteps, steps...)
 
 	runspecRunnable := &RunspecRunnable{
 		Name:         configRunnable.Name,
@@ -257,7 +285,7 @@ func (wt *Runspec) ConvertConfigRunnableStackItemToRunspecRunnable(configRunnabl
 		Dir:          dir,
 		BuildScope:   diffBuildScope,
 		Conditionals: ConvertContextConditional(runnableBuildScope, configRunnable, wt.Context),
-		Steps:        steps,
+		Steps:        combinedSteps,
 		Type:         configRunnable.Type,
 	}
 
