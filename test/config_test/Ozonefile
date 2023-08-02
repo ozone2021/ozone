@@ -25,3 +25,18 @@ environments:
   - name: prepend-123-all-services
     include:
       - name: prepend-123
+
+  - name: local
+    with_vars:
+      USERNAME: jamie
+
+builds:
+  - name: build-all
+    drop_context_env: true
+    context_steps:
+      - context: local
+        steps:
+          - type: builtin
+            name: bashScript
+            with_vars:
+              SCRIPT: script/hello_world.sh

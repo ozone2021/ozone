@@ -14,18 +14,18 @@ var run2Cmd = &cobra.Command{
 
 		runspec := runspec2.NewRunspec(context, ozoneWorkingDir, config)
 
-		var builds []*ozoneConfig.Runnable
+		var runnables []*ozoneConfig.Runnable
 
 		for _, arg := range args {
 			if has, runnable := config.FetchRunnable(arg); has == true {
-				builds = append(builds, runnable)
+				runnables = append(runnables, runnable)
 				continue
 			} else {
 				log.Fatalf("Config doesn't have runnable: %s \n", arg)
 			}
 		}
 
-		runspec.AddCallstacks(builds, config, context)
+		runspec.AddCallstacks(runnables, config, context)
 		runspec.ExecuteCallstacks()
 	},
 }

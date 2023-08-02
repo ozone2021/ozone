@@ -25,6 +25,12 @@ Conditional script should return 3 for exit that is a real error. All others sho
 
 # Bugs
 
+#### If LOCAL_CONTEXT isn't set in build_vars, silent failure.
+```
+context_steps:
+  - context: "{{LOCAL_CONTEXT}}"
+```
+
 #### Breaks if build_vars empty.
 
 #### Caching doesn't take into account external vars changing, nor any source files of called runnables.
@@ -52,6 +58,12 @@ Special Env var PREFIX would prepend something to all env vars, for easier debug
 # Error handling
 
 ## Check for duplicate runnable names
+
+## Passing empty string to build_vars messes up default
+
+CONFIGMAP_FILENAME: '{{CONFIGMAP_FILENAME | default_if_none:"dev-env-configmap.yaml"}}'
+
+^if CONFIGMAP_FILENAME is passed from eg github actions as empty, it messes up.
 
 #### helm deployable
 argsVar.GetStringValue() doesn't error when it's a slice
@@ -88,6 +100,9 @@ build_vars:
 #### sourcefileprepend
 only prepends to the source files for the callstack, not for the ones in the buildscope, it stays relative.
 
+# plugin capability
+https://github.com/hashicorp/go-plugin
+
 # Testing
 
 #### Rendering of build vars needs tested.
@@ -109,5 +124,4 @@ Probably
 # Change license so that any paid services must pay to use 
 
 # High priority
-
 

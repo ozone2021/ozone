@@ -161,6 +161,13 @@ func (wt *Runspec) getConfigRunnableSourceFiles(configRunnable *config.Runnable,
 
 func (wt *Runspec) FetchContextEnvs(ordinal int, buildScope *VariableMap, runnable *config.Runnable) (*VariableMap, error) {
 	contextEnvVars := NewVariableMap()
+	if !runnable.DropContextEnv {
+		fetchedEnvs, err := wt.config.FetchEnvs(ordinal, []string{wt.Context}, buildScope)
+		if err != nil {
+			return nil, err
+		}
+		contextEnvVars.MergeVariableMaps(fetchedEnvs)
+	}
 	for _, contextEnv := range runnable.ContextEnv {
 		buildScope.MergeVariableMaps(contextEnv.WithVars)
 		inPattern, err := config_utils.ContextInPattern(wt.Context, contextEnv.Context, buildScope)
@@ -468,8 +475,8 @@ func (step *RunspecStep) runDeployables() {
 //		var runnables []*ozoneConfig.Runnable
 //		for _, dependency := range pipeline.Depends {
 //			exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
-//
 //			if !exists {
+//
 //				log.Fatalf("Dependency %s on pipeline %s doesn't exist", dependency.Name, pipeline.Name)
 //			}
 //			runnables = append(runnables, dependencyRunnable)
