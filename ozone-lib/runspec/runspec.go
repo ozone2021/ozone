@@ -62,7 +62,10 @@ func (ds *DifferentialScope) MarshalYAML() (interface{}, error) {
 //		ContextConditionals []*ContextConditional `yaml:"context_conditionals"` # TODO save whether satisified
 //	 Steps is the depends and contextSteps merged
 type RunspecRunnable struct {
+	ancestors    []string // TODO callstack runnables should be a tree instead of a list.
+	Children     []*RunspecRunnable
 	Name         string               `yaml:"name"`
+	Cache        bool                 `yaml:"cache"`
 	Ordinal      int                  `yaml:"ordinal"`
 	Service      string               `yaml:"service"`
 	SourceFiles  []string             `yaml:"source_files"`
@@ -78,11 +81,34 @@ type CallStack struct {
 	RootRunnableType config.RunnableType `yaml:"root_runnable_type"`
 	Hash             string              `yaml:"hash"`
 	SourceFiles      []string            `yaml:"source_files"`
-	Runnables        []*RunspecRunnable  `yaml:"runnables"`
+	RootRunnable     *RunspecRunnable
 }
 
 func (cs *CallStack) hasCaching() bool {
-	return cs.SourceFiles == nil
+	return true
+}
+
+// Remove runnable from callstack.Runnables where param is in ancestors
+func removeCacheHitChildRunnablesFromCallstack(stack *lane.Deque[*RunspecRunnable], ancestorToRemove string) {
+	newStack := lane.NewDeque[*RunspecRunnable]()
+
+	for !stack.Empty() {
+		runnable, ok := stack.Shift()
+		if !ok {
+			log.Fatalf("Failed to Shift from stack")
+		}
+		found := false
+		for _, ancestor := range runnable.ancestors {
+			if ancestor == ancestorToRemove {
+				found = true
+				break
+			}
+		}
+		if !found {
+			newStack.Append(runnable)
+		}
+	}
+	stack = newStack
 }
 
 func (cs *CallStack) getBuildHash(ozoneWorkingDir string) (string, error) {
@@ -97,13 +123,22 @@ func (cs *CallStack) getBuildHash(ozoneWorkingDir string) (string, error) {
 	filesDirsLastEditTimes := []int64{ozonefileEditTime}
 
 	for _, filePath := range cs.SourceFiles {
-		editTime, err := cache.FileLastEdit(filePath)
+		wildcardExpandedFiles, err := filepath.Glob(filePath)
 
 		if err != nil {
-			return "", errors.New(fmt.Sprintf("Source file %s for runnable %s is missing.", filePath, cs.RootRunnableName))
+			fmt.Println(err)
 		}
 
-		filesDirsLastEditTimes = append(filesDirsLastEditTimes, editTime)
+		for _, match := range wildcardExpandedFiles {
+			editTime, err := cache.FileLastEdit(match)
+
+			if err != nil {
+				return "", errors.New(fmt.Sprintf("Source file %s for runnable %s is missing.", filePath, cs.RootRunnableName))
+			}
+
+			filesDirsLastEditTimes = append(filesDirsLastEditTimes, editTime)
+		}
+
 	}
 
 	hash := cache.Hash(filesDirsLastEditTimes...)
@@ -285,8 +320,11 @@ func (wt *Runspec) ConvertConfigRunnableStackItemToRunspecRunnable(configRunnabl
 	combinedSteps := append(contextSteps, steps...)
 
 	runspecRunnable := &RunspecRunnable{
+		ancestors:    append(configRunnableStackItem.Ancestors, configRunnable.Name),
 		Name:         configRunnable.Name,
 		Ordinal:      ordinal,
+		Children:     []*RunspecRunnable{},
+		Cache:        configRunnable.Cache,
 		Service:      service,
 		SourceFiles:  sourceFiles,
 		Dir:          dir,
@@ -300,17 +338,58 @@ func (wt *Runspec) ConvertConfigRunnableStackItemToRunspecRunnable(configRunnabl
 }
 
 type ConfigRunnableStackItem struct {
+	Ancestors      []string
+	Parent         *RunspecRunnable
 	ConfigRunnable *config.Runnable
 	parentScope    *VariableMap
 	buildScope     *VariableMap
 }
 
-func NewConfigRunnableStackItem(configRunnable *config.Runnable, parentScope *VariableMap, buildScope *VariableMap) *ConfigRunnableStackItem {
+func NewConfigRunnableStackItem(ancestors []string, parent *RunspecRunnable, configRunnable *config.Runnable, parentScope *VariableMap, buildScope *VariableMap) *ConfigRunnableStackItem {
 	return &ConfigRunnableStackItem{
+		Ancestors:      ancestors,
+		Parent:         parent,
 		ConfigRunnable: configRunnable,
 		parentScope:    parentScope,
 		buildScope:     buildScope,
 	}
+}
+
+func (r *RunspecRunnable) addChild(child *RunspecRunnable) {
+	r.Children = append(r.Children, child)
+}
+
+func (wtr *RunspecRunnable) getBuildHash(ozoneWorkingDir string) (string, error) {
+	ozonefilePath := path.Join(ozoneWorkingDir, "Ozonefile")
+
+	ozonefileEditTime, err := cache.FileLastEdit(ozonefilePath)
+
+	if err != nil {
+		return "", err
+	}
+
+	filesDirsLastEditTimes := []int64{ozonefileEditTime}
+
+	for _, filePath := range wtr.SourceFiles {
+		wildcardExpandedFiles, err := filepath.Glob(filePath)
+
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		for _, match := range wildcardExpandedFiles {
+			editTime, err := cache.FileLastEdit(match)
+
+			if err != nil {
+				return "", errors.New(fmt.Sprintf("Source file %s for runnable %s is missing.", filePath, wtr.Name))
+			}
+
+			filesDirsLastEditTimes = append(filesDirsLastEditTimes, editTime) // TODO use a set to reduce the amount of hashing
+		}
+	}
+
+	hash := cache.Hash(filesDirsLastEditTimes...)
+	return hash, nil
 }
 
 func addCallstackScopeVars(runnable *config.Runnable, buildScope *VariableMap, ordinal int) (string, string) {
@@ -341,13 +420,35 @@ func (wt *Runspec) ExecuteCallstacks() error {
 	}
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
-			if callstack.RootRunnableType == config.BuildType && wt.checkCache(callstack) == true {
+			if callstack.RootRunnableType == config.BuildType && wt.checkCallstackCache(callstack) == true {
 				log.Printf("Info: build files for %s unchanged from cache. \n", callstack.RootRunnableName)
 				continue
 			}
+			runnableStack := lane.NewDeque[*RunspecRunnable]()
 			for _, runspecRunnable := range callstack.Runnables {
-				if runspecRunnable.Conditionals.Satisfied == true {
-					runspecRunnable.RunSteps()
+				runnableStack.Append(runspecRunnable)
+			}
+			for runnableStack.Empty() == false {
+				runspecRunnable, ok := runnableStack.Shift()
+				if !ok {
+					log.Fatalf("Error: runnable stack is empty. \n")
+				}
+				cached := false
+				hash := ""
+				if runspecRunnable.hasCaching() {
+					cached, hash = wt.checkRunnableCache(runspecRunnable)
+				}
+				if runspecRunnable.Conditionals.Satisfied == true && cached == true {
+					log.Printf("Info: build files for %s unchanged from cache. \n", runspecRunnable.Name)
+					removeCacheHitChildRunnablesFromCallstack(runnableStack, runspecRunnable.Name)
+					continue
+				}
+				err := runspecRunnable.RunSteps()
+				if err != nil {
+					log.Fatalf("Error: %s in runnable \n", err, runspecRunnable.Name)
+				}
+				if runspecRunnable.hasCaching() {
+					process_manager_client.CacheUpdate(wt.OzoneWorkDir, runspecRunnable.Name, hash)
 				}
 			}
 		}
@@ -356,118 +457,115 @@ func (wt *Runspec) ExecuteCallstacks() error {
 	return nil
 }
 
-func (wtr *RunspecRunnable) RunSteps() {
+func (wtr *RunspecRunnable) hasCaching() bool {
+	return wtr.Cache
+}
+
+func (wtr *RunspecRunnable) RunSteps() error {
 	for _, step := range wtr.Steps {
 		step.Scope.scope.MergeVariableMaps(wtr.BuildScope.scope)
 		log.Printf("Running step %s \n", step.Name)
-		step.RunStep(wtr.Type)
+		err := step.RunStep(wtr.Type)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (step *RunspecStep) RunStep(runnableType config.RunnableType) {
+func (step *RunspecStep) RunStep(runnableType config.RunnableType) error {
 	if step.Type == "builtin" {
 		switch runnableType {
 		case config.PreUtilityType:
-			step.runUtility()
+			return step.runUtility()
 		case config.BuildType:
-			step.runBuildable()
+			return step.runBuildable()
 		case config.DeployType:
-			step.runDeployables()
+			return step.runDeployables()
 		case config.TestType:
-			step.runTestable()
+			return step.runTestable()
 		case config.PostUtilityType:
-			step.runUtility()
+			return step.runUtility()
 		}
 	}
+	return nil
 }
 
-func (step *RunspecStep) runBuildable() {
+func (step *RunspecStep) runBuildable() error {
 	switch step.Name {
 	case "buildDockerImage":
 		fmt.Println("Building docker image.")
-		err := buildables.BuildDockerContainer(step.Scope.scope)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		return buildables.BuildDockerContainer(step.Scope.scope)
 	case "bashScript":
 		script, ok := step.Scope.scope.GetVariable("SCRIPT")
 		if !ok {
-			log.Fatalf("Script not set for runnable step %s", "r.Name") // TODO wrap err
+			return errors.New(fmt.Sprintf("Script not set for runnable step %s", "r.Name"))
 		}
 		_, err := utilities.RunBashScript(script.String(), step.Scope.scope)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		return err
 	case "pushDockerImage":
 		fmt.Println("Building docker image.")
-		err := buildables.PushDockerImage(step.Scope.scope)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		return buildables.PushDockerImage(step.Scope.scope)
 	case "tagDockerImageAs":
 		fmt.Println("Tagging docker image.")
-		err := buildables.TagDockerImageAs(step.Scope.scope)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		return buildables.TagDockerImageAs(step.Scope.scope)
 	}
+	return nil
 }
 
-func (step *RunspecStep) runTestable() {
+func (step *RunspecStep) runTestable() error {
 	switch step.Name {
 	case "bashScript":
 		script, ok := step.Scope.scope.GetVariable("SCRIPT")
 		if !ok {
-			log.Fatalf("Script not set for runnable step %s", step.Name) // TODO wrap err
+			return errors.New(fmt.Sprintf("Script not set for runnable step %s", step.Name))
 		}
 		_, err := utilities.RunBashScript(script.String(), step.Scope.scope)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	default:
-		log.Fatalf("Testable value not found: %s \n", step.Name)
+		return errors.New(fmt.Sprintf("Testable value not found: %s \n", step.Name))
 	}
+	return nil
 }
 
-func (step *RunspecStep) runUtility() {
+func (step *RunspecStep) runUtility() error {
 	switch step.Name {
 	case "bashScript":
 		script, ok := step.Scope.scope.GetVariable("SCRIPT")
 		if !ok {
-			log.Fatalf("Script not set for runnable step %s", step.Name) // TODO wrap err
+			return errors.New(fmt.Sprintf("Script not set for runnable step %s", step.Name)) // TODO wrap err
 		}
 		_, err := utilities.RunBashScript(script.String(), step.Scope.scope)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		return err
 	default:
-		log.Fatalf("Utility value not found: %s \n", step.Name)
+		return errors.New(fmt.Sprintf("Utility value not found: %s \n", step.Name))
 	}
+	return nil
 }
 
-func (step *RunspecStep) runDeployables() {
+func (step *RunspecStep) runDeployables() error {
 	if step.Type == "builtin" {
-		var err error
 		switch step.Name {
 		case "executable":
-			err = executable.Build(step.Scope.scope)
+			return executable.Build(step.Scope.scope)
 		case "helm":
-			err = helm.Deploy(step.Scope.scope)
+			return helm.Deploy(step.Scope.scope)
 		case "runDockerImage":
-			err = docker.Build(step.Scope.scope)
+			return docker.Build(step.Scope.scope)
 		case "bashScript":
 			script, ok := step.Scope.scope.GetVariable("SCRIPT")
 			if !ok {
-				log.Fatalf("Script not set for runnable step %s", step.Name)
+				errors.New(fmt.Sprintf("Script not set for runnable step %s", step.Name))
 			}
-			_, err = utilities.RunBashScript(script.String(), step.Scope.scope)
+			_, err := utilities.RunBashScript(script.String(), step.Scope.scope)
+			return err
 		default:
-			log.Fatalf("Builtin value not found: %s \n", step.Name)
-		}
-		if err != nil {
-			log.Fatalln(err)
+			return errors.New(fmt.Sprintf("Builtin value not found: %s \n", step.Name))
 		}
 	}
+	return nil
 }
 
 //func (wtr *RunspecRunnable) runPipeline(pipelines []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
@@ -486,7 +584,7 @@ func (step *RunspecStep) runDeployables() {
 //}
 
 // True means cache hit
-func (wt *Runspec) checkCache(callstack *CallStack) bool {
+func (wt *Runspec) checkCallstackCache(callstack *CallStack) bool {
 	if wt.config.Headless == true || callstack.hasCaching() == false {
 		return false
 	}
@@ -504,19 +602,49 @@ func (wt *Runspec) checkCache(callstack *CallStack) bool {
 	return cachedHash == hash
 }
 
-func (wt *Runspec) AddCallstacks(builds []*config.Runnable, config *config.OzoneConfig, context string) {
+// True means cache hit
+func (wt *Runspec) checkRunnableCache(runnable *RunspecRunnable) (bool, string) {
+	if wt.config.Headless == true || runnable.hasCaching() == false {
+		return false, ""
+	}
+	hash, err := runnable.getBuildHash(wt.OzoneWorkDir)
+	if err != nil {
+		log.Fatalln(err)
+		return false, ""
+	}
+	if hash == "" {
+		return false, ""
+	}
+
+	cachedHash := process_manager_client.CacheCheck(wt.OzoneWorkDir, runnable.Name)
+	return cachedHash == hash, hash
+}
+
+func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *config.OzoneConfig, context string) {
 	ordinal := 0
 
-	topLevelScope := CopyOrCreateNew(config.BuildVars)
+	topLevelScope := CopyOrCreateNew(ozoneConfig.BuildVars)
 	topLevelScope.SelfRender()
 	topLevelScope.AddVariable(NewStringVariable("CONTEXT", context), ordinal)
 	topLevelScope.AddVariable(NewStringVariable("OZONE_WORKING_DIR", wt.OzoneWorkDir), ordinal)
 
-	for _, b := range builds {
+	for _, r := range runnables {
 		asOutput := make(map[string]string)
-		err := wt.addCallstack(b, ordinal, context, config, CopyOrCreateNew(topLevelScope), asOutput)
+		var err error
+		// Treat pipelines as a special case, each runnable dependency of the pipeline is an invidiual callstack.
+		if r.Type == config.PipelineType {
+			for _, dependency := range r.Depends {
+				exists, dependencyRunnable := wt.config.FetchRunnable(dependency.Name)
+				if !exists {
+					log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, r.Name)
+				}
+				err = wt.addCallstack(dependencyRunnable, ordinal, context, ozoneConfig, CopyOrCreateNew(topLevelScope), asOutput)
+			}
+		} else {
+			err = wt.addCallstack(r, ordinal, context, ozoneConfig, CopyOrCreateNew(topLevelScope), asOutput)
+		}
 		if err != nil {
-			log.Fatalf("Error %s in runnable %s", err, b.Name)
+			log.Fatalf("Error %s in runnable %s", err, r.Name)
 		}
 	}
 }
@@ -524,19 +652,27 @@ func (wt *Runspec) AddCallstacks(builds []*config.Runnable, config *config.Ozone
 func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int, context string, ozoneConfig *config.OzoneConfig, buildScope *VariableMap, asOutput map[string]string) error {
 	var allSourceFiles []string
 	var runspecRunnables []*RunspecRunnable
+	var rootRunable *RunspecRunnable
 
-	configRunnableDeque := lane.NewDeque[*ConfigRunnableStackItem]()
-	configRunnableDeque.Append(NewConfigRunnableStackItem(rootConfigRunnable, buildScope, buildScope))
+	dependencyRunnableDeque := lane.NewDeque[*ConfigRunnableStackItem]()
+	dependencyRunnableDeque.Append(NewConfigRunnableStackItem([]string{}, nil, rootConfigRunnable, buildScope, buildScope))
 
-	for configRunnableDeque.Empty() == false {
+	for dependencyRunnableDeque.Empty() == false {
 		ordinal++
-		configRunnableStackItem, _ := configRunnableDeque.Shift()
+		configRunnableStackItem, _ := dependencyRunnableDeque.Shift()
 		configRunnable := configRunnableStackItem.ConfigRunnable
 
 		runspecRunnable, err := wt.ConvertConfigRunnableStackItemToRunspecRunnable(configRunnableStackItem, ordinal)
 		if err != nil {
 			return err
 		}
+		parent := configRunnableStackItem.Parent
+		if parent == nil {
+			rootRunable = runspecRunnable
+		} else {
+			parent.Children = append(parent.Children, runspecRunnable)
+		}
+
 		allSourceFiles = append(allSourceFiles, runspecRunnable.SourceFiles...)
 
 		runspecRunnables = append(runspecRunnables, runspecRunnable)
@@ -550,6 +686,7 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 				log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, runspecRunnable.Name)
 			}
 
+			ancestors := append(configRunnableStackItem.Ancestors, configRunnable.Name)
 			parentScope := CopyOrCreateNew(runspecRunnable.BuildScope.GetScope())
 			dependencyScope := CopyOrCreateNew(parentScope)
 			//dependencyScope.MergeVariableMaps(contextEnvVars) TODO think this happens now in ConvertConfigRunnableStackItemToRunspecRunnable
@@ -562,7 +699,7 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 			//mergeMapStringString(dependencyVarAsOutput, asOutput)
 			//dependencyScope.MergeVariableMaps(outputVars) TODO I don't think steps should inherit the env
 
-			configRunnableDeque.Prepend(NewConfigRunnableStackItem(dependencyRunnable, parentScope, dependencyScope))
+			dependencyRunnableDeque.Prepend(NewConfigRunnableStackItem(ancestors, runspecRunnable, dependencyRunnable, parentScope, dependencyScope))
 
 			if err != nil {
 				return err
@@ -578,7 +715,7 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 		RootRunnableName: rootConfigRunnable.Name,
 		RootRunnableType: rootConfigRunnable.Type,
 		Hash:             "", // All source files + system environment variables + build vars
-		Runnables:        runspecRunnables,
+		RootRunnable:     rootRunable,
 		SourceFiles:      allSourceFiles,
 	}
 	wt.CallStacks[callStack.RootRunnableType] = append(wt.CallStacks[callStack.RootRunnableType], callStack)

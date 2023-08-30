@@ -37,6 +37,7 @@ func GitLogHash(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 	cmd.Stderr = os.Stderr
 	byteData, err := cmd.Output()
 	if err != nil {
+		log.Println("GitLogHash")
 		return err
 	}
 

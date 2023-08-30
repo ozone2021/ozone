@@ -77,6 +77,7 @@ type ContextConditional struct {
 type Runnable struct {
 	Name                string                `yaml:"name"`
 	DropContextEnv      bool                  `yaml:"drop_context_env"`
+	Cache               bool                  `yaml:"cache"`
 	Service             string                `yaml:"service"`
 	Dir                 string                `yaml:"dir"`
 	SourceFiles         []string              `yaml:"source_files"`

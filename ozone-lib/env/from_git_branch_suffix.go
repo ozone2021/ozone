@@ -5,6 +5,7 @@ import (
 	"fmt"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"gopkg.in/src-d/go-git.v4"
+	"log"
 	"strings"
 )
 
@@ -18,11 +19,13 @@ func DynamicFromGitReleaseBranch(ordinal int, varsMap, fromIncludeMap *VariableM
 
 	repo, err := git.PlainOpen(dirPath)
 	if err != nil {
+		log.Println("DynamicFromGitReleaseBranch")
 		return err
 	}
 
 	reference, err := repo.Head()
 	if err != nil {
+		log.Println("DynamicFromGitReleaseBranch")
 		return err
 	}
 

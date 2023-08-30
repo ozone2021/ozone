@@ -31,6 +31,12 @@ context_steps:
   - context: "{{LOCAL_CONTEXT}}"
 ```
 
+### if no default env that matches context name, fails
+
+## Script with_vars
+
+with_vars aren't rendered.
+
 #### Breaks if build_vars empty.
 
 #### Caching doesn't take into account external vars changing, nor any source files of called runnables.
@@ -68,7 +74,7 @@ CONFIGMAP_FILENAME: '{{CONFIGMAP_FILENAME | default_if_none:"dev-env-configmap.y
 #### helm deployable
 argsVar.GetStringValue() doesn't error when it's a slice
 
-#### ozone -d -c  run2 deploy-all
+#### ozone -d -c  run deploy-all
 no context passed but it doesn't error
 
 #### context_condition should be context_conditionals
