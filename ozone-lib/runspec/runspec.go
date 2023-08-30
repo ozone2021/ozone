@@ -424,12 +424,11 @@ func (wt *Runspec) ExecuteCallstacks() error {
 				log.Printf("Info: build files for %s unchanged from cache. \n", callstack.RootRunnableName)
 				continue
 			}
-			runnableStack := lane.NewDeque[*RunspecRunnable]()
-			for _, runspecRunnable := range callstack.Runnables {
-				runnableStack.Append(runspecRunnable)
-			}
-			for runnableStack.Empty() == false {
-				runspecRunnable, ok := runnableStack.Shift()
+			runnableStack := lane.NewStack[*RunspecRunnable]()
+			runnableStack.Push(callstack.RootRunnable)
+
+			for runnableStack.Size() != 0 {
+				runspecRunnable, ok := runnableStack.Pop()
 				if !ok {
 					log.Fatalf("Error: runnable stack is empty. \n")
 				}
@@ -439,21 +438,51 @@ func (wt *Runspec) ExecuteCallstacks() error {
 					cached, hash = wt.checkRunnableCache(runspecRunnable)
 				}
 				if runspecRunnable.Conditionals.Satisfied == true && cached == true {
-					log.Printf("Info: build files for %s unchanged from cache. \n", runspecRunnable.Name)
-					removeCacheHitChildRunnablesFromCallstack(runnableStack, runspecRunnable.Name)
+					log.Println("--------------------")
+					log.Printf("Cache Info: build files for %s unchanged from cache. \n", runspecRunnable.Name)
+					log.Println("--------------------")
 					continue
 				}
-				err := runspecRunnable.RunSteps()
-				if err != nil {
-					log.Fatalf("Error: %s in runnable \n", err, runspecRunnable.Name)
-				}
+
 				if runspecRunnable.hasCaching() {
+					err := runspecRunnable.executeNodeTree()
+					if err != nil {
+						log.Fatalf("Error: %s in runnable \n", err, runspecRunnable.Name)
+					}
 					process_manager_client.CacheUpdate(wt.OzoneWorkDir, runspecRunnable.Name, hash)
+				} else {
+					err := runspecRunnable.RunSteps()
+					if err != nil {
+						log.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
+					}
+					for i := len(runspecRunnable.Children) - 1; i >= 0; i-- {
+						runnableStack.Push(runspecRunnable.Children[i])
+					}
 				}
 			}
 		}
 	}
 
+	return nil
+}
+
+func (wtr *RunspecRunnable) executeNodeTree() error {
+	workStack := lane.NewStack[*RunspecRunnable]()
+
+	workStack.Push(wtr)
+	for workStack.Size() != 0 {
+		current, ok := workStack.Pop()
+		if !ok {
+			log.Fatalf("Error: runnable work stack is empty. \n")
+		}
+		err := current.RunSteps()
+		if err != nil {
+			return errors.New(fmt.Sprintf("Error: %s in runnable \n", err, wtr.Name))
+		}
+		for _, child := range current.Children {
+			workStack.Push(child)
+		}
+	}
 	return nil
 }
 
