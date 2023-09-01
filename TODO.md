@@ -109,6 +109,11 @@ only prepends to the source files for the callstack, not for the ones in the bui
 # plugin capability
 https://github.com/hashicorp/go-plugin
 
+# Caching
+
+Changing the ozonefile triggers rebuild of all services. Use the scopes as part of the hash, and the serialization of the
+runnable itself. This meanings
+
 # Testing
 
 #### Rendering of build vars needs tested.
