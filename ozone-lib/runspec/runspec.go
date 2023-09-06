@@ -475,7 +475,7 @@ func (wt *Runspec) CheckCacheAndExecute(callstack *CallStack) error {
 
 		err := runspecRunnable.RunSteps()
 		if err != nil {
-			log.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
+			log.Fatalf("Error %s in step: %s in runnable \n", err, runspecRunnable.Name)
 		}
 	}
 
