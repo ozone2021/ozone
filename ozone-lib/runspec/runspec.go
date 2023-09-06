@@ -679,14 +679,15 @@ func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *conf
 					log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, r.Name)
 				}
 				callstack, err = wt.addCallstack(dependencyRunnable, ordinal, CopyOrCreateNew(topLevelScope), asOutput)
+				wt.CallStacks[callstack.RootRunnableType] = append(wt.CallStacks[callstack.RootRunnableType], callstack)
 			}
 		} else {
 			callstack, err = wt.addCallstack(r, ordinal, CopyOrCreateNew(topLevelScope), asOutput)
+			wt.CallStacks[callstack.RootRunnableType] = append(wt.CallStacks[callstack.RootRunnableType], callstack)
 		}
 		if err != nil {
 			log.Fatalf("Error %s in runnable %s", err, r.Name)
 		}
-		wt.CallStacks[callstack.RootRunnableType] = append(wt.CallStacks[callstack.RootRunnableType], callstack)
 	}
 }
 
