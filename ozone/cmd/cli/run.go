@@ -2,7 +2,7 @@ package cli
 
 import (
 	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
-	runspec2 "github.com/ozone2021/ozone/ozone-lib/runspec"
+	"github.com/ozone2021/ozone/ozone-lib/runspec"
 	"github.com/spf13/cobra"
 	"log"
 )
@@ -12,7 +12,7 @@ var runCmd = &cobra.Command{
 	Long: `Shows a dry run of what is going to be ran.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		runspec := runspec2.NewRunspec(context, ozoneWorkingDir, config)
+		spec := runspec.NewRunspec(context, ozoneWorkingDir, config)
 
 		var runnables []*ozoneConfig.Runnable
 
@@ -25,8 +25,10 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		runspec.AddCallstacks(runnables, config, context)
-		runspec.ExecuteCallstacks()
+		spec.AddCallstacks(runnables, config, context)
+		runResult := spec.ExecuteCallstacks()
+
+		runResult.PrintRunResult()
 	},
 }
 

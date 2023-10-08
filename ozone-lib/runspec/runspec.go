@@ -393,7 +393,7 @@ func addCallstackScopeVars(runnable *config.Runnable, buildScope *VariableMap, o
 	return service, dir
 }
 
-func (wt *Runspec) ExecuteCallstacks() error {
+func (wt *Runspec) ExecuteCallstacks() *RunResult {
 	runOrder := []config.RunnableType{
 		config.PreUtilityType,
 		config.BuildType,
@@ -402,20 +402,24 @@ func (wt *Runspec) ExecuteCallstacks() error {
 		config.PipelineType,
 		config.PostUtilityType,
 	}
+	runResult := NewRunResult()
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
-			wt.CheckCacheAndExecute(callstack)
+			callstackResults, err := wt.CheckCacheAndExecute(callstack)
+			runResult.AddCallstackResult(callstackResults, err)
 		}
 	}
 
-	return nil
+	return runResult
 }
 
-func (wt *Runspec) CheckCacheAndExecute(callstack *CallStack) error {
+func (wt *Runspec) CheckCacheAndExecute(callstack *CallStack) ([]*CallstackResult, error) {
 	nodeInputStack := lane.NewStack[Node]()
 	nodeInputStack.Push(callstack)
 
 	workQueue := lane.NewDeque[*RunspecRunnable]()
+
+	var results []*CallstackResult
 
 	for nodeInputStack.Size() != 0 {
 		node, ok := nodeInputStack.Pop()
@@ -432,6 +436,7 @@ func (wt *Runspec) CheckCacheAndExecute(callstack *CallStack) error {
 				log.Println("--------------------")
 				log.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
 				log.Println("--------------------")
+				results = append(results, NewCachedCallstackResult(node.GetRunnable().Name))
 				continue
 			}
 		}
@@ -448,7 +453,11 @@ func (wt *Runspec) CheckCacheAndExecute(callstack *CallStack) error {
 			}
 			err := callstack.execute() // TODO call recursive
 			if err != nil {
-				log.Fatalf("Error: %s in runnable \n", err, callstack.RootRunnable.Name)
+				results = append(results, NewFailedCallstackResult(callstack.RootRunnable.Name))
+				if wt.config.Headless {
+					log.Fatalf("Error: %s in runnable \n", err, callstack.RootRunnable.Name)
+				}
+				return results, err
 			}
 
 			if callstack.RootRunnable.hasCaching() {
@@ -475,11 +484,14 @@ func (wt *Runspec) CheckCacheAndExecute(callstack *CallStack) error {
 
 		err := runspecRunnable.RunSteps()
 		if err != nil {
-			log.Fatalf("Error %s in step: %s in runnable \n", err, runspecRunnable.Name)
+			if wt.config.Headless {
+				log.Fatalf("Error %s in step: %s in runnable \n", err, runspecRunnable.Name)
+			}
+			results = append(results, NewFailedCallstackResult(runspecRunnable.Name))
 		}
 	}
 
-	return nil
+	return results, nil
 }
 
 func (cs *CallStack) execute() error {
