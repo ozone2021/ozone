@@ -405,17 +405,21 @@ func (wt *Runspec) ExecuteCallstacks() *RunResult {
 	runResult := NewRunResult()
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
+			runResult.AddRootCallstack(callstack)
 			callstackResults, err := wt.CheckCacheAndExecute(callstack)
-			runResult.AddCallstackResult(callstackResults, err)
+			err = runResult.AddCallstackResult(callstack.RootRunnableName, callstackResults, err)
+			if err != nil {
+				log.Fatalln("Error: %s", err)
+			}
 		}
 	}
 
 	return runResult
 }
 
-func (wt *Runspec) CheckCacheAndExecute(callstack *CallStack) ([]*CallstackResult, error) {
+func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack) ([]*CallstackResult, error) {
 	nodeInputStack := lane.NewStack[Node]()
-	nodeInputStack.Push(callstack)
+	nodeInputStack.Push(rootCallstack)
 
 	workQueue := lane.NewDeque[*RunspecRunnable]()
 
@@ -451,16 +455,17 @@ func (wt *Runspec) CheckCacheAndExecute(callstack *CallStack) ([]*CallstackResul
 				}
 				continue
 			}
-			err := callstack.execute() // TODO call recursive
+			err := callstack.execute(wt.config.Headless) // TODO call recursive
 			if err != nil {
-				results = append(results, NewFailedCallstackResult(callstack.RootRunnable.Name))
+				results = append(results, NewFailedCallstackResult(callstack.RootRunnable.Name, err))
 				if wt.config.Headless {
 					log.Fatalf("Error: %s in runnable \n", err, callstack.RootRunnable.Name)
 				}
-				return results, err
+			} else {
+				results = append(results, NewSucceededCallstackResult(callstack.RootRunnable.Name))
 			}
 
-			if callstack.RootRunnable.hasCaching() {
+			if err == nil && callstack.RootRunnable.hasCaching() {
 				process_manager_client.CacheUpdate(wt.OzoneWorkDir, callstack.RootRunnable.Name, hash) // TODO
 			}
 		case *RunspecRunnable:
@@ -487,14 +492,14 @@ func (wt *Runspec) CheckCacheAndExecute(callstack *CallStack) ([]*CallstackResul
 			if wt.config.Headless {
 				log.Fatalf("Error %s in step: %s in runnable \n", err, runspecRunnable.Name)
 			}
-			results = append(results, NewFailedCallstackResult(runspecRunnable.Name))
+			results = append(results, NewFailedCallstackResult(runspecRunnable.Name, err))
 		}
 	}
 
 	return results, nil
 }
 
-func (cs *CallStack) execute() error {
+func (cs *CallStack) execute(headless bool) error {
 	inStack := lane.NewDeque[*RunspecRunnable]()
 
 	inStack.Prepend(cs.RootRunnable)
@@ -521,7 +526,10 @@ func (cs *CallStack) execute() error {
 
 		err := runspecRunnable.RunSteps()
 		if err != nil {
-			log.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
+			if headless {
+				log.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
+			}
+			return err
 		}
 	}
 	return nil

@@ -31,18 +31,34 @@ func NewRunResult() *RunResult {
 	}
 }
 
-func (r *RunResult) AddCallstackResult(callstackResults []*CallstackResult, err error) error {
+func (r *RunResult) findCallstackResult(name string) (*CallstackResult, error) {
+	for callstackResult := range r.CallstackResults {
+		if callstackResult.Name == name {
+			return callstackResult, nil
+		}
+	}
+	return nil, errors.New("CallstackResult not found")
+}
+
+func (r *RunResult) AddRootCallstack(callstack *CallStack) {
+	r.CallstackResults[NewSucceededCallstackResult(callstack.RootRunnableName)] = []*CallstackResult{}
+}
+
+func (r *RunResult) AddCallstackResult(rootRunnableName string, callstackResults []*CallstackResult, err error) error {
 	if len(callstackResults) == 0 {
 		return errors.New("CallstackResults must have at least one result")
 	}
-	rootCallstack := callstackResults[0]
-	rootCallstack.Err = err
-	if len(callstackResults) == 1 {
-		r.CallstackResults[rootCallstack] = []*CallstackResult{callstackResults[0]}
-		return nil
+	subCallstackResults := callstackResults[0:]
+
+	rootCallstackResult, err := r.findCallstackResult(rootRunnableName)
+	r.CallstackResults[rootCallstackResult] = subCallstackResults
+
+	for _, result := range callstackResults {
+		if result.Status == Failed {
+			r.Status = Failed
+			return nil
+		}
 	}
-	subCallstackResults := callstackResults[1:]
-	r.CallstackResults[rootCallstack] = subCallstackResults
 
 	return nil
 }
@@ -63,10 +79,11 @@ func NewSucceededCallstackResult(name string) *CallstackResult {
 	}
 }
 
-func NewFailedCallstackResult(name string) *CallstackResult {
+func NewFailedCallstackResult(name string, err error) *CallstackResult {
 	return &CallstackResult{
 		Status: Failed,
 		Name:   name,
+		Err:    err,
 	}
 }
 
