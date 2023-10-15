@@ -28,6 +28,11 @@ var runCmd = &cobra.Command{
 		spec.AddCallstacks(runnables, config, context)
 		runResult := spec.ExecuteCallstacks()
 
+		runResult.PrintErrorLog()
+
+		log.Println("=================================================")
+		log.Println("=================================================")
+
 		runResult.PrintRunResult()
 	},
 }

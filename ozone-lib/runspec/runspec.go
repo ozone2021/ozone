@@ -14,6 +14,7 @@ import (
 	"github.com/ozone2021/ozone/ozone-lib/deployables/docker"
 	"github.com/ozone2021/ozone/ozone-lib/deployables/executable"
 	"github.com/ozone2021/ozone/ozone-lib/deployables/helm"
+	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"github.com/ozone2021/ozone/ozone-lib/utilities"
 	"gopkg.in/yaml.v3"
 	"log"
@@ -307,7 +308,7 @@ func (wt *Runspec) StepsToRunspecSteps(configRunnable *config.Runnable, buildsco
 	return steps, nil
 }
 
-func (wt *Runspec) ConvertConfigRunnableStackItemToRunspecRunnable(configRunnableStackItem *ConfigRunnableStackItem, ordinal int) (*RunspecRunnable, error) {
+func (wt *Runspec) ConvertConfigRunnableStackItemToRunspecRunnable(configRunnableStackItem *ConfigRunnableStackItem, ordinal int, logger *logger_lib.Logger) (*RunspecRunnable, error) {
 	configRunnable := configRunnableStackItem.ConfigRunnable
 	buildScope := configRunnableStackItem.buildScope
 	parentScope := configRunnableStackItem.parentScope
@@ -348,7 +349,7 @@ func (wt *Runspec) ConvertConfigRunnableStackItemToRunspecRunnable(configRunnabl
 		SourceFiles:  sourceFiles,
 		Dir:          dir,
 		BuildScope:   diffBuildScope,
-		Conditionals: ConvertContextConditional(runnableBuildScope, configRunnable, wt.Context),
+		Conditionals: ConvertContextConditional(runnableBuildScope, configRunnable, wt.Context, logger),
 		Steps:        combinedSteps,
 		Type:         configRunnable.Type,
 	}
@@ -403,10 +404,15 @@ func (wt *Runspec) ExecuteCallstacks() *RunResult {
 		config.PostUtilityType,
 	}
 	runResult := NewRunResult()
+
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
-			runResult.AddRootCallstack(callstack)
-			callstackResults, err := wt.CheckCacheAndExecute(callstack)
+			callstackLogger, err := logger_lib.New(wt.OzoneWorkDir, callstack.RootRunnableName)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			runResult.AddRootCallstack(callstack, callstackLogger)
+			callstackResults, err := wt.CheckCacheAndExecute(callstack, callstackLogger)
 			err = runResult.AddCallstackResult(callstack.RootRunnableName, callstackResults, err)
 			if err != nil {
 				log.Fatalln("Error: %s", err)
@@ -417,7 +423,7 @@ func (wt *Runspec) ExecuteCallstacks() *RunResult {
 	return runResult
 }
 
-func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack) ([]*CallstackResult, error) {
+func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger_lib.Logger) ([]*CallstackResult, error) {
 	nodeInputStack := lane.NewStack[Node]()
 	nodeInputStack.Push(rootCallstack)
 
@@ -437,10 +443,10 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack) ([]*CallstackR
 			cached, hash = wt.checkNodeCache(node)
 
 			if node.ConditionalsSatisfied() == true && cached == true {
-				log.Println("--------------------")
-				log.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
-				log.Println("--------------------")
-				results = append(results, NewCachedCallstackResult(node.GetRunnable().Name))
+				logger.Println("--------------------")
+				logger.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
+				logger.Println("--------------------")
+				results = append(results, NewCachedCallstackResult(node.GetRunnable().Name, nil))
 				continue
 			}
 		}
@@ -448,6 +454,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack) ([]*CallstackR
 		switch node.(type) {
 		case *CallStack:
 			callstack, _ := node.(*CallStack)
+			log.Printf("Executing callstack %s \n", callstack.RootRunnableName)
 			if callstack.hasCaching() == false {
 				workQueue.Prepend(callstack.RootRunnable)
 				for i := 0; i < len(callstack.RootRunnable.Children); i++ {
@@ -455,14 +462,18 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack) ([]*CallstackR
 				}
 				continue
 			}
-			err := callstack.execute(wt.config.Headless) // TODO call recursive
+			callstackLogger, err := logger_lib.New(wt.OzoneWorkDir, callstack.RootRunnableName)
 			if err != nil {
-				results = append(results, NewFailedCallstackResult(callstack.RootRunnable.Name, err))
+				log.Fatalln(err)
+			}
+			err = callstack.execute(wt.config.Headless, callstackLogger) // TODO call recursive
+			if err != nil {
+				results = append(results, NewFailedCallstackResult(callstack.RootRunnable.Name, err, callstackLogger))
 				if wt.config.Headless {
-					log.Fatalf("Error: %s in runnable \n", err, callstack.RootRunnable.Name)
+					logger.Fatalf("Error: %s in runnable \n", err, callstack.RootRunnable.Name)
 				}
 			} else {
-				results = append(results, NewSucceededCallstackResult(callstack.RootRunnable.Name))
+				results = append(results, NewSucceededCallstackResult(callstack.RootRunnable.Name, callstackLogger))
 			}
 
 			if err == nil && callstack.RootRunnable.hasCaching() {
@@ -475,31 +486,32 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack) ([]*CallstackR
 				nodeInputStack.Push(runspecRunnable.Children[i].GetRunnable())
 			}
 		default:
-			log.Fatalln("Error: node is not a CallStack or Runnable")
+			logger.Fatalln("Error: node is not a CallStack or Runnable")
 		}
 	}
 
 	for workQueue.Size() != 0 {
 		runspecRunnable, ok := workQueue.Shift()
 		if !ok {
-			log.Fatalf("Error: runnable work queue is empty. \n")
+			logger.Fatalf("Error: runnable work queue is empty. \n")
 		}
 
-		log.Printf("Runspec runnable %s \n", runspecRunnable.Name)
+		log.Printf("Executing runnable %s \n", runspecRunnable.Name)
+		logger.Printf("Runspec runnable %s \n", runspecRunnable.Name)
 
-		err := runspecRunnable.RunSteps()
+		err := runspecRunnable.RunSteps(logger)
 		if err != nil {
 			if wt.config.Headless {
-				log.Fatalf("Error %s in step: %s in runnable \n", err, runspecRunnable.Name)
+				logger.Fatalf("Error %s in step: %s in runnable \n", err, runspecRunnable.Name)
 			}
-			results = append(results, NewFailedCallstackResult(runspecRunnable.Name, err))
+			results = append(results, NewFailedCallstackResult(runspecRunnable.Name, err, logger))
 		}
 	}
 
 	return results, nil
 }
 
-func (cs *CallStack) execute(headless bool) error {
+func (cs *CallStack) execute(headless bool, logger *logger_lib.Logger) error {
 	inStack := lane.NewDeque[*RunspecRunnable]()
 
 	inStack.Prepend(cs.RootRunnable)
@@ -509,7 +521,7 @@ func (cs *CallStack) execute(headless bool) error {
 	for inStack.Size() != 0 {
 		current, ok := inStack.Shift()
 		if !ok {
-			log.Fatalf("Error: runnable work stack is empty. \n")
+			logger.Fatalf("Error: runnable work stack is empty. \n")
 		}
 
 		workQueue.Prepend(current)
@@ -521,13 +533,13 @@ func (cs *CallStack) execute(headless bool) error {
 	for workQueue.Size() != 0 {
 		runspecRunnable, ok := workQueue.Shift()
 		if !ok {
-			log.Fatalf("Error: runnable work queue is empty. \n")
+			logger.Fatalf("Error: runnable work queue is empty. \n")
 		}
 
-		err := runspecRunnable.RunSteps()
+		err := runspecRunnable.RunSteps(logger)
 		if err != nil {
 			if headless {
-				log.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
+				logger.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
 			}
 			return err
 		}
@@ -539,11 +551,11 @@ func (wtr *RunspecRunnable) hasCaching() bool {
 	return wtr.Cache
 }
 
-func (wtr *RunspecRunnable) RunSteps() error {
+func (wtr *RunspecRunnable) RunSteps(logger *logger_lib.Logger) error {
 	for _, step := range wtr.Steps {
 		step.Scope.scope.MergeVariableMaps(wtr.BuildScope.scope)
-		log.Printf("Running step %s \n", step.Name)
-		err := step.RunStep(wtr.Type)
+		logger.Printf("Running step %s \n", step.Name)
+		err := step.RunStep(wtr.Type, logger)
 		if err != nil {
 			return err
 		}
@@ -551,56 +563,56 @@ func (wtr *RunspecRunnable) RunSteps() error {
 	return nil
 }
 
-func (step *RunspecStep) RunStep(runnableType config.RunnableType) error {
+func (step *RunspecStep) RunStep(runnableType config.RunnableType, logger *logger_lib.Logger) error {
 	if step.Type == "builtin" {
 		switch runnableType {
 		case config.PreUtilityType:
-			return step.runUtility()
+			return step.runUtility(logger)
 		case config.BuildType:
-			return step.runBuildable()
+			return step.runBuildable(logger)
 		case config.DeployType:
-			return step.runDeployables()
+			return step.runDeployables(logger)
 		case config.TestType:
-			return step.runTestable()
+			return step.runTestable(logger)
 		case config.PostUtilityType:
-			return step.runUtility()
+			return step.runUtility(logger)
 		}
 	}
 	return nil
 }
 
-func (step *RunspecStep) runBuildable() error {
+func (step *RunspecStep) runBuildable(logger *logger_lib.Logger) error {
 	switch step.Name {
 	case "buildDockerImage":
 		fmt.Println("Building docker image.")
-		return buildables.BuildDockerContainer(step.Scope.scope)
+		return buildables.BuildDockerContainer(step.Scope.scope, logger)
 	case "bashScript":
 		script, ok := step.Scope.scope.GetVariable("SCRIPT")
 		if !ok {
 			return errors.New(fmt.Sprintf("Script not set for runnable step %s", "r.Name"))
 		}
-		_, err := utilities.RunBashScript(script.String(), step.Scope.scope)
+		_, err := utilities.RunBashScript(script.String(), step.Scope.scope, logger)
 		return err
 	case "pushDockerImage":
 		fmt.Println("Building docker image.")
-		return buildables.PushDockerImage(step.Scope.scope)
+		return buildables.PushDockerImage(step.Scope.scope, logger)
 	case "tagDockerImageAs":
 		fmt.Println("Tagging docker image.")
-		return buildables.TagDockerImageAs(step.Scope.scope)
+		return buildables.TagDockerImageAs(step.Scope.scope, logger)
 	}
 	return nil
 }
 
-func (step *RunspecStep) runTestable() error {
+func (step *RunspecStep) runTestable(logger *logger_lib.Logger) error {
 	switch step.Name {
 	case "bashScript":
 		script, ok := step.Scope.scope.GetVariable("SCRIPT")
 		if !ok {
 			return errors.New(fmt.Sprintf("Script not set for runnable step %s", step.Name))
 		}
-		_, err := utilities.RunBashScript(script.String(), step.Scope.scope)
+		_, err := utilities.RunBashScript(script.String(), step.Scope.scope, logger)
 		if err != nil {
-			log.Fatalln(err)
+			logger.Fatalln(err)
 		}
 	default:
 		return errors.New(fmt.Sprintf("Testable value not found: %s \n", step.Name))
@@ -608,14 +620,14 @@ func (step *RunspecStep) runTestable() error {
 	return nil
 }
 
-func (step *RunspecStep) runUtility() error {
+func (step *RunspecStep) runUtility(logger *logger_lib.Logger) error {
 	switch step.Name {
 	case "bashScript":
 		script, ok := step.Scope.scope.GetVariable("SCRIPT")
 		if !ok {
 			return errors.New(fmt.Sprintf("Script not set for runnable step %s", step.Name)) // TODO wrap err
 		}
-		_, err := utilities.RunBashScript(script.String(), step.Scope.scope)
+		_, err := utilities.RunBashScript(script.String(), step.Scope.scope, logger)
 		return err
 	default:
 		return errors.New(fmt.Sprintf("Utility value not found: %s \n", step.Name))
@@ -623,21 +635,21 @@ func (step *RunspecStep) runUtility() error {
 	return nil
 }
 
-func (step *RunspecStep) runDeployables() error {
+func (step *RunspecStep) runDeployables(logger *logger_lib.Logger) error {
 	if step.Type == "builtin" {
 		switch step.Name {
 		case "executable":
-			return executable.Build(step.Scope.scope)
+			return executable.Build(step.Scope.scope, logger)
 		case "helm":
-			return helm.Deploy(step.Scope.scope)
+			return helm.Deploy(step.Scope.scope, logger)
 		case "runDockerImage":
-			return docker.Build(step.Scope.scope)
+			return docker.Build(step.Scope.scope, logger)
 		case "bashScript":
 			script, ok := step.Scope.scope.GetVariable("SCRIPT")
 			if !ok {
 				errors.New(fmt.Sprintf("Script not set for runnable step %s", step.Name))
 			}
-			_, err := utilities.RunBashScript(script.String(), step.Scope.scope)
+			_, err := utilities.RunBashScript(script.String(), step.Scope.scope, logger)
 			return err
 		default:
 			return errors.New(fmt.Sprintf("Builtin value not found: %s \n", step.Name))
@@ -691,6 +703,7 @@ func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *conf
 		asOutput := make(map[string]string)
 		var err error
 		var callstack *CallStack
+
 		// Treat pipelines as a special case, each runnable dependency of the pipeline is an invidiual callstack.
 		if r.Type == config.PipelineType {
 			for _, dependency := range r.Depends {
@@ -708,6 +721,8 @@ func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *conf
 		if err != nil {
 			log.Fatalf("Error %s in runnable %s", err, r.Name)
 		}
+
+		// TODO close callstack logger.
 	}
 }
 
@@ -715,6 +730,11 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 	var allSourceFiles []string
 	var runspecRunnables []*RunspecRunnable
 	var rootRunable *RunspecRunnable
+
+	logger, err := logger_lib.New(wt.OzoneWorkDir, rootConfigRunnable.Name)
+	if err != nil {
+		log.Fatalln(err)
+	}
 
 	dependencyRunnableDeque := lane.NewDeque[*ConfigRunnableStackItem]()
 	dependencyRunnableDeque.Append(NewConfigRunnableStackItem(nil, rootConfigRunnable, buildScope, buildScope))
@@ -732,7 +752,7 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 			configRunnableStackItem.Parent.addChild(childCallstack)
 			continue
 		}
-		runspecRunnable, err := wt.ConvertConfigRunnableStackItemToRunspecRunnable(configRunnableStackItem, ordinal)
+		runspecRunnable, err := wt.ConvertConfigRunnableStackItemToRunspecRunnable(configRunnableStackItem, ordinal, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -787,6 +807,11 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 		Hash:             "", // All source files + system environment variables + build vars
 		RootRunnable:     rootRunable,
 		SourceFiles:      allSourceFiles,
+	}
+
+	err = logger.Close()
+	if err != nil {
+		return nil, err
 	}
 
 	return callStack, nil

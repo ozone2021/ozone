@@ -4,8 +4,8 @@ import (
 	"github.com/ozone2021/ozone/ozone-lib/config"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_utils"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
+	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"github.com/ozone2021/ozone/ozone-lib/utilities"
-	"log"
 )
 
 type RunspecConditionals struct {
@@ -40,7 +40,7 @@ func (wtc *RunspecConditionals) AddWhenNotScriptResult(script string, outcome bo
 	wtc.WhenNotScript[script] = outcome
 }
 
-func ConvertContextConditional(buildScope *VariableMap, configRunnable *config.Runnable, context string) *RunspecConditionals {
+func ConvertContextConditional(buildScope *VariableMap, configRunnable *config.Runnable, context string, logger *logger_lib.Logger) *RunspecConditionals {
 	wtc := NewRunspecConditionals()
 
 	for _, contextConditional := range configRunnable.ContextConditionals {
@@ -51,26 +51,26 @@ func ConvertContextConditional(buildScope *VariableMap, configRunnable *config.R
 		if inPattern {
 			// WhenScript
 			for _, script := range contextConditional.WhenScript {
-				exitCode, err := utilities.RunBashScript(script, buildScope)
+				exitCode, err := utilities.RunBashScript(script, buildScope, logger)
 				switch exitCode {
 				case 0:
 					wtc.AddWhenScriptResult(script, true)
 				case 3: // TODO document special ozone exit code to force error
-					log.Fatalln("Something went wrong with conditional script: %script, err: %s \n", script, err)
+					logger.Fatalln("Something went wrong with conditional script: %script, err: %s \n", script, err)
 				default:
 					wtc.AddWhenScriptResult(script, false)
-					log.Printf("Not running, contextConditional whenScript not satisfied: %s", script)
+					logger.Printf("Not running, contextConditional whenScript not satisfied: %s", script)
 				}
 			}
 			// When Not script
 			for _, script := range contextConditional.WhenNotScript {
-				exitCode, err := utilities.RunBashScript(script, buildScope)
+				exitCode, err := utilities.RunBashScript(script, buildScope, logger)
 				switch exitCode {
 				case 0:
 					wtc.AddWhenNotScriptResult(script, false)
 				case 3: // TODO document special ozone exit code
 					wtc.AddWhenNotScriptResult(script, false)
-					log.Fatalln("Something went wrong with conditional script: %script, err: %s \n", script, err)
+					logger.Fatalln("Something went wrong with conditional script: %script, err: %s \n", script, err)
 				default:
 					wtc.AddWhenNotScriptResult(script, true)
 				}

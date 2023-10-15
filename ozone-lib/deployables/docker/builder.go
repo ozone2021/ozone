@@ -5,6 +5,7 @@ import (
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
+	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"os"
@@ -79,7 +80,7 @@ func DeleteContainerIfExists(serviceName string, env *VariableMap) error {
 	return nil
 }
 
-func Build(env *VariableMap) error {
+func Build(env *VariableMap, logger *logger_lib.Logger) error {
 	for _, arg := range getDockerRunParams() {
 		if err := utils.ParamsOK("DeployDocker", arg, env); err != nil {
 			return err

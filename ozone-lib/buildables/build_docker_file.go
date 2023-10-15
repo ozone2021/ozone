@@ -4,9 +4,8 @@ import (
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
+	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
-	"log"
-	"os"
 	"os/exec"
 )
 
@@ -21,7 +20,7 @@ func getParams() []string {
 	}
 }
 
-func BuildDockerContainer(varsMap *VariableMap) error {
+func BuildDockerContainer(varsMap *VariableMap, logger *logger_lib.Logger) error {
 	for _, arg := range getParams() {
 		if err := utils.ParamsOK("BuildDockerContainer", arg, varsMap); err != nil {
 			return err
@@ -57,16 +56,17 @@ func BuildDockerContainer(varsMap *VariableMap) error {
 		dockerfilePath,
 	)
 
-	log.Printf("Build cmd is: %s \n", cmdString)
+	logger.Printf("Build cmd is: %s \n", cmdString)
 
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
 	cmd.Dir = cmdCallDir.String()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stdout
+
+	cmd.Stdout = logger.File
+	cmd.Stderr = logger.File
 	err := cmd.Run()
 	if err != nil {
-		fmt.Println("build docker err")
+		logger.Println("build docker err for image %s ", tag)
 		return err
 	}
 	cmd.Wait()

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
+	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -20,7 +20,7 @@ func getHelmParams() []string {
 	}
 }
 
-func Deploy(envVarMap *config_variable.VariableMap) error {
+func Deploy(envVarMap *config_variable.VariableMap, logger *logger_lib.Logger) error {
 	for _, arg := range getHelmParams() {
 		if err := utils.ParamsOK("helmChart", arg, envVarMap); err != nil {
 			return err
@@ -29,7 +29,7 @@ func Deploy(envVarMap *config_variable.VariableMap) error {
 
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
-		log.Println(err)
+		logger.Println(err)
 	}
 
 	env := envVarMap.ConvertMapPongo()
@@ -58,13 +58,13 @@ func Deploy(envVarMap *config_variable.VariableMap) error {
 		helmChart,
 	)
 
-	log.Printf("Helm cmd is: %s", cmdString)
+	logger.Printf("Helm cmd is: %s", cmdString)
 
 	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
 	cmd := exec.Command(cmdFields[0], argFields...)
 	cmd.Dir = ozoneWorkingDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stdout
+	cmd.Stdout = logger.File
+	cmd.Stderr = logger.File
 	if err := cmd.Run(); err != nil {
 		fmt.Println("build docker err")
 		return err

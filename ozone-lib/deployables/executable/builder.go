@@ -4,12 +4,12 @@ import (
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
-	"log"
+	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"net/rpc"
 	"os"
 )
 
-func Build(env *config_variable.VariableMap) error {
+func Build(env *config_variable.VariableMap, logger *logger_lib.Logger) error {
 	ozoneWorkingDir, err := os.Getwd()
 	if err != nil {
 		return err
@@ -28,12 +28,12 @@ func Build(env *config_variable.VariableMap) error {
 
 	client, err := rpc.DialHTTP("tcp", ":8000")
 	if err != nil {
-		log.Fatal("dialing:", err)
+		logger.Fatal("dialing:", err)
 		return err
 	}
 	err = client.Call("ProcessManager.AddProcess", query, nil)
 	if err != nil {
-		log.Fatal("arith error:", err)
+		logger.Fatal("arith error:", err)
 		return err
 	}
 	return nil

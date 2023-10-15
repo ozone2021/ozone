@@ -5,8 +5,8 @@ import (
 	"fmt"
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
+	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,7 +19,7 @@ func getTagDockerImageAsParams() []string {
 	}
 }
 
-func TagDockerImageAs(varsMap *VariableMap) error {
+func TagDockerImageAs(varsMap *VariableMap, logger *logger_lib.Logger) error {
 	for _, arg := range getTagDockerImageAsParams() {
 		if err := utils.ParamsOK("TagDockerImageAs", arg, varsMap); err != nil {
 			return err
@@ -32,7 +32,7 @@ func TagDockerImageAs(varsMap *VariableMap) error {
 	if strings.Contains(targetTag.String(), "Merged branch is not release branch.") {
 		return errors.New("Merged branch is not release branch.")
 	}
-	log.Printf("Pulling docker image %s \n", sourceTag)
+	logger.Printf("Pulling docker image %s \n", sourceTag)
 	pullCmdString := fmt.Sprintf("docker pull %s", sourceTag)
 	cmdFields, argFields := process_manager.CommandFromFields(pullCmdString)
 	pullCmd := exec.Command(cmdFields[0], argFields...)
@@ -45,7 +45,7 @@ func TagDockerImageAs(varsMap *VariableMap) error {
 	}
 	pullCmd.Wait()
 
-	log.Printf("Tagging docker image %s as %s \n", sourceTag, targetTag)
+	logger.Printf("Tagging docker image %s as %s \n", sourceTag, targetTag)
 	tagCmdString := fmt.Sprintf("docker tag %s %s", sourceTag, targetTag)
 	tagCmdFields, argFields := process_manager.CommandFromFields(tagCmdString)
 	tagCmd := exec.Command(tagCmdFields[0], argFields...)

@@ -2,6 +2,8 @@ package runspec
 
 import (
 	"errors"
+	"fmt"
+	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"log"
 )
 
@@ -19,6 +21,7 @@ const (
 )
 
 type CallstackResult struct {
+	Logger *logger_lib.Logger
 	Status CallstackStatus
 	Name   string
 	Err    error
@@ -40,8 +43,8 @@ func (r *RunResult) findCallstackResult(name string) (*CallstackResult, error) {
 	return nil, errors.New("CallstackResult not found")
 }
 
-func (r *RunResult) AddRootCallstack(callstack *CallStack) {
-	r.CallstackResults[NewSucceededCallstackResult(callstack.RootRunnableName)] = []*CallstackResult{}
+func (r *RunResult) AddRootCallstack(callstack *CallStack, logger *logger_lib.Logger) {
+	r.CallstackResults[NewSucceededCallstackResult(callstack.RootRunnableName, logger)] = []*CallstackResult{}
 }
 
 func (r *RunResult) AddCallstackResult(rootRunnableName string, callstackResults []*CallstackResult, err error) error {
@@ -72,24 +75,48 @@ func (r *RunResult) PrintRunResult() {
 	}
 }
 
-func NewSucceededCallstackResult(name string) *CallstackResult {
+func NewSucceededCallstackResult(name string, logger *logger_lib.Logger) *CallstackResult {
 	return &CallstackResult{
 		Status: Succeeded,
 		Name:   name,
+		Logger: logger,
 	}
 }
 
-func NewFailedCallstackResult(name string, err error) *CallstackResult {
+func NewFailedCallstackResult(name string, err error, logger *logger_lib.Logger) *CallstackResult {
 	return &CallstackResult{
 		Status: Failed,
 		Name:   name,
+		Logger: logger,
 		Err:    err,
 	}
 }
 
-func NewCachedCallstackResult(name string) *CallstackResult {
+func NewCachedCallstackResult(name string, logger *logger_lib.Logger) *CallstackResult {
 	return &CallstackResult{
 		Status: Cached,
 		Name:   name,
+		Logger: logger,
+	}
+}
+
+func (r *RunResult) PrintErrorLog() {
+	for _, callstackResultList := range r.CallstackResults {
+		for _, callstackResult := range callstackResultList {
+			if callstackResult.Status == Failed {
+				log.Printf("----------------------------------------------------------------------------\n")
+				log.Printf("-                                                                          \n")
+				log.Printf("-                      Error logs for: %s                         \n", callstackResult.Name)
+				log.Printf("-                                                                          \n")
+				log.Printf("----------------------------------------------------------------------------\n")
+				lines, err := callstackResult.Logger.TailFile(20)
+				if err != nil {
+					log.Fatalln(fmt.Sprintf("Error printing logFile for %s %s", callstackResult.Name, err))
+				}
+				for _, line := range lines {
+					fmt.Sprintf("%s", line)
+				}
+			}
+		}
 	}
 }
