@@ -32,8 +32,8 @@ func New(ozoneWorkingDirectory, rootRunnable string) (*Logger, error) {
 	_, err = os.Stat(filePath)
 	if os.IsNotExist(err) {
 		file, err = os.Create(filePath)
-		if err != os.ErrExist {
-			log.Fatal(err)
+		if err != nil && err != os.ErrExist {
+			log.Fatalln(fmt.Sprintf("Error creating logger: %s", err))
 		}
 	} else {
 		file, err = os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -43,7 +43,7 @@ func New(ozoneWorkingDirectory, rootRunnable string) (*Logger, error) {
 	}
 
 	return &Logger{
-		Logger:   log.New(file, fmt.Sprintf("%sLogger: ", rootRunnable), log.LstdFlags),
+		Logger:   log.New(file, "", 0),
 		FileName: filePath,
 		File:     file,
 		closer: func() error {

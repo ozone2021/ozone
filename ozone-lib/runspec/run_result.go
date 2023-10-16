@@ -114,7 +114,7 @@ func (r *RunResult) PrintErrorLog() {
 					log.Fatalln(fmt.Sprintf("Error printing logFile for %s %s", callstackResult.Name, err))
 				}
 				for _, line := range lines {
-					fmt.Sprintf("%s", line)
+					fmt.Printf("%s\n", line)
 				}
 			}
 		}

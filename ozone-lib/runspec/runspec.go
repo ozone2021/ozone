@@ -680,7 +680,7 @@ func (wt *Runspec) checkNodeCache(node Node) (bool, string) {
 	}
 	hash, err := getBuildHash(node, wt.OzoneWorkDir)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalf("CheckNodeCache error: %s", err)
 		return false, ""
 	}
 	if hash == "" {
