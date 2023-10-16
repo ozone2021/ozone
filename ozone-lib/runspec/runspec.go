@@ -455,13 +455,6 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger
 		case *CallStack:
 			callstack, _ := node.(*CallStack)
 			log.Printf("Executing callstack %s \n", callstack.RootRunnableName)
-			if callstack.hasCaching() == false {
-				workQueue.Prepend(callstack.RootRunnable)
-				for i := 0; i < len(callstack.RootRunnable.Children); i++ {
-					nodeInputStack.Push(callstack.RootRunnable.Children[i])
-				}
-				continue
-			}
 			callstackLogger, err := logger_lib.New(wt.OzoneWorkDir, callstack.RootRunnableName)
 			if err != nil {
 				log.Fatalln(err)
@@ -516,6 +509,8 @@ func (cs *CallStack) execute(headless bool, logger *logger_lib.Logger) error {
 
 	inStack.Prepend(cs.RootRunnable)
 
+	log.Printf("Executing callstack: %s \n", cs.RootRunnable.Name)
+
 	workQueue := lane.NewDeque[*RunspecRunnable]()
 
 	for inStack.Size() != 0 {
@@ -535,6 +530,7 @@ func (cs *CallStack) execute(headless bool, logger *logger_lib.Logger) error {
 		if !ok {
 			logger.Fatalf("Error: runnable work queue is empty. \n")
 		}
+		log.Printf("  - %s \n", runspecRunnable.Name)
 
 		err := runspecRunnable.RunSteps(logger)
 		if err != nil {
