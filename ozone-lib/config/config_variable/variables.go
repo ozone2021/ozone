@@ -6,6 +6,7 @@ import (
 	"github.com/dlclark/regexp2"
 	"github.com/flosch/pongo2/v4"
 	"github.com/ozone2021/ozone/ozone-lib/config/cli_utils"
+	"html"
 	"log"
 	"math"
 	"os"
@@ -610,5 +611,5 @@ func PongoRender(input string, context pongo2.Context) (string, error) {
 	if out == "" {
 		return input, nil
 	}
-	return out, nil
+	return html.UnescapeString(out), nil
 }

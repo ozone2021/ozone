@@ -471,6 +471,11 @@ func ReadConfig(headless bool) *OzoneConfig {
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, osEnv)
 	//ozoneConfig.BuildVars = RenderNoMerge(ozoneConfig.BuildVars, ozoneConfig.BuildVars)
 
+	err = ozoneConfig.BuildVars.SelfRender()
+	if err != nil {
+		log.Fatalf("Error SelfRendering buildVars in config: %s \n", err)
+	}
+
 	err = ozoneConfig.BuildVars.RenderFilters()
 
 	if err != nil {
