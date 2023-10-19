@@ -469,7 +469,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger
 				results = append(results, NewSucceededCallstackResult(callstack.RootRunnable.Name, callstackLogger))
 			}
 
-			if err == nil && callstack.RootRunnable.hasCaching() {
+			if err == nil && callstack.RootRunnable.hasCaching() && wt.config.Headless == false {
 				process_manager_client.CacheUpdate(wt.OzoneWorkDir, callstack.RootRunnable.Name, hash) // TODO
 			}
 		case *RunspecRunnable:
