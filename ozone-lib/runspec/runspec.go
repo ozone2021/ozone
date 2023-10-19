@@ -407,7 +407,7 @@ func (wt *Runspec) ExecuteCallstacks() *RunResult {
 
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
-			callstackLogger, err := logger_lib.New(wt.OzoneWorkDir, callstack.RootRunnableName)
+			callstackLogger, err := logger_lib.New(wt.OzoneWorkDir, callstack.RootRunnableName, wt.config.Headless)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -455,7 +455,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger
 		case *CallStack:
 			callstack, _ := node.(*CallStack)
 			log.Printf("Executing callstack %s \n", callstack.RootRunnableName)
-			callstackLogger, err := logger_lib.New(wt.OzoneWorkDir, callstack.RootRunnableName)
+			callstackLogger, err := logger_lib.New(wt.OzoneWorkDir, callstack.RootRunnableName, wt.config.Headless)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -727,7 +727,7 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 	var runspecRunnables []*RunspecRunnable
 	var rootRunable *RunspecRunnable
 
-	logger, err := logger_lib.New(wt.OzoneWorkDir, rootConfigRunnable.Name)
+	logger, err := logger_lib.New(wt.OzoneWorkDir, rootConfigRunnable.Name, wt.config.Headless)
 	if err != nil {
 		log.Fatalln(err)
 	}

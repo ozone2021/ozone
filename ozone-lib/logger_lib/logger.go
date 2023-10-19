@@ -17,7 +17,11 @@ type Logger struct {
 	closer     func() error
 }
 
-func New(ozoneWorkingDirectory, rootRunnable string) (*Logger, error) {
+func New(ozoneWorkingDirectory, rootRunnable string, headless bool) (*Logger, error) {
+	if headless {
+		log.New(os.Stdout, "", log.Ldate|log.Ltime)
+	}
+
 	filePath, workLogDir := getLogFilePathAndDir(ozoneWorkingDirectory, rootRunnable)
 
 	_, err := os.Stat(workLogDir)
