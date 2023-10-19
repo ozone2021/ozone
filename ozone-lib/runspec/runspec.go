@@ -439,7 +439,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger
 		cached := false
 		hash := ""
 
-		if node.hasCaching() { // TODO do only callstacks have caching?
+		if node.hasCaching() && wt.config.Headless == true { // TODO do only callstacks have caching?
 			cached, hash = wt.checkNodeCache(node)
 
 			if node.ConditionalsSatisfied() == true && cached == true {
@@ -469,7 +469,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger
 				results = append(results, NewSucceededCallstackResult(callstack.RootRunnable.Name, callstackLogger))
 			}
 
-			if err == nil && callstack.RootRunnable.hasCaching() && wt.config.Headless == false {
+			if err == nil && callstack.RootRunnable.hasCaching() && wt.config.Headless == true {
 				process_manager_client.CacheUpdate(wt.OzoneWorkDir, callstack.RootRunnable.Name, hash) // TODO
 			}
 		case *RunspecRunnable:
