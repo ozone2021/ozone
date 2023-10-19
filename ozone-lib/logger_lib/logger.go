@@ -19,7 +19,12 @@ type Logger struct {
 
 func New(ozoneWorkingDirectory, rootRunnable string, headless bool) (*Logger, error) {
 	if headless {
-		log.New(os.Stdout, "", log.Ldate|log.Ltime)
+		return &Logger{
+			Logger:   log.New(os.Stdout, "", log.Ldate|log.Ltime),
+			FileName: "stdout",
+			File:     nil,
+			closer:   nil,
+		}, nil
 	}
 
 	filePath, workLogDir := getLogFilePathAndDir(ozoneWorkingDirectory, rootRunnable)
