@@ -454,11 +454,16 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger
 		switch node.(type) {
 		case *CallStack:
 			callstack, _ := node.(*CallStack)
-			log.Printf("Executing callstack %s \n", callstack.RootRunnableName)
 			callstackLogger, err := logger_lib.New(wt.OzoneWorkDir, callstack.RootRunnableName, wt.config.Headless)
 			if err != nil {
 				log.Fatalln(err)
 			}
+			if callstack.ConditionalsSatisfied() == false {
+				log.Printf("Skipping callstack %s because conditionals not satisfied \n", callstack.RootRunnableName)
+				results = append(results, NewSucceededCallstackResult(callstack.RootRunnable.Name, callstackLogger))
+				continue
+			}
+			log.Printf("Executing callstack %s \n", callstack.RootRunnableName)
 			err = callstack.execute(wt.config.Headless, callstackLogger) // TODO call recursive
 			if err != nil {
 				results = append(results, NewFailedCallstackResult(callstack.RootRunnable.Name, err, callstackLogger))
@@ -487,6 +492,12 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger
 		runspecRunnable, ok := workQueue.Shift()
 		if !ok {
 			logger.Fatalf("Error: runnable work queue is empty. \n")
+		}
+
+		if runspecRunnable.ConditionalsSatisfied() == false {
+			log.Printf("Skipping runnable %s because conditionals not satisfied \n", runspecRunnable.Name)
+			results = append(results, NewSucceededCallstackResult(runspecRunnable.Name, logger))
+			continue
 		}
 
 		log.Printf("Executing runnable %s \n", runspecRunnable.Name)
