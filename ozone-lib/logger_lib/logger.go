@@ -22,7 +22,7 @@ func New(ozoneWorkingDirectory, rootRunnable string, headless bool) (*Logger, er
 		return &Logger{
 			Logger:   log.New(os.Stdout, "", log.Ldate|log.Ltime),
 			FileName: "stdout",
-			File:     nil,
+			File:     os.Stdout,
 			closer:   nil,
 		}, nil
 	}
