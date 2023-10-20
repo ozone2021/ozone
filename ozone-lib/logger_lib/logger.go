@@ -77,7 +77,10 @@ func getLogFilePathAndDir(ozoneWorkingDirectory string, rootRunnable string) (st
 }
 
 func (l *Logger) Close() error {
-	return l.closer()
+	if l.closer != nil {
+		return l.closer()
+	}
+	return nil
 }
 
 func (l *Logger) TailFile(n int) ([]string, error) {
