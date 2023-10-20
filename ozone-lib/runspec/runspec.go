@@ -496,7 +496,6 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger
 
 		if runspecRunnable.ConditionalsSatisfied() == false {
 			log.Printf("Skipping runnable %s because conditionals not satisfied \n", runspecRunnable.Name)
-			results = append(results, NewSucceededCallstackResult(runspecRunnable.Name, logger))
 			continue
 		}
 
