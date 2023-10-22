@@ -488,30 +488,10 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, logger *logger
 		}
 	}
 
-	for workQueue.Size() != 0 {
-		runspecRunnable, ok := workQueue.Shift()
-		if !ok {
-			logger.Fatalf("Error: runnable work queue is empty. \n")
-		}
+	workQueueResults, err := executeWorkQueue(false, wt.config.Headless, logger, workQueue)
+	results = append(results, workQueueResults...)
 
-		if runspecRunnable.ConditionalsSatisfied() == false {
-			log.Printf("Skipping runnable %s because conditionals not satisfied \n", runspecRunnable.Name)
-			continue
-		}
-
-		log.Printf("Executing runnable %s \n", runspecRunnable.Name)
-		logger.Printf("Runspec runnable %s \n", runspecRunnable.Name)
-
-		err := runspecRunnable.RunSteps(logger)
-		if err != nil {
-			if wt.config.Headless {
-				logger.Fatalf("Error %s in step: %s in runnable \n", err, runspecRunnable.Name)
-			}
-			results = append(results, NewFailedCallstackResult(runspecRunnable.Name, err, logger))
-		}
-	}
-
-	return results, nil
+	return results, err
 }
 
 func (cs *CallStack) execute(headless bool, logger *logger_lib.Logger) error {
@@ -535,6 +515,16 @@ func (cs *CallStack) execute(headless bool, logger *logger_lib.Logger) error {
 		}
 	}
 
+	_, err := executeWorkQueue(true, headless, logger, workQueue)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func executeWorkQueue(returnOnErr, headless bool, logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable]) ([]*CallstackResult, error) {
+	var results []*CallstackResult
+
 	for workQueue.Size() != 0 {
 		runspecRunnable, ok := workQueue.Shift()
 		if !ok {
@@ -542,15 +532,23 @@ func (cs *CallStack) execute(headless bool, logger *logger_lib.Logger) error {
 		}
 		log.Printf("  - %s \n", runspecRunnable.Name)
 
+		if runspecRunnable.ConditionalsSatisfied() == false {
+			log.Printf("Skipping runnable %s because conditionals not satisfied \n", runspecRunnable.Name)
+			continue
+		}
+
 		err := runspecRunnable.RunSteps(logger)
 		if err != nil {
 			if headless {
 				logger.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
 			}
-			return err
+			if returnOnErr {
+				results = append(results, NewFailedCallstackResult(runspecRunnable.Name, err, logger))
+				return results, err
+			}
 		}
 	}
-	return nil
+	return results, nil
 }
 
 func (wtr *RunspecRunnable) hasCaching() bool {
