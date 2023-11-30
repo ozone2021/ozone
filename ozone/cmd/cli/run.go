@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
 	"github.com/ozone2021/ozone/ozone-lib/runspec"
 	"github.com/spf13/cobra"
@@ -26,12 +27,14 @@ var runCmd = &cobra.Command{
 		}
 
 		spec.AddCallstacks(runnables, config, context)
+		//runResult := spec.RunSpecRootNodeToRunResult(spec.CallStacks[ozoneConfig.BuildType][0])
 		runResult := spec.ExecuteCallstacks()
 
 		runResult.PrintErrorLog()
 
-		log.Println("=================================================")
-		log.Println("=================================================")
+		fmt.Println("=================================================")
+		fmt.Println("====================  Run result  ===============")
+		fmt.Println("=================================================")
 
 		runResult.PrintRunResult()
 	},
