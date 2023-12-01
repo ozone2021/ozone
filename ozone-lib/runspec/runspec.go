@@ -434,6 +434,9 @@ func (wt *Runspec) ExecuteCallstacks() *RunResult {
 			if err != nil {
 				log.Fatalln("Error: %s", err)
 			}
+			if wt.config.Headless == false {
+				runResult.UpdateDaemonCacheResult(wt.OzoneWorkDir)
+			}
 		}
 	}
 
@@ -468,12 +471,14 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, runResult *Run
 			cached, hash = wt.checkNodeCache(node)
 
 			if node.ConditionalsSatisfied() == true && cached == true {
-				logger.Println("--------------------")
-				logger.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
-				logger.Println("--------------------")
+				fmt.Println("--------------------")
+				fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
+				fmt.Println("--------------------")
 				runResult.AddCallstackResult(node.GetRunnable().Name, Cached, nil)
 				continue
 			}
+
+			runResult.SetRunnableHash(node.GetRunnable().Name, hash)
 		}
 
 		switch node.(type) {
@@ -536,13 +541,16 @@ func (wt *Runspec) execute(cs *CallStack, headless bool, logger *logger_lib.Logg
 			cached, hash = wt.checkNodeCache(current)
 
 			if current.ConditionalsSatisfied() == true && cached == true {
-				logger.Println("--------------------")
-				logger.Printf("Cache Info: build files for %s %s unchanged from cache. \n", current.GetType(), current.GetRunnable().Name)
-				logger.Printf("Hash is %s \n", hash)
-				logger.Println("--------------------")
+				fmt.Println("--------------------")
+				fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", current.GetType(), current.GetRunnable().Name)
+				fmt.Printf("Hash is %s \n", hash)
+				fmt.Println("--------------------")
+				result.AddCallstackResult(current.GetRunnable().Name, Cached, nil)
 				//results = append(results, NewCachedCallstackResult(current.GetRunnable().Name, nil)) TODO
 				continue
 			}
+
+			result.SetRunnableHash(current.GetRunnable().Name, hash)
 		}
 
 		workQueue.Prepend(current)
