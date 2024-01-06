@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/google/uuid"
 	"github.com/oleiade/lane/v2"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
@@ -22,6 +23,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 )
 
 type RunspecStep struct {
@@ -65,7 +67,8 @@ func (ds *DifferentialScope) MarshalYAML() (interface{}, error) {
 //	 Steps is the depends and contextSteps merged
 type RunspecRunnable struct {
 	id           string
-	Children     []Node
+	Children     []*RunspecRunnable
+	Parallel     bool                 `yaml:"parallel"`
 	Name         string               `yaml:"name"`
 	Cache        bool                 `yaml:"cache"`
 	Ordinal      int                  `yaml:"ordinal"`
@@ -80,6 +83,10 @@ type RunspecRunnable struct {
 
 func (r *RunspecRunnable) GetRunnable() *RunspecRunnable {
 	return r
+}
+
+func (r *RunspecRunnable) IsParallel() bool {
+	return r.Parallel
 }
 
 type CallStack struct {
@@ -132,7 +139,7 @@ func (cs *CallStack) GetChildren() []Node {
 	return cs.Children
 }
 
-func (r RunspecRunnable) GetChildren() []Node {
+func (r RunspecRunnable) GetChildren() []*RunspecRunnable {
 	return r.Children
 }
 
@@ -144,7 +151,7 @@ func (r RunspecRunnable) ConditionalsSatisfied() bool {
 	return r.Conditionals.Satisfied
 }
 
-func getBuildHash(node Node, ozoneWorkingDir string) (string, error) {
+func getBuildHash(node *RunspecRunnable, ozoneWorkingDir string) (string, error) {
 	ozonefilePath := path.Join(ozoneWorkingDir, "Ozonefile")
 
 	ozonefileEditTime, err := cache.FileLastEdit(ozonefilePath)
@@ -187,11 +194,11 @@ func getBuildHash(node Node, ozoneWorkingDir string) (string, error) {
 
 type Runspec struct {
 	config       *config.OzoneConfig
-	ProjectName  string                               `yaml:"project"`
-	Context      string                               `yaml:"context"`
-	OzoneWorkDir string                               `yaml:"work_dir"` // move into config
-	BuildVars    *VariableMap                         `yaml:"build_vars"`
-	CallStacks   map[config.RunnableType][]*CallStack `yaml:"call_stack"`
+	ProjectName  string                                     `yaml:"project"`
+	Context      string                                     `yaml:"context"`
+	OzoneWorkDir string                                     `yaml:"work_dir"` // move into config
+	BuildVars    *VariableMap                               `yaml:"build_vars"`
+	CallStacks   map[config.RunnableType][]*RunspecRunnable `yaml:"call_stack"`
 }
 
 func NewRunspec(context, ozoneWorkingDir string, ozoneConfig *config.OzoneConfig) *Runspec {
@@ -207,7 +214,7 @@ func NewRunspec(context, ozoneWorkingDir string, ozoneConfig *config.OzoneConfig
 		Context:      context,
 		OzoneWorkDir: ozoneWorkingDir,
 		BuildVars:    renderedBuildVars,
-		CallStacks:   make(map[config.RunnableType][]*CallStack),
+		CallStacks:   make(map[config.RunnableType][]*RunspecRunnable),
 	}
 
 	return runspec
@@ -360,10 +367,11 @@ func (wt *Runspec) ConvertConfigRunnableStackItemToRunspecRunnable(configRunnabl
 	combinedSteps := append(contextSteps, steps...)
 
 	runspecRunnable := &RunspecRunnable{
-		id:           configRunnable.GetId(),
+		id:           uuid.New().String(),
+		Parallel:     configRunnable.IsParallel(),
 		Name:         configRunnable.Name,
 		Ordinal:      ordinal,
-		Children:     []Node{},
+		Children:     []*RunspecRunnable{},
 		Cache:        configRunnable.Cache,
 		Service:      service,
 		SourceFiles:  sourceFiles,
@@ -393,7 +401,7 @@ func NewConfigRunnableStackItem(parent *RunspecRunnable, configRunnable *config.
 	}
 }
 
-func (r *RunspecRunnable) addChild(child Node) {
+func (r *RunspecRunnable) addChild(child *RunspecRunnable) {
 	r.Children = append(r.Children, child)
 }
 
@@ -414,7 +422,7 @@ func addCallstackScopeVars(runnable *config.Runnable, buildScope *VariableMap, o
 	return service, dir
 }
 
-func (wt *Runspec) ExecuteCallstacks() *RunResult {
+func (wt *Runspec) ExecuteCallstacks(runResult *RunResult) {
 	runOrder := []config.RunnableType{
 		config.PreUtilityType,
 		config.BuildType,
@@ -423,33 +431,31 @@ func (wt *Runspec) ExecuteCallstacks() *RunResult {
 		config.PipelineType,
 		config.PostUtilityType,
 	}
-	runResult := NewRunResult()
 
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
+			// TODO shouldn't be "running" at this stage
+			runResult.RunSpecRootNodeToRunResult(callstack, wt.OzoneWorkDir, wt.config)
+		}
+	}
 
-			//runResult.AddRootCallstack(callstack, callstackLogger)
-			runResult.RunSpecRootNodeToRunResult(callstack.RootRunnable, wt.OzoneWorkDir, wt.config)
+	for _, runnableType := range runOrder {
+		for _, callstack := range wt.CallStacks[runnableType] {
 			err := wt.CheckCacheAndExecute(callstack, runResult)
 			if err != nil {
 				log.Fatalln("Error: %s", err)
 			}
-			if wt.config.Headless == false {
-				runResult.UpdateDaemonCacheResult(wt.OzoneWorkDir)
-			}
 		}
 	}
-
-	return runResult
 }
 
-func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, runResult *RunResult) error {
-	nodeInputStack := lane.NewStack[Node]()
+func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResult *RunResult) error {
+	nodeInputStack := lane.NewStack[*RunspecRunnable]()
 	nodeInputStack.Push(rootCallstack)
 
 	workQueue := lane.NewDeque[*RunspecRunnable]()
 
-	logger, err := runResult.GetLoggerForRunnable(rootCallstack.GetRunnable().Name)
+	logger, err := runResult.GetLoggerForRunnableId(rootCallstack.GetRunnable().GetId())
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -462,69 +468,77 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *CallStack, runResult *Run
 		cached := false
 		hash := ""
 
-		logger, err := runResult.GetLoggerForRunnable(node.GetRunnable().Name)
-		if err != nil {
-			log.Fatalln(err)
-		}
+		//logger, err := runResult.GetLoggerForRunnableId(node.GetRunnable().GetId())
+		//if err != nil {
+		//	log.Fatalln(err)
+		//}
 
 		if node.HasCaching() && wt.config.Headless == false { // TODO do only callstacks have caching?
 			cached, hash = wt.checkNodeCache(node)
 
 			if node.ConditionalsSatisfied() == true && cached == true {
-				fmt.Println("--------------------")
-				fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
-				fmt.Println("--------------------")
-				runResult.AddCallstackResult(node.GetRunnable().Name, Cached, nil)
+				//fmt.Println("--------------------")
+				//fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
+				//fmt.Println("--------------------")
+				runResult.AddCallstackResult(node.GetRunnable().GetId(), Cached, nil)
 				continue
 			}
 
-			runResult.SetRunnableHash(node.GetRunnable().Name, hash)
+			runResult.SetRunnableHash(node.GetRunnable().GetId(), hash)
 		}
 
-		switch node.(type) {
-		case *CallStack:
-			callstack, _ := node.(*CallStack)
-			if callstack.ConditionalsSatisfied() == false {
-				log.Printf("Skipping callstack %s because conditionals not satisfied \n", callstack.RootRunnableName)
-				runResult.AddCallstackResult(node.GetRunnable().Name, Succeeded, nil) // TODO conditional not satisfied state
-				continue
-			}
-			log.Printf("Executing callstack %s \n", callstack.RootRunnableName)
-			err = wt.execute(callstack, wt.config.Headless, logger, runResult) // TODO call recursive
-			if err != nil {
-				runResult.AddCallstackResult(node.GetRunnable().Name, Failed, err) // TODO conditional not satisfied state
-				if wt.config.Headless {
-					logger.Fatalf("Error: %s in runnable \n", err, callstack.RootRunnable.Name)
-				}
-			} else {
-				runResult.AddCallstackResult(node.GetRunnable().Name, Succeeded, nil)
-			}
+		//switch node.Cache {
+		//case true:
+		//	if node.ConditionalsSatisfied() == false {
+		//		log.Printf("Skipping callstack %s because conditionals not satisfied \n", node.Name)
+		//		runResult.AddCallstackResult(node.GetRunnable().GetId(), Succeeded, nil) // TODO conditional not satisfied state
+		//		continue
+		//	}
+		//	//log.Printf("Executing callstack %s \n", node.Name)
+		//	err = wt.execute(node, wt.config.Headless, logger, runResult) // TODO call recursive
+		//	if err != nil {
+		//		runResult.AddCallstackResult(node.GetRunnable().GetId(), Failed, err) // TODO conditional not satisfied state
+		//		if wt.config.Headless {
+		//			logger.Fatalf("Error: %s in runnable \n", err, node.Name)
+		//		}
+		//	} else {
+		//		runResult.AddCallstackResult(node.GetRunnable().GetId(), Succeeded, nil)
+		//	}
+		//
+		//	if err == nil && wt.config.Headless == false {
+		//		process_manager_client.CacheUpdate(wt.OzoneWorkDir, node.Name, hash) // TODO
+		//	}
+		//case false:
 
-			if err == nil && callstack.RootRunnable.HasCaching() && wt.config.Headless == false {
-				process_manager_client.CacheUpdate(wt.OzoneWorkDir, callstack.RootRunnable.Name, hash) // TODO
-			}
-		case *RunspecRunnable:
-			runspecRunnable, _ := node.(*RunspecRunnable)
-			workQueue.Prepend(runspecRunnable)
-			for i := len(runspecRunnable.Children) - 1; i >= 0; i-- {
-				nodeInputStack.Push(runspecRunnable.Children[i].GetRunnable())
-			}
-		default:
-			logger.Fatalln("Error: node is not a CallStack or Runnable")
+		if node.GetId() != rootCallstack.GetId() {
+			workQueue.Prepend(node)
 		}
+		if node.Parallel == true {
+			wt.executeParallel(node.Children, runResult)
+		} else {
+			for i := len(node.Children) - 1; i >= 0; i-- {
+				childRunnable := node.Children[i].GetRunnable()
+				nodeInputStack.Push(childRunnable)
+			}
+		}
+		//default:
+		//	logger.Fatalln("Error: node is not a CallStack or Runnable")
+		//}
 	}
+
+	workQueue.Prepend(rootCallstack)
 
 	err = executeWorkQueue(false, wt.config.Headless, logger, workQueue, runResult)
 
 	return err
 }
 
-func (wt *Runspec) execute(cs *CallStack, headless bool, logger *logger_lib.Logger, result *RunResult) error {
+func (wt *Runspec) execute2(runnable *RunspecRunnable, headless bool, logger *logger_lib.Logger, result *RunResult) error {
 	inStack := lane.NewDeque[*RunspecRunnable]()
 
-	inStack.Prepend(cs.RootRunnable)
+	inStack.Prepend(runnable)
 
-	log.Printf("Executing callstack: %s \n", cs.RootRunnable.Name)
+	//log.Printf("Executing callstack: %s \n", runnable.Name)
 
 	workQueue := lane.NewDeque[*RunspecRunnable]()
 
@@ -541,21 +555,28 @@ func (wt *Runspec) execute(cs *CallStack, headless bool, logger *logger_lib.Logg
 			cached, hash = wt.checkNodeCache(current)
 
 			if current.ConditionalsSatisfied() == true && cached == true {
-				fmt.Println("--------------------")
-				fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", current.GetType(), current.GetRunnable().Name)
-				fmt.Printf("Hash is %s \n", hash)
-				fmt.Println("--------------------")
-				result.AddCallstackResult(current.GetRunnable().Name, Cached, nil)
+				//fmt.Println("--------------------")
+				//fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", current.GetType(), current.GetRunnable().Name)
+				//fmt.Printf("Hash is %s \n", hash)
+				//fmt.Println("--------------------")
+				result.AddCallstackResult(current.GetRunnable().GetId(), Cached, nil)
 				//results = append(results, NewCachedCallstackResult(current.GetRunnable().Name, nil)) TODO
 				continue
 			}
 
-			result.SetRunnableHash(current.GetRunnable().Name, hash)
+			result.SetRunnableHash(current.GetRunnable().GetId(), hash)
 		}
 
 		workQueue.Prepend(current)
-		for _, child := range current.Children {
-			inStack.Prepend(child.GetRunnable())
+		if current.Parallel == true {
+			wt.executeParallel(current.Children, result)
+		} else {
+			//for i := len(current.Children) - 1; i >= 0; i-- {
+			//	inStack.Prepend(current.Children[i].GetRunnable())
+			//}
+			for _, child := range current.Children { // TODO check this is right.
+				inStack.Prepend(child.GetRunnable())
+			}
 		}
 	}
 
@@ -568,17 +589,27 @@ func (wt *Runspec) execute(cs *CallStack, headless bool, logger *logger_lib.Logg
 
 func executeWorkQueue(returnOnErr, headless bool, logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable], result *RunResult) error {
 
+	//for workQueue.Size() != 0 {
+	//	runspecRunnable, ok := workQueue.Pop()
+	//	if !ok {
+	//		logger.Fatalf("Error: runnable work queue is empty. \n")
+	//	}
+	//	log.Printf("  - %s \n", runspecRunnable.Name)
+	//}
+	//log.Printf("remove")
 	for workQueue.Size() != 0 {
-		runspecRunnable, ok := workQueue.Shift()
+		runspecRunnable, ok := workQueue.Pop()
 		if !ok {
 			logger.Fatalf("Error: runnable work queue is empty. \n")
 		}
-		log.Printf("  - %s \n", runspecRunnable.Name)
 
 		if runspecRunnable.ConditionalsSatisfied() == false {
 			log.Printf("Skipping runnable %s because conditionals not satisfied \n", runspecRunnable.Name)
+			// TODO status for skipped cus conditionals
 			continue
 		}
+
+		result.AddCallstackResult(runspecRunnable.GetId(), Running, nil)
 
 		err := runspecRunnable.RunSteps(logger)
 
@@ -587,15 +618,32 @@ func executeWorkQueue(returnOnErr, headless bool, logger *logger_lib.Logger, wor
 				logger.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
 			}
 			if returnOnErr {
-				result.AddCallstackResult(runspecRunnable.Name, Failed, err)
+				result.AddCallstackResult(runspecRunnable.GetId(), Failed, err)
 				return err
 			}
 		}
 
-		result.AddCallstackResult(runspecRunnable.Name, Succeeded, err) // Assumes succeeded the sets to fail if err
+		result.AddSucceededCallstackResult(runspecRunnable.GetId(), err) // Assumes succeeded the sets to fail if err
 	}
 
 	return nil
+}
+
+func (wt *Runspec) executeParallel(nodes []*RunspecRunnable, result *RunResult) {
+	var wg sync.WaitGroup
+	for _, node := range nodes {
+		wg.Add(1)
+		node := node
+		go func() {
+			defer wg.Done()
+			result.AddCallstackResult(node.GetRunnable().GetId(), Running, nil)
+			err := wt.CheckCacheAndExecute(node, result)
+			if err != nil {
+				log.Fatalln("Error: %s", err)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func (wtr *RunspecRunnable) HasCaching() bool {
@@ -639,7 +687,7 @@ func (step *RunspecStep) RunStep(runnableType config.RunnableType, logger *logge
 func (step *RunspecStep) runBuildable(logger *logger_lib.Logger) error {
 	switch step.Name {
 	case "buildDockerImage":
-		fmt.Println("Building docker image.")
+		logger.Println("Building docker image.")
 		return buildables.BuildDockerContainer(step.Scope.scope, logger)
 	case "bashScript":
 		script, ok := step.Scope.scope.GetVariable("SCRIPT")
@@ -649,10 +697,10 @@ func (step *RunspecStep) runBuildable(logger *logger_lib.Logger) error {
 		_, err := utilities.RunBashScript(script.String(), step.Scope.scope, logger)
 		return err
 	case "pushDockerImage":
-		fmt.Println("Building docker image.")
+		logger.Println("Building docker image.")
 		return buildables.PushDockerImage(step.Scope.scope, logger)
 	case "tagDockerImageAs":
-		fmt.Println("Tagging docker image.")
+		logger.Println("Tagging docker image.")
 		return buildables.TagDockerImageAs(step.Scope.scope, logger)
 	}
 	return nil
@@ -729,7 +777,7 @@ func (step *RunspecStep) runDeployables(logger *logger_lib.Logger) error {
 //}
 
 // True means cache hit
-func (wt *Runspec) checkNodeCache(node Node) (bool, string) {
+func (wt *Runspec) checkNodeCache(node *RunspecRunnable) (bool, string) {
 	if wt.config.Headless == true || node.HasCaching() == false {
 		return false, ""
 	}
@@ -757,7 +805,6 @@ func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *conf
 	for _, r := range runnables {
 		asOutput := make(map[string]string)
 		var err error
-		var callstack *CallStack
 
 		// Treat pipelines as a special case, each runnable dependency of the pipeline is an invidiual callstack.
 		if r.Type == config.PipelineType {
@@ -766,12 +813,14 @@ func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *conf
 				if !exists {
 					log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, r.Name)
 				}
-				callstack, err = wt.addCallstack(dependencyRunnable, ordinal, CopyOrCreateNew(topLevelScope), asOutput)
-				wt.CallStacks[callstack.RootRunnableType] = append(wt.CallStacks[callstack.RootRunnableType], callstack)
+				var runspecRunnable *RunspecRunnable
+				runspecRunnable, err = wt.addRunspecRunnable(dependencyRunnable, ordinal, CopyOrCreateNew(topLevelScope), asOutput)
+				wt.CallStacks[runspecRunnable.Type] = append(wt.CallStacks[runspecRunnable.Type], runspecRunnable)
 			}
 		} else {
-			callstack, err = wt.addCallstack(r, ordinal, CopyOrCreateNew(topLevelScope), asOutput)
-			wt.CallStacks[callstack.RootRunnableType] = append(wt.CallStacks[callstack.RootRunnableType], callstack)
+			var runspecRunnable *RunspecRunnable
+			runspecRunnable, err = wt.addRunspecRunnable(r, ordinal, CopyOrCreateNew(topLevelScope), asOutput)
+			wt.CallStacks[runspecRunnable.Type] = append(wt.CallStacks[runspecRunnable.Type], runspecRunnable)
 		}
 		if err != nil {
 			log.Fatalf("Error %s in runnable %s", err, r.Name)
@@ -781,7 +830,7 @@ func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *conf
 	}
 }
 
-func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int, buildScope *VariableMap, asOutput map[string]string) (*CallStack, error) {
+func (wt *Runspec) addRunspecRunnable(rootConfigRunnable *config.Runnable, ordinal int, buildScope *VariableMap, asOutput map[string]string) (*RunspecRunnable, error) {
 	var allSourceFiles []string
 	var runspecRunnables []*RunspecRunnable
 	var rootRunable *RunspecRunnable
@@ -800,7 +849,7 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 		configRunnable := configRunnableStackItem.ConfigRunnable
 
 		if configRunnable.Cache == true && configRunnableStackItem.Parent != nil {
-			childCallstack, err := wt.addCallstack(configRunnable, ordinal, CopyOrCreateNew(configRunnableStackItem.buildScope), asOutput)
+			childCallstack, err := wt.addRunspecRunnable(configRunnable, ordinal, CopyOrCreateNew(configRunnableStackItem.buildScope), asOutput)
 			if err != nil {
 				return nil, err
 			}
@@ -855,22 +904,22 @@ func (wt *Runspec) addCallstack(rootConfigRunnable *config.Runnable, ordinal int
 		// TODO prepend queue with all configRunnableChildren
 	}
 
-	callStack := &CallStack{
-		RootRunnableName: rootConfigRunnable.Name,
-		RootRunnableType: rootConfigRunnable.Type,
-		Caching:          rootConfigRunnable.Cache,
-		Hash:             "", // All source files + system environment variables + build vars
-		RootRunnable:     rootRunable,
-		SourceFiles:      allSourceFiles,
-		Children:         rootRunable.Children,
-	}
+	//callStack := &CallStack{
+	//	RootRunnableName: rootConfigRunnable.Name,
+	//	RootRunnableType: rootConfigRunnable.Type,
+	//	Caching:          rootConfigRunnable.Cache,
+	//	Hash:             "", // All source files + system environment variables + build vars
+	//	RootRunnable:     rootRunable,
+	//	SourceFiles:      allSourceFiles,
+	//	Children:         rootRunable.Children,
+	//}
 
 	err = logger.Close()
 	if err != nil {
 		return nil, err
 	}
 
-	return callStack, nil
+	return rootRunable, nil
 }
 
 func (wt *Runspec) PrintRunspec() {

@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/env"
 	"github.com/ozone2021/ozone/ozone-lib/env/git_env"
@@ -76,7 +75,7 @@ type ContextConditional struct {
 }
 
 type Runnable struct {
-	id                  string
+	Parallel            *bool                 `yaml:"parallel,omitempty"`
 	Name                string                `yaml:"name"`
 	DropContextEnv      bool                  `yaml:"drop_context_env"`
 	Cache               bool                  `yaml:"cache"`
@@ -91,6 +90,13 @@ type Runnable struct {
 	ContextSteps        []*ContextStep        `yaml:"context_steps"`
 	Steps               []*Step               `yaml:"steps"`
 	Type                RunnableType
+}
+
+func (r *Runnable) IsParallel() bool {
+	if r.Parallel == nil {
+		return false
+	}
+	return *r.Parallel
 }
 
 type OzoneConfig struct {
@@ -202,9 +208,9 @@ func (config *OzoneConfig) ListHasRunnableOfType(name string, runnables []*Runna
 	return false, nil
 }
 
-func (r *Runnable) GetId() string {
-	return r.id
-}
+//func (r *Runnable) GetId() string {
+//	return r.id
+//}
 
 func (config *OzoneConfig) FetchEnvs(ordinal int, envList []string, scope *VariableMap) (*VariableMap, error) {
 	ordinal++
@@ -489,28 +495,28 @@ func ReadConfig(headless bool) *OzoneConfig {
 	}
 
 	// loop through all runnables and create a random uuid for the id
-	ozoneConfig.setIds()
+	//ozoneConfig.setIds()
 
 	return &ozoneConfig
 }
 
-func (c *OzoneConfig) setIds() {
-	for _, runnable := range c.PreUtilities {
-		runnable.id = uuid.New().String()
-	}
-	for _, runnable := range c.Builds {
-		runnable.id = uuid.New().String()
-	}
-	for _, runnable := range c.Deploys {
-		runnable.id = uuid.New().String()
-	}
-	for _, runnable := range c.Tests {
-		runnable.id = uuid.New().String()
-	}
-	for _, runnable := range c.Pipelines {
-		runnable.id = uuid.New().String()
-	}
-	for _, runnable := range c.PostUtilities {
-		runnable.id = uuid.New().String()
-	}
-}
+//func (c *OzoneConfig) setIds() {
+//	for _, runnable := range c.PreUtilities {
+//		runnable.id = uuid.New().String()
+//	}
+//	for _, runnable := range c.Builds {
+//		runnable.id =
+//	}
+//	for _, runnable := range c.Deploys {
+//		runnable.id = uuid.New().String()
+//	}
+//	for _, runnable := range c.Tests {
+//		runnable.id = uuid.New().String()
+//	}
+//	for _, runnable := range c.Pipelines {
+//		runnable.id = uuid.New().String()
+//	}
+//	for _, runnable := range c.PostUtilities {
+//		runnable.id = uuid.New().String()
+//	}
+//}
