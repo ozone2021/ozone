@@ -533,70 +533,8 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 	return err
 }
 
-func (wt *Runspec) execute2(runnable *RunspecRunnable, headless bool, logger *logger_lib.Logger, result *RunResult) error {
-	inStack := lane.NewDeque[*RunspecRunnable]()
-
-	inStack.Prepend(runnable)
-
-	//log.Printf("Executing callstack: %s \n", runnable.Name)
-
-	workQueue := lane.NewDeque[*RunspecRunnable]()
-
-	for inStack.Size() != 0 {
-		current, ok := inStack.Shift()
-		if !ok {
-			logger.Fatalf("Error: runnable work stack is empty. \n")
-		}
-
-		cached := false
-		hash := ""
-
-		if current.HasCaching() && wt.config.Headless == false { // TODO do only callstacks have caching?
-			cached, hash = wt.checkNodeCache(current)
-
-			if current.ConditionalsSatisfied() == true && cached == true {
-				//fmt.Println("--------------------")
-				//fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", current.GetType(), current.GetRunnable().Name)
-				//fmt.Printf("Hash is %s \n", hash)
-				//fmt.Println("--------------------")
-				result.AddCallstackResult(current.GetRunnable().GetId(), Cached, nil)
-				//results = append(results, NewCachedCallstackResult(current.GetRunnable().Name, nil)) TODO
-				continue
-			}
-
-			result.SetRunnableHash(current.GetRunnable().GetId(), hash)
-		}
-
-		workQueue.Prepend(current)
-		if current.Parallel == true {
-			wt.executeParallel(current.Children, result)
-		} else {
-			//for i := len(current.Children) - 1; i >= 0; i-- {
-			//	inStack.Prepend(current.Children[i].GetRunnable())
-			//}
-			for _, child := range current.Children { // TODO check this is right.
-				inStack.Prepend(child.GetRunnable())
-			}
-		}
-	}
-
-	err := executeWorkQueue(true, headless, logger, workQueue, result)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func executeWorkQueue(returnOnErr, headless bool, logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable], result *RunResult) error {
 
-	//for workQueue.Size() != 0 {
-	//	runspecRunnable, ok := workQueue.Pop()
-	//	if !ok {
-	//		logger.Fatalf("Error: runnable work queue is empty. \n")
-	//	}
-	//	log.Printf("  - %s \n", runspecRunnable.Name)
-	//}
-	//log.Printf("remove")
 	for workQueue.Size() != 0 {
 		runspecRunnable, ok := workQueue.Pop()
 		if !ok {
