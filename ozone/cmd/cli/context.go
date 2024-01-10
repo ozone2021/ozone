@@ -12,8 +12,8 @@ func init() {
 }
 
 var contextCmd = &cobra.Command{
-	Use:   "c",
-	Long:  `Show context or change context`,
+	Use:  "c",
+	Long: `Show ozoneContext or change ozoneContext`,
 	Run: func(cmd *cobra.Command, args []string) {
 
 		if len(args) == 0 {
@@ -34,10 +34,10 @@ var contextCmd = &cobra.Command{
 			}
 		} else {
 			givenContext := args[0]
-			// TODO check context is in
+			// TODO check ozoneContext is in
 			if config.HasContext(givenContext) {
 				process_manager_client.SetContext(ozoneWorkingDir, givenContext)
-				fmt.Printf("Switch to context: '%s'", givenContext)
+				fmt.Printf("Switch to ozoneContext: '%s'", givenContext)
 			} else {
 				fmt.Printf("Context '%s' doesn't exist in Ozonefile.", givenContext)
 			}

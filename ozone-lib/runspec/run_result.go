@@ -15,7 +15,7 @@ import (
 type RunResult struct {
 	Status    CallstackStatus
 	Roots     []*CallstackResultNode
-	index     map[string]*CallstackResultNode
+	Index     map[string]*CallstackResultNode
 	listeners []UpdateListenerFunc
 }
 
@@ -48,7 +48,7 @@ type UpdateListenerFunc func(*RunResult)
 func NewRunResult() *RunResult {
 	runResult := &RunResult{
 		Status: Running,
-		index:  make(map[string]*CallstackResultNode),
+		Index:  make(map[string]*CallstackResultNode),
 	}
 
 	return runResult

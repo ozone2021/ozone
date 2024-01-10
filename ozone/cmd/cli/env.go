@@ -33,7 +33,7 @@ package cli
 //		}
 //
 //		topLevelScope := config_variable.CopyOrCreateNew(config.BuildVars)
-//		topLevelScope.AddVariable(config_variable.NewStringVariable("CONTEXT", context), 0)
+//		topLevelScope.AddVariable(config_variable.NewStringVariable("CONTEXT", ozoneContext), 0)
 //		topLevelScope.AddVariable(config_variable.NewStringVariable("OZONE_WORKING_DIR", ozoneWorkingDir), 0)
 //
 //		ok, b := config.FetchRunnable(runnableFlag)
@@ -41,7 +41,7 @@ package cli
 //			log.Fatalf("Runnable %s not found.", runnableFlag)
 //		}
 //		asOutput := make(map[string]string)
-//		_, env, err := runIndividual(b, 0, context, config, config_variable.CopyOrCreateNew(topLevelScope), asOutput, false)
+//		_, env, err := runIndividual(b, 0, ozoneContext, config, config_variable.CopyOrCreateNew(topLevelScope), asOutput, false)
 //		if err != nil {
 //			log.Fatalf("Error %s in runnable %s", err, b.Name)
 //		}

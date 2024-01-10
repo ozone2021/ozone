@@ -2,8 +2,8 @@ package logger_lib
 
 import (
 	"bufio"
-	"encoding/base64"
 	"fmt"
+	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"os"
 	"path/filepath"
@@ -66,10 +66,9 @@ func (l *Logger) GetLogFilePath() string {
 }
 
 func getLogFilePathAndDir(ozoneWorkingDirectory string, rootRunnable string) (string, string) {
-	ozoneWorkDir64 := base64.StdEncoding.EncodeToString([]byte(ozoneWorkingDirectory))
-	fileName := rootRunnable + ".log"
+	workLogDir := filepath.Join(utils.GetTmpDir(ozoneWorkingDirectory), "logs")
 
-	workLogDir := filepath.Join("/tmp/ozone", ozoneWorkDir64)
+	fileName := rootRunnable + ".log"
 
 	filePath := filepath.Join(workLogDir, fileName)
 

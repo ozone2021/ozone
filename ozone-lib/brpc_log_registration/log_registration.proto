@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package brpc_log_registration;
+
+option go_package = "./log_registration_pb";
+
+import "google/protobuf/empty.proto";
+
+message LogAppRegistrationResponse {
+  string app_id = 1;
+  string app_unix_pipe_path = 2;
+}
+
+service RegistrationService {
+  rpc RegisterLogApp (google.protobuf.Empty) returns (LogAppRegistrationResponse) {}
+}

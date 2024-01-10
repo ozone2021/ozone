@@ -11,7 +11,7 @@ import (
 
 var ozoneWorkingDir = ""
 var config *ozoneConfig.OzoneConfig
-var context string
+var ozoneContext string
 var headless bool
 
 var rootCmd = &cobra.Command{
@@ -22,8 +22,8 @@ var rootCmd = &cobra.Command{
 		var err error
 		headless, _ = cmd.Flags().GetBool("detached")
 		config = ozoneConfig.ReadConfig(headless)
-		contextFlag, _ := cmd.Flags().GetString("context")
-		context = config_utils.FetchContext(headless, contextFlag, ozoneWorkingDir, config)
+		contextFlag, _ := cmd.Flags().GetString("ozoneContext")
+		ozoneContext = config_utils.FetchContext(headless, contextFlag, ozoneWorkingDir, config)
 
 		ozoneWorkingDir, err = os.Getwd()
 		if err != nil {
@@ -39,7 +39,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("context", "c", "", fmt.Sprintf("context (default is %s)", "TODO")) // TODO
+	rootCmd.PersistentFlags().StringP("ozoneContext", "c", "", fmt.Sprintf("ozoneContext (default is %s)", "TODO")) // TODO
 	rootCmd.PersistentFlags().BoolP("detached", "d", false, "detached is for running headless, without docker daemon (you will likely want detached for server based ci/cd. Use the daemon for local)")
 }
 

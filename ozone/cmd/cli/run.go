@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	. "github.com/ozone2021/ozone/ozone-lib/brpc_log_registration/log_registration_server"
 	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
 	"github.com/ozone2021/ozone/ozone-lib/runspec"
 	"github.com/spf13/cobra"
@@ -93,7 +94,7 @@ var runCmd = &cobra.Command{
 	Long: `Shows a dry run of what is going to be ran.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		spec := runspec.NewRunspec(context, ozoneWorkingDir, config)
+		spec := runspec.NewRunspec(ozoneContext, ozoneWorkingDir, config)
 
 		var runnables []*ozoneConfig.Runnable
 
@@ -108,7 +109,7 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		spec.AddCallstacks(runnables, config, context)
+		spec.AddCallstacks(runnables, config, ozoneContext)
 
 		runResult := runspec.NewRunResult()
 		p := tea.NewProgram(initialModel(combinedArgs, nil))
@@ -133,6 +134,14 @@ var runCmd = &cobra.Command{
 
 		p.Send(FinishedAddingCallstacks{})
 
+		server := NewLogRegistrationServer(ozoneWorkingDir)
+
+		go func() {
+			defer wg.Done()
+			wg.Add(1)
+			server.Start()
+		}()
+
 		spec.ExecuteCallstacks(runResult)
 
 		//runResult.PrintErrorLog()
@@ -143,7 +152,7 @@ var runCmd = &cobra.Command{
 
 		wg.Wait()
 
-		runResult.PrintRunResult(true)
+		//runResult.PrintRunResult(true)
 	},
 }
 

@@ -15,7 +15,7 @@ var planCmd = &cobra.Command{
 	Use:  "plan",
 	Long: `Shows a dry run of what is going to be ran.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runspec := runspec2.NewRunspec(context, ozoneWorkingDir, config)
+		runspec := runspec2.NewRunspec(ozoneContext, ozoneWorkingDir, config)
 
 		var builds []*ozoneConfig.Runnable
 
@@ -28,7 +28,7 @@ var planCmd = &cobra.Command{
 			}
 		}
 
-		runspec.AddCallstacks(builds, config, context)
+		runspec.AddCallstacks(builds, config, ozoneContext)
 
 		runspec.PrintRunspec()
 	},
