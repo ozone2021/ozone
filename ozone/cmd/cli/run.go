@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	. "github.com/ozone2021/ozone/ozone-lib/brpc_log_registration/log_registration_server"
 	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
-	"github.com/ozone2021/ozone/ozone-lib/runspec"
+	runspec2 "github.com/ozone2021/ozone/ozone-lib/config/runspec"
+	. "github.com/ozone2021/ozone/ozone-lib/run/brpc_log_registration/log_registration_server"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
@@ -16,17 +16,17 @@ import (
 type model struct {
 	runList          string
 	callStacksLoaded bool
-	runResult        *runspec.RunResult // items on the to-do list
+	runResult        *runspec2.RunResult // items on the to-do list
 	spinner          spinner.Model
 }
 
 type RunResultUpdate struct {
-	*runspec.RunResult
+	*runspec2.RunResult
 }
 
 type FinishedAddingCallstacks struct{}
 
-func initialModel(runList string, result *runspec.RunResult) model {
+func initialModel(runList string, result *runspec2.RunResult) model {
 	return model{
 		runList:          runList,
 		callStacksLoaded: false,
@@ -94,7 +94,7 @@ var runCmd = &cobra.Command{
 	Long: `Shows a dry run of what is going to be ran.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		spec := runspec.NewRunspec(ozoneContext, ozoneWorkingDir, config)
+		spec := runspec2.NewRunspec(ozoneContext, ozoneWorkingDir, config)
 
 		var runnables []*ozoneConfig.Runnable
 
@@ -111,9 +111,9 @@ var runCmd = &cobra.Command{
 
 		spec.AddCallstacks(runnables, config, ozoneContext)
 
-		runResult := runspec.NewRunResult()
+		runResult := runspec2.NewRunResult()
 		p := tea.NewProgram(initialModel(combinedArgs, nil))
-		sendRunResultUpdate := func(rr *runspec.RunResult) {
+		sendRunResultUpdate := func(rr *runspec2.RunResult) {
 			p.Send(RunResultUpdate{
 				RunResult: rr,
 			})

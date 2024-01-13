@@ -2,7 +2,7 @@ package cli
 
 import (
 	ozoneConfig "github.com/ozone2021/ozone/ozone-lib/config"
-	runspec2 "github.com/ozone2021/ozone/ozone-lib/runspec"
+	runspec2 "github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	"github.com/spf13/cobra"
 	"log"
 )

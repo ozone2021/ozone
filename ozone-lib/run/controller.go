@@ -2,7 +2,7 @@ package run
 
 import (
 	"github.com/ozone2021/ozone/ozone-lib/config"
-	"github.com/ozone2021/ozone/ozone-lib/runspec"
+	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 )
 
 type RunController struct {

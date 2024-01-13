@@ -3,9 +3,9 @@ package logapp_controller
 import (
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/ozone2021/ozone/ozone-lib/brpc_log_registration/log_registration_client_service"
-	"github.com/ozone2021/ozone/ozone-lib/brpc_log_server/log_server"
-	"github.com/ozone2021/ozone/ozone-lib/runspec"
+	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
+	"github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server"
+	"github.com/ozone2021/ozone/ozone-lib/run/brpc_log_registration/log_registration_client_service"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"path/filepath"

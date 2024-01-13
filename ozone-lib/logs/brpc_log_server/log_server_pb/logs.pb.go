@@ -83,10 +83,10 @@ type CallstackLogNode struct {
 
 	Id          string              `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	LogFilePath string              `protobuf:"bytes,2,opt,name=log_file_path,json=logFilePath,proto3" json:"log_file_path,omitempty"`
-	Depth       uint64              `protobuf:"varint,3,opt,name=depth,proto3" json:"depth,omitempty"`
-	Children    []*CallstackLogNode `protobuf:"bytes,4,rep,name=children,proto3" json:"children,omitempty"`
-	Status      CallstackStatus     `protobuf:"varint,5,opt,name=status,proto3,enum=brpc_log_server.CallstackStatus" json:"status,omitempty"`
-	Name        string              `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	Depth    uint64              `protobuf:"varint,3,opt,name=depth,proto3" json:"depth,omitempty"`
+	Children []*CallstackLogNode `protobuf:"bytes,4,rep,name=children,proto3" json:"children,omitempty"`
+	Status   CallstackStatus     `protobuf:"varint,5,opt,name=status,proto3,enum=brpc_log_server.CallstackStatus" json:"status,omitempty"`
+	Name     string              `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
 	Error       string              `protobuf:"bytes,7,opt,name=error,proto3" json:"error,omitempty"`
 }
 

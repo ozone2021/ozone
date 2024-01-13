@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/ozone2021/ozone/ozone-lib/runspec"
+	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	"os"
 )
 
