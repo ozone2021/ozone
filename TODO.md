@@ -137,3 +137,8 @@ Probably
 # High priority
 
 Use cancellable context for all commands so it finishes when ctrl-c is pressed.
+
+# LogApp
+
+Write a controller that manages the LogServer in the log app, use a chan to send logs from LogServer to the controller, and then
+pass that to the LogApp.

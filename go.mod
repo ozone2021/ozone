@@ -11,6 +11,7 @@ require (
 	github.com/fatih/color v1.16.0
 	github.com/flosch/pongo2/v4 v4.0.2
 	github.com/google/uuid v1.4.0
+	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.4.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/oleiade/lane/v2 v2.0.0

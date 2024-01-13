@@ -1,0 +1,74 @@
+package log_server
+
+import (
+	"context"
+	"fmt"
+	"github.com/jinzhu/copier"
+	. "github.com/ozone2021/ozone/ozone-lib/brpc_log_server/log_server_pb"
+	"github.com/ozone2021/ozone/ozone-lib/runspec"
+	"github.com/ozone2021/ozone/ozone-lib/utils"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"log"
+	"net"
+	"os"
+	"path/filepath"
+)
+
+type LogServer struct {
+	UnimplementedLogUpdateServiceServer
+	pipePath         string
+	grpcServer       *grpc.Server
+	outputUpdateChan chan *runspec.RunResult
+}
+
+type LogAppDetails struct {
+	Id string
+}
+
+func NewLogServer(pipePath string, output chan *runspec.RunResult) *LogServer {
+	return &LogServer{
+		pipePath:         filepath.Join(utils.GetTmpDir(pipePath), "socks"),
+		grpcServer:       grpc.NewServer(),
+		outputUpdateChan: output,
+	}
+}
+
+func (s *LogServer) Start() {
+	err := os.Remove(s.pipePath) // Remove the pipe if it already exists
+	if err != nil && !os.IsNotExist(err) {
+		log.Fatalf("failed to remove existing pipe: %v", err)
+	}
+
+	listener, err := net.Listen("unix", s.pipePath)
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	defer listener.Close()
+
+	// Register the server with the gRPC server
+	RegisterLogUpdateServiceServer(s.grpcServer, s)
+
+	// Start serving requests
+	if err := s.grpcServer.Serve(listener); err != nil {
+		log.Fatalf("failed to serve: %s", err)
+	}
+}
+
+func (s *LogServer) UpdateRunResult(ctx context.Context, in *RunResult) (*emptypb.Empty, error) {
+	fmt.Println("UpdateRunResult called")
+
+	var runspecRunresult *runspec.RunResult
+
+	err := copier.Copy(&runspecRunresult, &in)
+	if err != nil {
+		log.Printf("Error unmarshalling runResult %s", err)
+		return nil, err
+	}
+
+	s.outputUpdateChan <- runspecRunresult
+
+	return &emptypb.Empty{}, nil
+}
+
+// TODO heartbeat from logApp to server to make sure the logApp is still alive

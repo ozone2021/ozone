@@ -1,4 +1,4 @@
-package log_registration_client
+package log_registration_client_service
 
 import (
 	"context"
@@ -32,7 +32,8 @@ func (c *LogRegistrationService) Connect(ozoneWorkingDir string) {
 	c.registrationServiceClient = NewRegistrationServiceClient(conn)
 }
 
-func (c *LogRegistrationService) RegisterLogApp() (*LogAppRegistrationResponse, error) {
-	empty := &emptypb.Empty{}
-	return c.registrationServiceClient.RegisterLogApp(context.Background(), empty)
+func (c *LogRegistrationService) RegisterLogApp(appUuid string) (*emptypb.Empty, error) {
+	return c.registrationServiceClient.RegisterLogApp(context.Background(), &LogAppRegistrationRequest{
+		AppId: appUuid,
+	})
 }

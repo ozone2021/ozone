@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package brpc_log_server;
 
+option go_package = "./log_server_pb";
+
+import "google/protobuf/empty.proto";
+
 enum CallstackStatus {
   NOT_STARTED = 0;
   RUNNING = 1;
@@ -23,8 +27,9 @@ message CallstackLogNode {
 message RunResult {
   CallstackStatus status = 1;
   repeated CallstackLogNode roots = 2;
-  map<string, CallstackLogNode>
-  // Roots
-  // Index
-  // Listeners
+  map<string, CallstackLogNode> Index = 3;
+}
+
+service LogUpdateService {
+  rpc UpdateRunResult (RunResult) returns (google.protobuf.Empty) {}
 }

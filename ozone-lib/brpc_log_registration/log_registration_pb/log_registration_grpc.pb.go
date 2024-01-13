@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type RegistrationServiceClient interface {
-	RegisterLogApp(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*LogAppRegistrationResponse, error)
+	RegisterLogApp(ctx context.Context, in *LogAppRegistrationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type registrationServiceClient struct {
@@ -38,8 +38,8 @@ func NewRegistrationServiceClient(cc grpc.ClientConnInterface) RegistrationServi
 	return &registrationServiceClient{cc}
 }
 
-func (c *registrationServiceClient) RegisterLogApp(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*LogAppRegistrationResponse, error) {
-	out := new(LogAppRegistrationResponse)
+func (c *registrationServiceClient) RegisterLogApp(ctx context.Context, in *LogAppRegistrationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, RegistrationService_RegisterLogApp_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (c *registrationServiceClient) RegisterLogApp(ctx context.Context, in *empt
 // All implementations must embed UnimplementedRegistrationServiceServer
 // for forward compatibility
 type RegistrationServiceServer interface {
-	RegisterLogApp(context.Context, *emptypb.Empty) (*LogAppRegistrationResponse, error)
+	RegisterLogApp(context.Context, *LogAppRegistrationRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedRegistrationServiceServer()
 }
 
@@ -59,7 +59,7 @@ type RegistrationServiceServer interface {
 type UnimplementedRegistrationServiceServer struct {
 }
 
-func (UnimplementedRegistrationServiceServer) RegisterLogApp(context.Context, *emptypb.Empty) (*LogAppRegistrationResponse, error) {
+func (UnimplementedRegistrationServiceServer) RegisterLogApp(context.Context, *LogAppRegistrationRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterLogApp not implemented")
 }
 func (UnimplementedRegistrationServiceServer) mustEmbedUnimplementedRegistrationServiceServer() {}
@@ -76,7 +76,7 @@ func RegisterRegistrationServiceServer(s grpc.ServiceRegistrar, srv Registration
 }
 
 func _RegistrationService_RegisterLogApp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
+	in := new(LogAppRegistrationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func _RegistrationService_RegisterLogApp_Handler(srv interface{}, ctx context.Co
 		FullMethod: RegistrationService_RegisterLogApp_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RegistrationServiceServer).RegisterLogApp(ctx, req.(*emptypb.Empty))
+		return srv.(RegistrationServiceServer).RegisterLogApp(ctx, req.(*LogAppRegistrationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

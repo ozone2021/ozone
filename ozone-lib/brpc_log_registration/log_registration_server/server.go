@@ -3,7 +3,6 @@ package log_registration_server
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	. "github.com/ozone2021/ozone/ozone-lib/brpc_log_registration/log_registration_pb"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"google.golang.org/grpc"
@@ -17,7 +16,7 @@ import (
 type LogRegistrationServer struct {
 	UnimplementedRegistrationServiceServer
 	ozoneSocketDirPath string
-	registeredLogApps  map[string]*LogAppDetails
+	output             chan *LogAppDetails
 }
 
 type LogAppDetails struct {
@@ -25,10 +24,10 @@ type LogAppDetails struct {
 	PipePath string
 }
 
-func NewLogRegistrationServer(ozoneWorkingDir string) *LogRegistrationServer {
+func NewLogRegistrationServer(ozoneWorkingDir string, output chan *LogAppDetails) *LogRegistrationServer {
 	return &LogRegistrationServer{
 		ozoneSocketDirPath: filepath.Join(utils.GetTmpDir(ozoneWorkingDir), "socks"),
-		registeredLogApps:  make(map[string]*LogAppDetails),
+		output:             output,
 	}
 }
 
@@ -74,23 +73,15 @@ func (s *LogRegistrationServer) Start() {
 	}
 }
 
-func (s *LogRegistrationServer) RegisterLogApp(context context.Context, _ *emptypb.Empty) (*LogAppRegistrationResponse, error) {
-	appIdUUID, err := uuid.NewUUID()
-	if err != nil {
-		return nil, err
-	}
-	appId := appIdUUID.String()
-	pipePath := fmt.Sprintf("%s/log-app-%s.sock", s.ozoneSocketDirPath, appId)
+func (s *LogRegistrationServer) RegisterLogApp(_ context.Context, request *LogAppRegistrationRequest) (*emptypb.Empty, error) {
+	pipePath := fmt.Sprintf("%s/log-app-%s.sock", s.ozoneSocketDirPath, request.AppId)
 
-	s.registeredLogApps[appId] = &LogAppDetails{
-		Id:       appId,
+	s.output <- &LogAppDetails{
+		Id:       request.AppId,
 		PipePath: pipePath,
 	}
 
-	return &LogAppRegistrationResponse{
-		AppId:           appId,
-		AppUnixPipePath: pipePath,
-	}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // TODO heartbeat from logApp to server to make sure the logApp is still alive
