@@ -26,8 +26,9 @@ func NewLogAppController(ozoneWorkingDir string) *LogAppController {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	trimmedUUID := appIdUUID.String()[:6]
 
-	updatePipePath := filepath.Join(utils.GetTmpDir(ozoneWorkingDir), "socks", fmt.Sprintf("log-app-%s.sock", appIdUUID))
+	updatePipePath := filepath.Join(utils.GetTmpDir(ozoneWorkingDir), "socks", fmt.Sprintf("log-%s.sock", trimmedUUID))
 
 	return &LogAppController{
 		server:          log_server.NewLogServer(updatePipePath, updateChan),

@@ -11,33 +11,29 @@ import (
 )
 
 type LogappUpdateController struct {
-	registrationServer *LogRegistrationServer
-	registeredLogApps  map[string]*LogAppDetails
-	logAppGrpcClients  map[string]log_server_pb.LogUpdateServiceClient
-	incomingLogApps    <-chan *LogAppDetails // TODO check arrow
-	resultUpdate       chan *runspec.RunResult
+	registrationServer     *LogRegistrationServer
+	registeredLogApps      map[string]*LogAppDetails
+	logAppGrpcClients      map[string]log_server_pb.LogUpdateServiceClient
+	incomingLogApps        <-chan *LogAppDetails // TODO check arrow
+	channelHandlerShutdown chan struct{}
 }
 
-func NewLogappUpdateController(ozoneWorkingDir string) *LogappUpdateController {
-	incomingLogApps := make(chan *LogAppDetails)
-
+func NewLogappUpdateController(ozoneWorkingDir string, incomingLogAppDetails chan *LogAppDetails) *LogappUpdateController {
 	return &LogappUpdateController{
-		registrationServer: NewLogRegistrationServer(ozoneWorkingDir, incomingLogApps),
+		registrationServer: NewLogRegistrationServer(ozoneWorkingDir, incomingLogAppDetails),
 		registeredLogApps:  make(map[string]*LogAppDetails),
 		logAppGrpcClients:  make(map[string]log_server_pb.LogUpdateServiceClient),
-		incomingLogApps:    incomingLogApps,
+		incomingLogApps:    incomingLogAppDetails,
 	}
 }
 
 func (c *LogappUpdateController) Start() {
-	go c.registrationServer.Start()
-
 	for {
 		select {
 		case logAppDetails := <-c.incomingLogApps:
 			c.registeredLogApps[logAppDetails.Id] = logAppDetails
-		case runResult := <-c.resultUpdate:
-			c.updateLogApps(runResult)
+		case <-c.channelHandlerShutdown:
+			return
 		}
 	}
 }
@@ -51,7 +47,7 @@ func (c *LogappUpdateController) connectToLogApp(details *LogAppDetails) {
 
 }
 
-func (c *LogappUpdateController) updateLogApps(runResult *runspec.RunResult) {
+func (c *LogappUpdateController) UpdateLogApps(runResult *runspec.RunResult) {
 	for _, logAppClient := range c.logAppGrpcClients {
 		var runResultPb *log_server_pb.RunResult
 		err := copier.Copy(&runResultPb, &runResult)

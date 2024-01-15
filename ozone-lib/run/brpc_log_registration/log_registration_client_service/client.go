@@ -3,7 +3,6 @@ package log_registration_client_service
 import (
 	"context"
 	"fmt"
-	. "github.com/ozone2021/ozone/ozone-lib/brpc_log_registration/log_registration_pb"
 	. "github.com/ozone2021/ozone/ozone-lib/run/brpc_log_registration/log_registration_pb"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"google.golang.org/grpc"

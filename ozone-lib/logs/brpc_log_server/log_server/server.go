@@ -2,11 +2,9 @@ package log_server
 
 import (
 	"context"
-	"fmt"
 	"github.com/jinzhu/copier"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	. "github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server_pb"
-	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"log"
@@ -28,16 +26,26 @@ type LogAppDetails struct {
 
 func NewLogServer(pipePath string, output chan *runspec.RunResult) *LogServer {
 	return &LogServer{
-		pipePath:         filepath.Join(utils.GetTmpDir(pipePath), "socks"),
+		pipePath:         pipePath,
 		grpcServer:       grpc.NewServer(),
 		outputUpdateChan: output,
 	}
+}
+
+func mkfifo(path string, mode os.FileMode) error {
+	dirPath := filepath.Dir(path)
+	return os.MkdirAll(dirPath, os.ModePerm)
 }
 
 func (s *LogServer) Start() {
 	err := os.Remove(s.pipePath) // Remove the pipe if it already exists
 	if err != nil && !os.IsNotExist(err) {
 		log.Fatalf("failed to remove existing pipe: %v", err)
+	}
+
+	err = mkfifo(s.pipePath, 0666) // Create the named pipe
+	if err != nil {
+		log.Fatalf("failed to create named pipe: %v", err)
 	}
 
 	listener, err := net.Listen("unix", s.pipePath)
@@ -56,8 +64,6 @@ func (s *LogServer) Start() {
 }
 
 func (s *LogServer) UpdateRunResult(ctx context.Context, in *RunResult) (*emptypb.Empty, error) {
-	fmt.Println("UpdateRunResult called")
-
 	var runspecRunresult *runspec.RunResult
 
 	err := copier.Copy(&runspecRunresult, &in)

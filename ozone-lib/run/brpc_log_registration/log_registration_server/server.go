@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 type LogRegistrationServer struct {
@@ -34,15 +35,10 @@ func NewLogRegistrationServer(ozoneWorkingDir string, output chan *LogAppDetails
 func mkfifo(path string, mode os.FileMode) error {
 	dirPath := filepath.Dir(path)
 	return os.MkdirAll(dirPath, os.ModePerm)
-	//if err != nil {
-	//	fmt.Println("Error creating directory:", err)
-	//} else {
-	//	fmt.Println("Directories created successfully!")
-	//}
-	//return syscall.Mkfifo(path, uint32(mode))
 }
 
-func (s *LogRegistrationServer) Start() {
+func (s *LogRegistrationServer) Start(wg *sync.WaitGroup) {
+	defer wg.Done()
 	pipePath := fmt.Sprintf("%s/log-registration.sock", s.ozoneSocketDirPath)
 
 	err := os.Remove(pipePath) // Remove the pipe if it already exists
