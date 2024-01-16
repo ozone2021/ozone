@@ -1,14 +1,12 @@
 package logapp_controller
 
 import (
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	"github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server"
 	"github.com/ozone2021/ozone/ozone-lib/run/brpc_log_registration/log_registration_client_service"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
-	"path/filepath"
 )
 
 type LogAppController struct {
@@ -26,16 +24,15 @@ func NewLogAppController(ozoneWorkingDir string) *LogAppController {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	trimmedUUID := appIdUUID.String()[:6]
 
-	updatePipePath := filepath.Join(utils.GetTmpDir(ozoneWorkingDir), "socks", fmt.Sprintf("log-%s.sock", trimmedUUID))
+	updatePipePath := utils.GetLogPipePath(appIdUUID.String(), ozoneWorkingDir)
 
 	return &LogAppController{
 		server:          log_server.NewLogServer(updatePipePath, updateChan),
 		updatePipePath:  updatePipePath,
 		appIdUUID:       appIdUUID,
 		ozoneWorkingDir: ozoneWorkingDir,
-		ui:              NewLogBubbleteaApp(appIdUUID.String()),
+		ui:              NewLogBubbleteaApp(appIdUUID.String(), updateChan),
 	}
 }
 
@@ -52,6 +49,7 @@ func (c *LogAppController) registerLogApp() {
 }
 
 func (c *LogAppController) Start() {
+	c.registerLogApp()
 	go c.server.Start()
 	c.ui.Run()
 }

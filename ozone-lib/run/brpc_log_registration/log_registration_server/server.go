@@ -16,6 +16,7 @@ import (
 
 type LogRegistrationServer struct {
 	UnimplementedRegistrationServiceServer
+	ozoneWorkingDir    string
 	ozoneSocketDirPath string
 	output             chan *LogAppDetails
 }
@@ -27,6 +28,7 @@ type LogAppDetails struct {
 
 func NewLogRegistrationServer(ozoneWorkingDir string, output chan *LogAppDetails) *LogRegistrationServer {
 	return &LogRegistrationServer{
+		ozoneWorkingDir:    ozoneWorkingDir,
 		ozoneSocketDirPath: filepath.Join(utils.GetTmpDir(ozoneWorkingDir), "socks"),
 		output:             output,
 	}
@@ -70,7 +72,7 @@ func (s *LogRegistrationServer) Start(wg *sync.WaitGroup) {
 }
 
 func (s *LogRegistrationServer) RegisterLogApp(_ context.Context, request *LogAppRegistrationRequest) (*emptypb.Empty, error) {
-	pipePath := fmt.Sprintf("%s/log-app-%s.sock", s.ozoneSocketDirPath, request.AppId)
+	pipePath := utils.GetLogPipePath(request.AppId, s.ozoneWorkingDir)
 
 	s.output <- &LogAppDetails{
 		Id:       request.AppId,

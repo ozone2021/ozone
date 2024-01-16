@@ -27,3 +27,9 @@ func GetTmpDir(ozoneWorkingDirectory string) string {
 	workLogDir := filepath.Join("/tmp/ozone", ozoneWorkDir64)
 	return workLogDir
 }
+
+func GetLogPipePath(uuidString, ozoneWorkingDir string) string {
+	trimmedUUID := uuidString[:6]
+
+	return filepath.Join(GetTmpDir(ozoneWorkingDir), "socks", fmt.Sprintf("log-%s.sock", trimmedUUID))
+}

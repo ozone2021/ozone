@@ -12,6 +12,7 @@ type LogBubbleteaApp struct {
 	appId           string
 	spinner         spinner.Model
 	runResultUpdate chan *runspec.RunResult
+	runResult       *runspec.RunResult
 	program         *tea.Program
 }
 
@@ -19,10 +20,11 @@ type RunResultUpdate struct {
 	*runspec.RunResult
 }
 
-func NewLogBubbleteaApp(appId string) *LogBubbleteaApp {
+func NewLogBubbleteaApp(appId string, runResultUpdate chan *runspec.RunResult) *LogBubbleteaApp {
 	app := &LogBubbleteaApp{
-		appId:   appId,
-		spinner: spinner.New(spinner.WithSpinner(spinner.Dot)),
+		appId:           appId,
+		spinner:         spinner.New(spinner.WithSpinner(spinner.Dot)),
+		runResultUpdate: runResultUpdate,
 	}
 	app.program = tea.NewProgram(app)
 
@@ -35,6 +37,10 @@ func (m LogBubbleteaApp) Init() tea.Cmd {
 
 func (m LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
+	case RunResultUpdate:
+		newData := msg.(RunResultUpdate).RunResult
+		m.runResult = newData
+		return m, nil
 	default:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -45,7 +51,20 @@ func (m LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m LogBubbleteaApp) View() string {
-	return fmt.Sprintf("AppId, %s!\n\n%s", m.appId, m.spinner.View())
+	s := ""
+	s += fmt.Sprintf("AppId, %s!\n\n%s", m.appId, m.spinner.View())
+
+	if m.runResult == nil {
+		s += fmt.Sprintf("\n\n   %s Loading... \n\n", m.spinner.View())
+	} else {
+		s += m.runResult.PrintRunResult(false)
+	}
+
+	// The footer
+	s += "\nPress q to quit.\n"
+
+	// Send the UI for rendering
+	return s
 }
 
 func (m LogBubbleteaApp) ChannelHandler() {
@@ -55,11 +74,13 @@ func (m LogBubbleteaApp) ChannelHandler() {
 			m.program.Send(RunResultUpdate{
 				RunResult: runResult,
 			})
+			// TODO shutdown handle
 		}
 	}
 }
 
 func (m LogBubbleteaApp) Run() {
+	go m.ChannelHandler()
 
 	if _, err := m.program.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)

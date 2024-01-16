@@ -2,6 +2,7 @@ package logapp_update_controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/jinzhu/copier"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	"github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server_pb"
@@ -12,17 +13,20 @@ import (
 
 type LogappUpdateController struct {
 	registrationServer     *LogRegistrationServer
-	registeredLogApps      map[string]*LogAppDetails
-	logAppGrpcClients      map[string]log_server_pb.LogUpdateServiceClient
+	registeredLogApps      map[string]*ConnectedLogApp
 	incomingLogApps        <-chan *LogAppDetails // TODO check arrow
 	channelHandlerShutdown chan struct{}
+}
+
+type ConnectedLogApp struct {
+	*LogAppDetails
+	log_server_pb.LogUpdateServiceClient
 }
 
 func NewLogappUpdateController(ozoneWorkingDir string, incomingLogAppDetails chan *LogAppDetails) *LogappUpdateController {
 	return &LogappUpdateController{
 		registrationServer: NewLogRegistrationServer(ozoneWorkingDir, incomingLogAppDetails),
-		registeredLogApps:  make(map[string]*LogAppDetails),
-		logAppGrpcClients:  make(map[string]log_server_pb.LogUpdateServiceClient),
+		registeredLogApps:  make(map[string]*ConnectedLogApp),
 		incomingLogApps:    incomingLogAppDetails,
 	}
 }
@@ -31,29 +35,34 @@ func (c *LogappUpdateController) Start() {
 	for {
 		select {
 		case logAppDetails := <-c.incomingLogApps:
-			c.registeredLogApps[logAppDetails.Id] = logAppDetails
+			c.registeredLogApps[logAppDetails.Id] = &ConnectedLogApp{
+				LogAppDetails:          logAppDetails,
+				LogUpdateServiceClient: c.connectToLogApp(logAppDetails),
+			}
 		case <-c.channelHandlerShutdown:
 			return
 		}
 	}
 }
 
-func (c *LogappUpdateController) connectToLogApp(details *LogAppDetails) {
-	conn, err := grpc.Dial(details.PipePath, grpc.WithInsecure())
+func (c *LogappUpdateController) connectToLogApp(details *LogAppDetails) log_server_pb.LogUpdateServiceClient {
+	conn, err := grpc.Dial(fmt.Sprintf("unix://"+details.PipePath), grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("failed to connect: %v", err)
 	}
-	c.logAppGrpcClients[details.Id] = log_server_pb.NewLogUpdateServiceClient(conn)
-
+	return log_server_pb.NewLogUpdateServiceClient(conn)
 }
 
 func (c *LogappUpdateController) UpdateLogApps(runResult *runspec.RunResult) {
-	for _, logAppClient := range c.logAppGrpcClients {
-		var runResultPb *log_server_pb.RunResult
+	for _, connectedApp := range c.registeredLogApps {
+		runResultPb := &log_server_pb.RunResult{}
 		err := copier.Copy(&runResultPb, &runResult)
 		if err != nil {
 			log.Fatalf("failed to copy: %v", err)
 		}
-		logAppClient.UpdateRunResult(context.Background(), runResultPb)
+		_, err = connectedApp.UpdateRunResult(context.Background(), runResultPb)
+		if err != nil {
+			log.Println("failed to update log app: ", err)
+		}
 	}
 }

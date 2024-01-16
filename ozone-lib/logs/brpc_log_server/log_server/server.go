@@ -64,7 +64,7 @@ func (s *LogServer) Start() {
 }
 
 func (s *LogServer) UpdateRunResult(ctx context.Context, in *RunResult) (*emptypb.Empty, error) {
-	var runspecRunresult *runspec.RunResult
+	runspecRunresult := &runspec.RunResult{}
 
 	err := copier.Copy(&runspecRunresult, &in)
 	if err != nil {
