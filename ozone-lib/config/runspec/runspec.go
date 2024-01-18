@@ -68,9 +68,10 @@ func (ds *DifferentialScope) MarshalYAML() (interface{}, error) {
 type RunspecRunnable struct {
 	id           string
 	Children     []*RunspecRunnable
-	Parallel     bool                 `yaml:"parallel"`
-	Name         string               `yaml:"name"`
-	Cache        bool                 `yaml:"cache"`
+	Parallel     bool   `yaml:"parallel"`
+	Name         string `yaml:"name"`
+	Cache        bool   `yaml:"cache"`
+	hash         string
 	Ordinal      int                  `yaml:"ordinal"`
 	Service      string               `yaml:"service"`
 	SourceFiles  []string             `yaml:"source_files"`
@@ -468,7 +469,6 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 			log.Fatalf("Error: runnable stack is empty. \n")
 		}
 		cached := false
-		hash := ""
 
 		//logger, err := runResult.GetLoggerForRunnableId(node.GetRunnable().GetId())
 		//if err != nil {
@@ -476,7 +476,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 		//}
 
 		if node.HasCaching() && wt.config.Headless == false { // TODO do only callstacks have caching?
-			cached, hash = wt.checkNodeCache(node)
+			cached, node.hash = wt.checkNodeCache(node)
 
 			if node.ConditionalsSatisfied() == true && cached == true {
 				//fmt.Println("--------------------")
@@ -486,7 +486,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 				continue
 			}
 
-			runResult.SetRunnableHash(node.GetRunnable().GetId(), hash)
+			runResult.SetRunnableHash(node.GetRunnable().GetId(), node.hash)
 		}
 
 		//switch node.Cache {
@@ -528,14 +528,20 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 		//}
 	}
 
-	workQueue.Prepend(rootCallstack)
+	rootResult, err := runResult.findCallstackResultById(rootCallstack.id)
+	if err != nil {
+		return err
+	}
+	if rootResult.Status != Cached {
+		workQueue.Prepend(rootCallstack)
+	}
 
-	err = executeWorkQueue(false, wt.config.Headless, logger, workQueue, runResult)
+	err = wt.executeWorkQueue(false, logger, workQueue, runResult)
 
 	return err
 }
 
-func executeWorkQueue(returnOnErr, headless bool, logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable], result *RunResult) error {
+func (wt *Runspec) executeWorkQueue(returnOnErr bool, logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable], result *RunResult) error {
 
 	for workQueue.Size() != 0 {
 		runspecRunnable, ok := workQueue.Pop()
@@ -554,7 +560,7 @@ func executeWorkQueue(returnOnErr, headless bool, logger *logger_lib.Logger, wor
 		err := runspecRunnable.RunSteps(logger)
 
 		if err != nil {
-			if headless {
+			if wt.config.Headless {
 				logger.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
 			}
 			if returnOnErr {
@@ -564,6 +570,9 @@ func executeWorkQueue(returnOnErr, headless bool, logger *logger_lib.Logger, wor
 		}
 
 		result.AddSucceededCallstackResult(runspecRunnable.GetId(), err) // Assumes succeeded the sets to fail if err
+		if err == nil && wt.config.Headless == false && runspecRunnable.HasCaching() == true {
+			process_manager_client.CacheUpdate(wt.OzoneWorkDir, runspecRunnable.Name, runspecRunnable.hash) // TODO
+		}
 	}
 
 	return nil

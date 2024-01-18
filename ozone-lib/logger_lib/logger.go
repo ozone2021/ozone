@@ -2,7 +2,6 @@ package logger_lib
 
 import (
 	"bufio"
-	"fmt"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"os"
@@ -37,18 +36,9 @@ func New(ozoneWorkingDirectory, rootRunnable string, headless bool) (*Logger, er
 		}
 	}
 
-	var file *os.File
-	_, err = os.Stat(filePath)
-	if os.IsNotExist(err) {
-		file, err = os.Create(filePath)
-		if err != nil && err != os.ErrExist {
-			log.Fatalln(fmt.Sprintf("Error creating logger: %s", err))
-		}
-	} else {
-		file, err = os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			log.Fatal(err)
-		}
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	return &Logger{

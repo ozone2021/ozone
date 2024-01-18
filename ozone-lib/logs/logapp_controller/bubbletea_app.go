@@ -3,11 +3,13 @@ package logapp_controller
 import (
 	"bufio"
 	"fmt"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -30,6 +32,14 @@ var (
 	}()
 )
 
+type FollowMode int
+
+const (
+	OFF FollowMode = iota
+	FOLLOW_CURRENT
+	FOLLOW_ALL
+)
+
 type LogBubbleteaApp struct {
 	appId                       string
 	spinner                     spinner.Model
@@ -37,7 +47,7 @@ type LogBubbleteaApp struct {
 	runResult                   *runspec.RunResult
 	program                     *tea.Program
 	selectedCallstackResultNode *runspec.CallstackResultNode
-	followMode                  bool
+	followMode                  FollowMode
 	logOutput                   string
 	logStopChan                 chan struct{}
 	logMutex                    sync.Mutex
@@ -57,7 +67,7 @@ func NewLogBubbleteaApp(appId string, runResultUpdate chan *runspec.RunResult) *
 		appId:           appId,
 		spinner:         spinner.New(spinner.WithSpinner(spinner.Dot)),
 		runResultUpdate: runResultUpdate,
-		followMode:      true,
+		followMode:      FOLLOW_ALL,
 		logStopChan:     make(chan struct{}),
 	}
 	app.program = tea.NewProgram(app, tea.WithMouseCellMotion())
@@ -75,6 +85,20 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds []tea.Cmd
 	)
 	switch msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg.(tea.KeyMsg), key.NewBinding(
+			key.WithKeys("f"),
+		)):
+			m.followMode = FOLLOW_ALL
+		case key.Matches(msg.(tea.KeyMsg), viewport.DefaultKeyMap().Up):
+			m.followMode = OFF
+		case key.Matches(msg.(tea.KeyMsg), key.NewBinding(
+			key.WithKeys("pgdown"),
+			key.WithHelp("pgdn", "page down"),
+		)):
+			m.viewport.GotoBottom()
+		}
 	case tea.WindowSizeMsg:
 		headerHeight := lipgloss.Height(m.headerView())
 		footerHeight := lipgloss.Height(m.footerView())
@@ -115,8 +139,11 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case LogLineUpdate:
 		logLine := msg.(LogLineUpdate).Line
-		m.logOutput = m.logOutput + "\n" + logLine
+		m.logOutput = m.logOutput + logLine
 		m.viewport.SetContent(m.logOutput)
+		if m.followMode != OFF {
+			m.viewport.GotoBottom()
+		}
 		return m, nil
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -139,7 +166,12 @@ func (m *LogBubbleteaApp) headerView() string {
 func (m *LogBubbleteaApp) footerView() string {
 	info := infoStyle.Render(fmt.Sprintf("%3.f%%", m.viewport.ScrollPercent()*100))
 	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(info)))
-	return lipgloss.JoinHorizontal(lipgloss.Center, line, info)
+	line = lipgloss.JoinHorizontal(lipgloss.Center, line, info)
+
+	if m.selectedCallstackResultNode != nil {
+		line += "\n" + m.selectedCallstackResultNode.Name
+	}
+	return line
 }
 
 func max(a, b int) int {
@@ -176,15 +208,23 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
+	reader := bufio.NewReader(file)
 
-	for scanner.Scan() {
+	for {
 		select {
 		case <-m.logStopChan:
 			return nil
 		default:
+			line, err := reader.ReadString('\n')
+			if err == io.EOF {
+				// Handle end of file
+				break
+			} else if err != nil {
+				// Handle error
+				log.Fatalf("ShowLogs err: %s \n", err)
+			}
 			m.program.Send(LogLineUpdate{
-				Line: scanner.Text(),
+				Line: line,
 			})
 		}
 	}
@@ -199,12 +239,10 @@ func (m *LogBubbleteaApp) CloseLogs() {
 	close(m.logStopChan)
 	m.logStopChan = make(chan struct{})
 
-	go m.program.Send(LogLineUpdate{
-		Line: fmt.Sprintf("\n\n ------- ^^^^ Logs for: %s -------- \n\n", m.selectedCallstackResultNode.Name),
-	})
+	m.logOutput = ""
 }
 
-func (m *LogBubbleteaApp) FollowMode() bool {
+func (m *LogBubbleteaApp) FollowMode() FollowMode {
 	return m.followMode
 }
 
@@ -251,7 +289,6 @@ func (m *LogBubbleteaApp) ChannelHandler() {
 
 			diffNode, ok := diff(m.runResult, runResult)
 			if !ok {
-				log.Println("Issue with diffNode")
 				continue
 			}
 			m.runResult = runResult

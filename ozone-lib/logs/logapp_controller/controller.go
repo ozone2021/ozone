@@ -7,6 +7,7 @@ import (
 	"github.com/ozone2021/ozone/ozone-lib/run/brpc_log_registration/log_registration_client_service"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
+	"time"
 )
 
 type LogAppController struct {
@@ -49,7 +50,8 @@ func (c *LogAppController) registerLogApp() {
 }
 
 func (c *LogAppController) Start() {
-	c.registerLogApp()
 	go c.server.Start()
+	time.Sleep(2 * time.Second)
+	c.registerLogApp()
 	c.ui.Run()
 }
