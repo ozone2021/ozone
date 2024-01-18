@@ -16,6 +16,7 @@ type LogappUpdateController struct {
 	registeredLogApps      map[string]*ConnectedLogApp
 	incomingLogApps        <-chan *LogAppDetails // TODO check arrow
 	channelHandlerShutdown chan struct{}
+	updateAllFunction      runspec.UpdateAllListenersFunc
 }
 
 type ConnectedLogApp struct {
@@ -23,11 +24,12 @@ type ConnectedLogApp struct {
 	log_server_pb.LogUpdateServiceClient
 }
 
-func NewLogappUpdateController(ozoneWorkingDir string, incomingLogAppDetails chan *LogAppDetails) *LogappUpdateController {
+func NewLogappUpdateController(ozoneWorkingDir string, incomingLogAppDetails chan *LogAppDetails, updateFunction runspec.UpdateAllListenersFunc) *LogappUpdateController {
 	return &LogappUpdateController{
 		registrationServer: NewLogRegistrationServer(ozoneWorkingDir, incomingLogAppDetails),
 		registeredLogApps:  make(map[string]*ConnectedLogApp),
 		incomingLogApps:    incomingLogAppDetails,
+		updateAllFunction:  updateFunction,
 	}
 }
 
@@ -39,6 +41,7 @@ func (c *LogappUpdateController) Start() {
 				LogAppDetails:          logAppDetails,
 				LogUpdateServiceClient: c.connectToLogApp(logAppDetails),
 			}
+			c.updateAllFunction()
 		case <-c.channelHandlerShutdown:
 			return
 		}
@@ -56,7 +59,7 @@ func (c *LogappUpdateController) connectToLogApp(details *LogAppDetails) log_ser
 func (c *LogappUpdateController) UpdateLogApps(runResult *runspec.RunResult) {
 	for _, connectedApp := range c.registeredLogApps {
 		runResultPb := &log_server_pb.RunResult{}
-		err := copier.Copy(&runResultPb, &runResult)
+		err := copier.CopyWithOption(&runResultPb, &runResult, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 		if err != nil {
 			log.Fatalf("failed to copy: %v", err)
 		}

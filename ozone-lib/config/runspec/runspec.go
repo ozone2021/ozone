@@ -460,6 +460,8 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 		log.Fatalln(err)
 	}
 
+	runResult.AddCallstackResult(rootCallstack.GetRunnable().GetId(), Running, nil)
+
 	for nodeInputStack.Size() != 0 {
 		node, ok := nodeInputStack.Pop()
 		if !ok {

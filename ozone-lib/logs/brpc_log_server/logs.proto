@@ -16,7 +16,7 @@ enum CallstackStatus {
 
 message CallstackLogNode {
   string id = 1;
-  string log_file_path = 2;
+  string log_file = 2;
   uint64 depth = 3;
   repeated CallstackLogNode children = 4;
   CallstackStatus status = 5;

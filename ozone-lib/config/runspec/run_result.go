@@ -33,7 +33,8 @@ const (
 
 type CallstackResultNode struct {
 	Id       string
-	Logger   *logger_lib.Logger
+	logger   *logger_lib.Logger
+	LogFile  string
 	Caching  bool
 	Hash     string
 	Depth    int
@@ -44,6 +45,7 @@ type CallstackResultNode struct {
 }
 
 type UpdateListenerFunc func(*RunResult)
+type UpdateAllListenersFunc func()
 
 func NewRunResult() *RunResult {
 	runResult := &RunResult{
@@ -95,7 +97,7 @@ func (r *RunResult) GetLoggerForRunnableId(id string) (*logger_lib.Logger, error
 		return nil, err
 	}
 
-	return callstackResult.Logger, nil
+	return callstackResult.logger, nil
 }
 
 func (r *RunResult) SetRunnableHash(id, hash string) error {
@@ -127,19 +129,26 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 
 	root := &CallstackResultNode{
 		Id:      rootNode.GetRunnable().GetId(),
-		Logger:  rootLogger,
+		logger:  rootLogger,
+		LogFile: rootLogger.GetLogFilePath(),
 		Caching: rootNode.GetRunnable().Cache,
 		Depth:   0,
-		Status:  Running, // You can set the initial status as needed
+		Status:  NotStarted,
 		Name:    rootNode.GetRunnable().Name,
 	}
 
 	stack.Push(root)
 	visited[rootNode] = root
 
+	var asList []*CallstackResultNode
+
+	asList = append(asList, root)
+
 	for stack.Size() > 0 {
 		// Pop the top node from the stack
 		current, _ := stack.Pop()
+
+		r.Index[current.Id] = current
 
 		// Get the corresponding original Node
 		originalNode := getNodeByRunnableName(rootNode, current.Name)
@@ -162,7 +171,8 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 				}
 				childResult := &CallstackResultNode{
 					Id:      child.GetRunnable().GetId(),
-					Logger:  callstackLogger,
+					logger:  callstackLogger,
+					LogFile: callstackLogger.GetLogFilePath(),
 					Caching: child.GetRunnable().Cache,
 					Depth:   current.Depth + 1,
 					Status:  NotStarted, // You can set the initial status as needed
@@ -197,9 +207,10 @@ func getNodeByRunnableName(current *RunspecRunnable, name string) *RunspecRunnab
 
 func (r *RunResult) AddRootCallstack(callstack *CallStack, logger *logger_lib.Logger) {
 	r.Roots = append(r.Roots, &CallstackResultNode{
-		Status: Running,
-		Name:   callstack.RootRunnableName,
-		Logger: logger,
+		Status:  NotStarted,
+		Name:    callstack.RootRunnableName,
+		logger:  logger,
+		LogFile: logger.GetLogFilePath(),
 	})
 	r.UpdateListeners()
 }
@@ -308,7 +319,7 @@ func NewFailedCallstackResult(name string, err error, logger *logger_lib.Logger)
 	return &CallstackResultNode{
 		Status: Failed,
 		Name:   name,
-		Logger: logger,
+		logger: logger,
 		Err:    err,
 	}
 }
@@ -317,7 +328,7 @@ func NewCachedCallstackResult(name string, logger *logger_lib.Logger) *Callstack
 	return &CallstackResultNode{
 		Status: Cached,
 		Name:   name,
-		Logger: logger,
+		logger: logger,
 	}
 }
 
@@ -339,7 +350,7 @@ func (r *RunResult) PrintErrorLog() {
 				log.Printf("----------------------------------------------------------------------------\n")
 				log.Printf("-                      Error logs for: %s                         \n", current.Name)
 				log.Printf("----------------------------------------------------------------------------\n")
-				lines, err := current.Logger.TailFile(20)
+				lines, err := current.logger.TailFile(20)
 				if err != nil {
 					log.Fatalln(fmt.Sprintf("Error printing logFile for %s %s", current.Name, err))
 				}

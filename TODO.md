@@ -140,5 +140,8 @@ Use cancellable context for all commands so it finishes when ctrl-c is pressed.
 
 # LogApp
 
-Write a controller that manages the LogServer in the log app, use a chan to send logs from LogServer to the controller, and then
-pass that to the LogApp.
+Find way to update runResult as soon as log app connects.
+
+Delete log files on start of new run.
+
+Page down as new logs come in.

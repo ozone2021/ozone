@@ -24,9 +24,8 @@ type RunController struct {
 func NewRunController(ozoneContext, ozoneWorkingDir, combinedArgs string, ozoneConfig *config.OzoneConfig) *RunController {
 	inputLogAppDetailsChan := make(chan *LogAppDetails)
 
-	logUpdateController := logapp_update_controller.NewLogappUpdateController(ozoneWorkingDir, inputLogAppDetailsChan)
-
 	runResult := runspec.NewRunResult()
+	logUpdateController := logapp_update_controller.NewLogappUpdateController(ozoneWorkingDir, inputLogAppDetailsChan, runResult.UpdateListeners)
 
 	runResult.AddListener(logUpdateController.UpdateLogApps)
 

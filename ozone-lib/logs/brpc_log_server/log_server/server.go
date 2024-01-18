@@ -66,7 +66,7 @@ func (s *LogServer) Start() {
 func (s *LogServer) UpdateRunResult(ctx context.Context, in *RunResult) (*emptypb.Empty, error) {
 	runspecRunresult := &runspec.RunResult{}
 
-	err := copier.Copy(&runspecRunresult, &in)
+	err := copier.CopyWithOption(&runspecRunresult, &in, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 	if err != nil {
 		log.Printf("Error unmarshalling runResult %s", err)
 		return nil, err
