@@ -39,6 +39,7 @@ type CallstackResultNode struct {
 	Caching     bool
 	Hash        string
 	Depth       int
+	Root        *CallstackResultNode
 	Children    []*CallstackResultNode
 	Status      CallstackStatus
 	Name        string
@@ -154,7 +155,7 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 		r.Index.Set(current.Id, current)
 
 		// Get the corresponding original Node
-		originalNode := getNodeByRunnableName(rootNode, current.Name)
+		originalNode := getNodeById(rootNode, current.Id)
 
 		callstackLogger, err := logger_lib.New(ozoneWorkDir, current.Name, config.Headless)
 		if err != nil {
@@ -178,6 +179,7 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 					Id:          child.GetRunnable().GetId(),
 					logger:      callstackLogger,
 					LogFile:     callstackLogger.GetLogFilePath(),
+					Root:        root,
 					Caching:     child.GetRunnable().Cache,
 					Depth:       current.Depth + 1,
 					Status:      NotStarted, // You can set the initial status as needed
@@ -197,13 +199,13 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 	r.Roots = append(r.Roots, root)
 }
 
-func getNodeByRunnableName(current *RunspecRunnable, name string) *RunspecRunnable {
-	if current.GetRunnable().Name == name {
+func getNodeById(current *RunspecRunnable, id string) *RunspecRunnable {
+	if current.GetRunnable().GetId() == id {
 		return current
 	}
 
 	for _, child := range current.GetChildren() {
-		if node := getNodeByRunnableName(child, name); node != nil {
+		if node := getNodeById(child, id); node != nil {
 			return node
 		}
 	}
@@ -232,17 +234,23 @@ func (s CallstackStatus) String() string {
 	return [...]string{"Not started", "Running", "Succeeded", "Failed", "Cached"}[s]
 }
 
-func (r *RunResult) AddCallstackResult(id string, status CallstackStatus, err error) {
-	if err != nil {
+func (r *RunResult) AddCallstackResult(id string, status CallstackStatus, callStackErr error) {
+	if callStackErr != nil {
 		r.Status = Failed
 	}
 	callstackResult, err := r.findCallstackResultById(id)
 
-	if err == nil {
-		callstackResult.Status = status
+	if err != nil {
+		log.Fatalln(err)
 	} else {
-		callstackResult.Err = err
-		callstackResult.Status = Failed
+		callstackResult.Status = status
+
+		if status == Failed {
+			callstackResult.Err = callStackErr
+			if callstackResult.Root != nil {
+				callstackResult.Root.Status = Failed
+			}
+		}
 	}
 
 	r.UpdateListeners()
@@ -320,6 +328,25 @@ func (r *RunResult) PrintRunResult(print bool) string {
 
 func (r *RunResult) AddSucceededCallstackResult(id string, err error) {
 	r.AddCallstackResult(id, Succeeded, err)
+}
+
+func (r *RunResult) PrintIds() {
+	log.Println("---===---")
+	for _, root := range r.Roots {
+		stack := lane.NewStack[*CallstackResultNode]()
+		stack.Push(root)
+
+		for stack.Size() != 0 {
+			current, _ := stack.Pop()
+
+			log.Printf("Id: %s, Name: %s, Status: %s \n", current.Id, current.Name, current.Status)
+
+			// Push the children of the current node onto the stack in reverse order
+			for i := len(current.Children) - 1; i >= 0; i-- {
+				stack.Push(current.Children[i])
+			}
+		}
+	}
 }
 
 func NewFailedCallstackResult(name string, err error, logger *logger_lib.Logger) *CallstackResultNode {

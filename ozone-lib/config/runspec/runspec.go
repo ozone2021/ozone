@@ -90,6 +90,25 @@ func (r *RunspecRunnable) IsParallel() bool {
 	return r.Parallel
 }
 
+func (r *RunspecRunnable) PrintIds() {
+	log.Println("-----")
+	for _, root := range r.Children {
+		stack := lane.NewStack[*RunspecRunnable]()
+		stack.Push(root)
+
+		for stack.Size() != 0 {
+			current, _ := stack.Pop()
+
+			log.Printf("Id: %s, Name: %s \n", current.GetRunnable().GetId(), current.Name)
+
+			// Push the children of the current node onto the stack in reverse order
+			for i := len(current.Children) - 1; i >= 0; i-- {
+				stack.Push(current.Children[i])
+			}
+		}
+	}
+}
+
 type CallStack struct {
 	Children         []Node
 	RootRunnableName string              `yaml:"root_runnable_name"`
@@ -442,10 +461,7 @@ func (wt *Runspec) ExecuteCallstacks(runResult *RunResult) {
 
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
-			err := wt.CheckCacheAndExecute(callstack, runResult)
-			if err != nil {
-				log.Fatalln("Error: %s", err)
-			}
+			wt.CheckCacheAndExecute(callstack, runResult)
 		}
 	}
 }
@@ -483,7 +499,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 				//fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
 				//fmt.Println("--------------------")
 				runResult.AddCallstackResult(node.GetRunnable().GetId(), Cached, nil)
-				continue
+				return nil
 			}
 
 			runResult.SetRunnableHash(node.GetRunnable().GetId(), node.hash)
@@ -516,6 +532,8 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 			workQueue.Prepend(node)
 		}
 		if node.Parallel == true {
+			runResult.PrintIds()
+			rootCallstack.PrintIds()
 			wt.executeParallel(node.Children, runResult)
 		} else {
 			for i := len(node.Children) - 1; i >= 0; i-- {
@@ -533,18 +551,18 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 		return err
 	}
 	if rootResult.Status != Cached {
-		workQueue.Prepend(rootCallstack)
+		workQueue.Append(rootCallstack)
 	}
 
-	err = wt.executeWorkQueue(false, logger, workQueue, runResult)
+	err = wt.executeWorkQueue(logger, workQueue, runResult)
 
 	return err
 }
 
-func (wt *Runspec) executeWorkQueue(returnOnErr bool, logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable], result *RunResult) error {
+func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable], result *RunResult) error {
 
 	for workQueue.Size() != 0 {
-		runspecRunnable, ok := workQueue.Pop()
+		runspecRunnable, ok := workQueue.Shift()
 		if !ok {
 			logger.Fatalf("Error: runnable work queue is empty. \n")
 		}
@@ -563,10 +581,8 @@ func (wt *Runspec) executeWorkQueue(returnOnErr bool, logger *logger_lib.Logger,
 			if wt.config.Headless {
 				logger.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
 			}
-			if returnOnErr {
-				result.AddCallstackResult(runspecRunnable.GetId(), Failed, err)
-				return err
-			}
+			result.AddCallstackResult(runspecRunnable.GetId(), Failed, err)
+			return err
 		}
 
 		result.AddSucceededCallstackResult(runspecRunnable.GetId(), err) // Assumes succeeded the sets to fail if err
