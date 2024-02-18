@@ -22,12 +22,14 @@ message CallstackLogNode {
   CallstackStatus status = 5;
   string name = 6;
   string error = 7;
+  bool is_callstack = 8;
+  bool caching = 9;
 }
 
 message RunResult {
   CallstackStatus status = 1;
   repeated CallstackLogNode roots = 2;
-  map<string, CallstackLogNode> Index = 3;
+  repeated CallstackLogNode IndexList = 3;
 }
 
 service LogUpdateService {

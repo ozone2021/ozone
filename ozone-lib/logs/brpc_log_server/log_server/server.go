@@ -2,6 +2,7 @@ package log_server
 
 import (
 	"context"
+	"github.com/elliotchance/orderedmap/v2"
 	"github.com/jinzhu/copier"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	. "github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server_pb"
@@ -70,6 +71,17 @@ func (s *LogServer) UpdateRunResult(ctx context.Context, in *RunResult) (*emptyp
 	if err != nil {
 		log.Printf("Error unmarshalling runResult %s", err)
 		return nil, err
+	}
+
+	runspecRunresult.Index = orderedmap.NewOrderedMap[string, *runspec.CallstackResultNode]()
+	for _, key := range in.IndexList {
+		node := &runspec.CallstackResultNode{}
+		err := copier.CopyWithOption(&node, &key, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+		if err != nil {
+			log.Printf("Error unmarshalling runResult %s", err)
+			return nil, err
+		}
+		runspecRunresult.Index.Set(node.Id, node)
 	}
 
 	s.outputUpdateChan <- runspecRunresult

@@ -3,6 +3,7 @@ package runspec
 import (
 	"errors"
 	"fmt"
+	. "github.com/elliotchance/orderedmap/v2"
 	"github.com/fatih/color"
 	"github.com/oleiade/lane/v2"
 	process_manager_client "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-client"
@@ -15,7 +16,7 @@ import (
 type RunResult struct {
 	Status    CallstackStatus
 	Roots     []*CallstackResultNode
-	Index     map[string]*CallstackResultNode
+	Index     *OrderedMap[string, *CallstackResultNode]
 	listeners []UpdateListenerFunc
 }
 
@@ -32,16 +33,17 @@ const (
 )
 
 type CallstackResultNode struct {
-	Id       string
-	logger   *logger_lib.Logger
-	LogFile  string
-	Caching  bool
-	Hash     string
-	Depth    int
-	Children []*CallstackResultNode
-	Status   CallstackStatus
-	Name     string
-	Err      error
+	Id          string
+	logger      *logger_lib.Logger
+	LogFile     string
+	Caching     bool
+	Hash        string
+	Depth       int
+	Children    []*CallstackResultNode
+	Status      CallstackStatus
+	Name        string
+	Err         error
+	IsCallstack bool
 }
 
 type UpdateListenerFunc func(*RunResult)
@@ -50,7 +52,7 @@ type UpdateAllListenersFunc func()
 func NewRunResult() *RunResult {
 	runResult := &RunResult{
 		Status: Running,
-		Index:  make(map[string]*CallstackResultNode),
+		Index:  NewOrderedMap[string, *CallstackResultNode](),
 	}
 
 	return runResult
@@ -128,13 +130,14 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 	}
 
 	root := &CallstackResultNode{
-		Id:      rootNode.GetRunnable().GetId(),
-		logger:  rootLogger,
-		LogFile: rootLogger.GetLogFilePath(),
-		Caching: rootNode.GetRunnable().Cache,
-		Depth:   0,
-		Status:  NotStarted,
-		Name:    rootNode.GetRunnable().Name,
+		Id:          rootNode.GetRunnable().GetId(),
+		logger:      rootLogger,
+		LogFile:     rootLogger.GetLogFilePath(),
+		Caching:     rootNode.GetRunnable().Cache,
+		Depth:       0,
+		Status:      NotStarted,
+		Name:        rootNode.GetRunnable().Name,
+		IsCallstack: true,
 	}
 
 	stack.Push(root)
@@ -148,7 +151,7 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 		// Pop the top node from the stack
 		current, _ := stack.Pop()
 
-		r.Index[current.Id] = current
+		r.Index.Set(current.Id, current)
 
 		// Get the corresponding original Node
 		originalNode := getNodeByRunnableName(rootNode, current.Name)
@@ -163,21 +166,24 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 		current.Children = make([]*CallstackResultNode, len(children))
 		for i, child := range children {
 			if visited[child] == nil {
+				isCallstack := false
 				if child.HasCaching() {
+					isCallstack = true
 					callstackLogger, err = logger_lib.New(ozoneWorkDir, child.GetRunnable().Name, config.Headless)
 					if err != nil {
 						log.Fatalln(err)
 					}
 				}
 				childResult := &CallstackResultNode{
-					Id:      child.GetRunnable().GetId(),
-					logger:  callstackLogger,
-					LogFile: callstackLogger.GetLogFilePath(),
-					Caching: child.GetRunnable().Cache,
-					Depth:   current.Depth + 1,
-					Status:  NotStarted, // You can set the initial status as needed
-					Name:    child.GetRunnable().Name,
-					Err:     nil, // You can set the initial error as needed
+					Id:          child.GetRunnable().GetId(),
+					logger:      callstackLogger,
+					LogFile:     callstackLogger.GetLogFilePath(),
+					Caching:     child.GetRunnable().Cache,
+					Depth:       current.Depth + 1,
+					Status:      NotStarted, // You can set the initial status as needed
+					Name:        child.GetRunnable().Name,
+					Err:         nil, // You can set the initial error as needed
+					IsCallstack: isCallstack,
 				}
 				current.Children[i] = childResult
 				stack.Push(childResult)
@@ -207,10 +213,11 @@ func getNodeByRunnableName(current *RunspecRunnable, name string) *RunspecRunnab
 
 func (r *RunResult) AddRootCallstack(callstack *CallStack, logger *logger_lib.Logger) {
 	r.Roots = append(r.Roots, &CallstackResultNode{
-		Status:  NotStarted,
-		Name:    callstack.RootRunnableName,
-		logger:  logger,
-		LogFile: logger.GetLogFilePath(),
+		Status:      NotStarted,
+		Name:        callstack.RootRunnableName,
+		logger:      logger,
+		LogFile:     logger.GetLogFilePath(),
+		IsCallstack: true,
 	})
 	r.UpdateListeners()
 }

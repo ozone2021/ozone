@@ -63,6 +63,15 @@ func (c *LogappUpdateController) UpdateLogApps(runResult *runspec.RunResult) {
 		if err != nil {
 			log.Fatalf("failed to copy: %v", err)
 		}
+		for _, key := range runResult.Index.Keys() {
+			node, _ := runResult.Index.Get(key)
+			logNode := &log_server_pb.CallstackLogNode{}
+			err := copier.CopyWithOption(&logNode, &node, copier.Option{IgnoreEmpty: true, DeepCopy: true})
+			if err != nil {
+				log.Fatalf("failed to copy: %v", err)
+			}
+			runResultPb.IndexList = append(runResultPb.IndexList, logNode)
+		}
 		_, err = connectedApp.UpdateRunResult(context.Background(), runResultPb)
 		if err != nil {
 			log.Println("failed to update log app: ", err)

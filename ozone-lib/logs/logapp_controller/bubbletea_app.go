@@ -2,6 +2,7 @@ package logapp_controller
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -52,6 +53,7 @@ type LogBubbleteaApp struct {
 	logStopChan                 chan struct{}
 	logMutex                    sync.Mutex
 	viewport                    viewport.Model
+	keyMap                      KeyMap
 	ready                       bool
 }
 
@@ -59,7 +61,8 @@ type RunResultUpdate struct {
 }
 
 type LogLineUpdate struct {
-	Line string
+	ClearOutput bool
+	Line        string
 }
 
 func NewLogBubbleteaApp(appId string, runResultUpdate chan *runspec.RunResult) *LogBubbleteaApp {
@@ -69,6 +72,7 @@ func NewLogBubbleteaApp(appId string, runResultUpdate chan *runspec.RunResult) *
 		runResultUpdate: runResultUpdate,
 		followMode:      FOLLOW_ALL,
 		logStopChan:     make(chan struct{}),
+		keyMap:          LogKeyMap(),
 	}
 	app.program = tea.NewProgram(app, tea.WithMouseCellMotion())
 
@@ -87,16 +91,18 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg.(tea.KeyMsg), key.NewBinding(
-			key.WithKeys("f"),
-		)):
+		case key.Matches(msg.(tea.KeyMsg), m.keyMap.Follow):
 			m.followMode = FOLLOW_ALL
 		case key.Matches(msg.(tea.KeyMsg), viewport.DefaultKeyMap().Up):
 			m.followMode = OFF
-		case key.Matches(msg.(tea.KeyMsg), key.NewBinding(
-			key.WithKeys("pgdown"),
-			key.WithHelp("pgdn", "page down"),
-		)):
+		case key.Matches(msg.(tea.KeyMsg), m.keyMap.NextLog):
+			next, err := m.NextSelection(m.nextLogPredicate)
+			if err != nil {
+				return m, nil
+			}
+			m.selectedCallstackResultNode = next
+			go m.ShowLogs()
+		case key.Matches(msg.(tea.KeyMsg), m.keyMap.PageDown):
 			m.viewport.GotoBottom()
 		}
 	case tea.WindowSizeMsg:
@@ -134,11 +140,14 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, viewport.Sync(m.viewport))
 		}
 	case RunResultUpdate:
-		m.CloseLogs()
 		go m.ShowLogs()
 		return m, nil
 	case LogLineUpdate:
-		logLine := msg.(LogLineUpdate).Line
+		updateMsg := msg.(LogLineUpdate)
+		logLine := updateMsg.Line
+		if updateMsg.ClearOutput == true {
+			m.logOutput = ""
+		}
 		m.logOutput = m.logOutput + logLine
 		m.viewport.SetContent(m.logOutput)
 		if m.followMode != OFF {
@@ -181,9 +190,90 @@ func max(a, b int) int {
 	return b
 }
 
+type PredicateFunc func(*runspec.CallstackResultNode) bool
+
+func (m *LogBubbleteaApp) Next(startId *string) (*runspec.CallstackResultNode, error) {
+	if m.runResult.Index.Len() == 0 {
+		return nil, errors.New("No nodes")
+	}
+	if startId == nil {
+		return m.runResult.Index.Front().Value, nil
+	}
+	if m.runResult.Index.Back().Value.Id == *startId {
+		return m.runResult.Index.Front().Value, nil
+	}
+	el := m.runResult.Index.GetElement(*startId)
+	if el != nil {
+		return el.Next().Value, nil
+	}
+	return nil, errors.New("Couldn't find next node")
+}
+
+func (m *LogBubbleteaApp) Previous() (*runspec.CallstackResultNode, error) {
+	if m.runResult.Index.Front().Value.Id == m.selectedCallstackResultNode.Id {
+		return m.runResult.Index.Back().Value, nil
+	}
+	el := m.runResult.Index.GetElement(m.selectedCallstackResultNode.Id)
+	if el != nil {
+		return el.Prev().Value, nil
+	}
+	return nil, errors.New("Couldn't find previous node")
+}
+
+func (m *LogBubbleteaApp) nextLogPredicate(node *runspec.CallstackResultNode) bool {
+	return node.IsCallstack
+}
+
+func (m *LogBubbleteaApp) NextSelection(predicate PredicateFunc) (*runspec.CallstackResultNode, error) {
+	if m.selectedCallstackResultNode == nil {
+		return m.Next(nil)
+	}
+	next, err := m.Next(&m.selectedCallstackResultNode.Id)
+	if err != nil {
+		return nil, err
+	}
+	if predicate == nil {
+		return next, nil
+	}
+	count := 0
+	for count < m.runResult.Index.Len() {
+		if predicate(next) {
+			return next, nil
+		}
+		next, err = m.Next(&next.Id)
+		if err != nil {
+			return nil, err
+		}
+		count++
+	}
+
+	return nil, errors.New("Couldn't find next selection for predicate")
+}
+
+func (m *LogBubbleteaApp) PreviousSelection(predicate PredicateFunc) (*runspec.CallstackResultNode, error) {
+	previous, err := m.Previous()
+	if err != nil {
+		return nil, err
+	}
+	if predicate == nil {
+		return previous, nil
+	}
+	count := 0
+	for count < m.runResult.Index.Len() {
+		if predicate(previous) {
+			return previous, nil
+		}
+		previous, err = m.Previous()
+		if err != nil {
+			return nil, err
+		}
+		count++
+	}
+
+	return nil, errors.New("Couldn't find previous selection for predicate")
+}
+
 func (m *LogBubbleteaApp) GetSelectedCallstackResultNode() *runspec.CallstackResultNode {
-	//m.logMutex.Lock()
-	//defer m.logMutex.Unlock()
 	return m.selectedCallstackResultNode
 }
 
@@ -199,8 +289,14 @@ func (m *LogBubbleteaApp) GetSelectedCallstackResultNode() *runspec.CallstackRes
 //}
 
 func (m *LogBubbleteaApp) ShowLogs() error {
-	m.logMutex.Lock()
-	defer m.logMutex.Unlock()
+	if m.selectedCallstackResultNode == nil {
+		return nil
+	}
+	close(m.logStopChan)
+	m.logStopChan = make(chan struct{})
+
+	//defer m.logMutex.Unlock()
+	//m.logMutex.Lock()
 
 	file, err := os.Open(m.selectedCallstackResultNode.LogFile)
 	if err != nil {
@@ -210,6 +306,7 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 
 	reader := bufio.NewReader(file)
 
+	clearOutput := true
 	for {
 		select {
 		case <-m.logStopChan:
@@ -224,22 +321,14 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 				log.Fatalf("ShowLogs err: %s \n", err)
 			}
 			m.program.Send(LogLineUpdate{
-				Line: line,
+				ClearOutput: clearOutput,
+				Line:        line,
 			})
+			clearOutput = false
 		}
 	}
 
 	return nil
-}
-
-func (m *LogBubbleteaApp) CloseLogs() {
-	if m.selectedCallstackResultNode == nil {
-		return
-	}
-	close(m.logStopChan)
-	m.logStopChan = make(chan struct{})
-
-	m.logOutput = ""
 }
 
 func (m *LogBubbleteaApp) FollowMode() FollowMode {
@@ -268,8 +357,10 @@ func diff(root1 *runspec.RunResult, root2 *runspec.RunResult) (*runspec.Callstac
 	if root1 == nil {
 		return root2.Roots[0], true
 	}
-	for _, node1 := range root1.Index {
-		for _, node2 := range root2.Index {
+	for _, key1 := range root1.Index.Keys() {
+		node1, _ := root1.Index.Get(key1)
+		for _, key2 := range root2.Index.Keys() {
+			node2, _ := root2.Index.Get(key2)
 			if node1.Id == node2.Id {
 				if node1.Status != node2.Status {
 					return node2, true
@@ -292,6 +383,10 @@ func (m *LogBubbleteaApp) ChannelHandler() {
 				continue
 			}
 			m.runResult = runResult
+
+			if m.selectedCallstackResultNode == nil {
+				m.NextSelection(m.nextLogPredicate)
+			}
 
 			if diffNode.Status != runspec.Running {
 				continue
