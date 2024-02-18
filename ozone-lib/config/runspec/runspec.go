@@ -602,10 +602,7 @@ func (wt *Runspec) executeParallel(nodes []*RunspecRunnable, result *RunResult) 
 		go func() {
 			defer wg.Done()
 			result.AddCallstackResult(node.GetRunnable().GetId(), Running, nil)
-			err := wt.CheckCacheAndExecute(node, result)
-			if err != nil {
-				log.Fatalln("Error: %s", err)
-			}
+			wt.CheckCacheAndExecute(node, result)
 		}()
 	}
 	wg.Wait()
