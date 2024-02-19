@@ -534,7 +534,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 		if node.Parallel == true {
 			wt.executeParallel(node.Children, runResult)
 		} else {
-			for i := len(node.Children) - 1; i >= 0; i-- {
+			for i := 0; i < len(node.Children); i++ {
 				childRunnable := node.Children[i].GetRunnable()
 				nodeInputStack.Push(childRunnable)
 			}
