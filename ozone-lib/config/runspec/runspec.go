@@ -1,6 +1,7 @@
 package runspec
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/bmatcuk/doublestar/v4"
@@ -219,6 +220,9 @@ type Runspec struct {
 	OzoneWorkDir string                                     `yaml:"work_dir"` // move into config
 	BuildVars    *VariableMap                               `yaml:"build_vars"`
 	CallStacks   map[config.RunnableType][]*RunspecRunnable `yaml:"call_stack"`
+
+	cancelled      bool
+	cancelledMutex sync.Mutex
 }
 
 func NewRunspec(context, ozoneWorkingDir string, ozoneConfig *config.OzoneConfig) *Runspec {
@@ -235,6 +239,7 @@ func NewRunspec(context, ozoneWorkingDir string, ozoneConfig *config.OzoneConfig
 		OzoneWorkDir: ozoneWorkingDir,
 		BuildVars:    renderedBuildVars,
 		CallStacks:   make(map[config.RunnableType][]*RunspecRunnable),
+		cancelled:    false,
 	}
 
 	return runspec
@@ -442,7 +447,20 @@ func addCallstackScopeVars(runnable *config.Runnable, buildScope *VariableMap, o
 	return service, dir
 }
 
-func (wt *Runspec) ExecuteCallstacks(runResult *RunResult) {
+func (wt *Runspec) ExecuteCallstacks(ctx context.Context, runResult *RunResult) {
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				wt.cancelledMutex.Lock()
+				wt.cancelled = true
+				wt.cancelledMutex.Unlock()
+				return
+			}
+		}
+	}()
+
 	runOrder := []config.RunnableType{
 		config.PreUtilityType,
 		config.BuildType,
@@ -461,12 +479,24 @@ func (wt *Runspec) ExecuteCallstacks(runResult *RunResult) {
 
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
-			wt.CheckCacheAndExecute(callstack, runResult)
+			if wt.cancelled {
+				return
+			}
+			wt.CheckCacheAndExecute(ctx, callstack, runResult)
 		}
 	}
 }
 
-func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResult *RunResult) error {
+func (wt *Runspec) AddCallstackResult(runResult *RunResult, id string, status CallstackStatus, callStackErr error) {
+	wt.cancelledMutex.Lock()
+	if wt.cancelled {
+		return
+	}
+	runResult.AddCallstackResult(id, status, callStackErr)
+	wt.cancelledMutex.Unlock()
+}
+
+func (wt *Runspec) CheckCacheAndExecute(ctx context.Context, rootCallstack *RunspecRunnable, runResult *RunResult) error {
 	nodeInputStack := lane.NewStack[*RunspecRunnable]()
 	nodeInputStack.Push(rootCallstack)
 
@@ -474,10 +504,10 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 
 	logger, err := runResult.GetLoggerForRunnableId(rootCallstack.GetRunnable().GetId())
 	if err != nil {
-		log.Fatalln(err)
+		return nil
 	}
 
-	runResult.AddCallstackResult(rootCallstack.GetRunnable().GetId(), Running, nil)
+	wt.AddCallstackResult(runResult, rootCallstack.GetRunnable().GetId(), Running, nil)
 
 	for nodeInputStack.Size() != 0 {
 		node, ok := nodeInputStack.Pop()
@@ -498,41 +528,21 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 				//fmt.Println("--------------------")
 				//fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
 				//fmt.Println("--------------------")
-				runResult.AddCallstackResult(node.GetRunnable().GetId(), Cached, nil)
+				wt.AddCallstackResult(runResult, node.GetRunnable().GetId(), Cached, nil)
 				return nil
 			}
 
-			runResult.SetRunnableHash(node.GetRunnable().GetId(), node.hash)
+			err := runResult.SetRunnableHash(node.GetRunnable().GetId(), node.hash)
+			if err != nil {
+				return nil
+			}
 		}
-
-		//switch node.Cache {
-		//case true:
-		//	if node.ConditionalsSatisfied() == false {
-		//		log.Printf("Skipping callstack %s because conditionals not satisfied \n", node.Name)
-		//		runResult.AddCallstackResult(node.GetRunnable().GetId(), Succeeded, nil) // TODO conditional not satisfied state
-		//		continue
-		//	}
-		//	//log.Printf("Executing callstack %s \n", node.Name)
-		//	err = wt.execute(node, wt.config.Headless, logger, runResult) // TODO call recursive
-		//	if err != nil {
-		//		runResult.AddCallstackResult(node.GetRunnable().GetId(), Failed, err) // TODO conditional not satisfied state
-		//		if wt.config.Headless {
-		//			logger.Fatalf("Error: %s in runnable \n", err, node.Name)
-		//		}
-		//	} else {
-		//		runResult.AddCallstackResult(node.GetRunnable().GetId(), Succeeded, nil)
-		//	}
-		//
-		//	if err == nil && wt.config.Headless == false {
-		//		process_manager_client.CacheUpdate(wt.OzoneWorkDir, node.Name, hash) // TODO
-		//	}
-		//case false:
 
 		if node.GetId() != rootCallstack.GetId() {
 			workQueue.Prepend(node)
 		}
 		if node.Parallel == true {
-			wt.executeParallel(node.Children, runResult)
+			wt.executeParallel(ctx, node.Children, runResult)
 		} else {
 			for i := 0; i < len(node.Children); i++ {
 				childRunnable := node.Children[i].GetRunnable()
@@ -557,9 +567,11 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 	return err
 }
 
-func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable], result *RunResult) error {
-
+func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable], runResult *RunResult) error {
 	for workQueue.Size() != 0 {
+		if wt.cancelled {
+			return nil
+		}
 		runspecRunnable, ok := workQueue.Shift()
 		if !ok {
 			logger.Fatalf("Error: runnable work queue is empty. \n")
@@ -571,7 +583,7 @@ func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.D
 			continue
 		}
 
-		result.AddCallstackResult(runspecRunnable.GetId(), Running, nil)
+		wt.AddCallstackResult(runResult, runspecRunnable.GetId(), Running, nil)
 
 		err := runspecRunnable.RunSteps(logger)
 
@@ -579,11 +591,11 @@ func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.D
 			if wt.config.Headless {
 				logger.Fatalf("Error in step: %s in runnable \n", err, runspecRunnable.Name)
 			}
-			result.AddCallstackResult(runspecRunnable.GetId(), Failed, err)
+			wt.AddCallstackResult(runResult, runspecRunnable.GetId(), Failed, err)
 			return err
 		}
 
-		result.AddSucceededCallstackResult(runspecRunnable.GetId(), err) // Assumes succeeded the sets to fail if err
+		wt.AddCallstackResult(runResult, runspecRunnable.GetId(), Succeeded, nil) // Assumes succeeded the sets to fail if err
 		if err == nil && wt.config.Headless == false && runspecRunnable.HasCaching() == true {
 			process_manager_client.CacheUpdate(wt.OzoneWorkDir, runspecRunnable.Name, runspecRunnable.hash) // TODO
 		}
@@ -592,15 +604,16 @@ func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.D
 	return nil
 }
 
-func (wt *Runspec) executeParallel(nodes []*RunspecRunnable, result *RunResult) {
+func (wt *Runspec) executeParallel(ctx context.Context, nodes []*RunspecRunnable, runResult *RunResult) {
 	var wg sync.WaitGroup
 	for _, node := range nodes {
 		wg.Add(1)
 		node := node
 		go func() {
 			defer wg.Done()
-			result.AddCallstackResult(node.GetRunnable().GetId(), Running, nil)
-			wt.CheckCacheAndExecute(node, result)
+			wt.AddCallstackResult(runResult, node.GetRunnable().GetId(), Running, nil)
+			ctx, _ := context.WithCancel(ctx)
+			wt.CheckCacheAndExecute(ctx, node, runResult)
 		}()
 	}
 	wg.Wait()

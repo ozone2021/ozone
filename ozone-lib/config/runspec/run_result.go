@@ -59,6 +59,14 @@ func NewRunResult() *RunResult {
 	return runResult
 }
 
+func (r *RunResult) ResetRunResult() {
+	r.Status = Running
+	r.Roots = nil
+	r.Index = NewOrderedMap[string, *CallstackResultNode]()
+
+	r.UpdateListeners()
+}
+
 func (r *RunResult) AddListener(listener UpdateListenerFunc) {
 	r.listeners = append(r.listeners, listener)
 
@@ -234,14 +242,13 @@ func (s CallstackStatus) String() string {
 	return [...]string{"Not started", "Running", "Succeeded", "Failed", "Cached"}[s]
 }
 
-func (r *RunResult) AddCallstackResult(id string, status CallstackStatus, callStackErr error) {
+func (r *RunResult) AddCallstackResult(id string, status CallstackStatus, callStackErr error) error {
 	if callStackErr != nil {
 		r.Status = Failed
 	}
 	callstackResult, err := r.findCallstackResultById(id)
-
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	} else {
 		callstackResult.Status = status
 
@@ -254,6 +261,7 @@ func (r *RunResult) AddCallstackResult(id string, status CallstackStatus, callSt
 	}
 
 	r.UpdateListeners()
+	return nil
 	// TODO if at this point, the runnable is caching, then we should update the cache if all children have succeeded.
 }
 
@@ -326,8 +334,8 @@ func (r *RunResult) PrintRunResult(print bool) string {
 	return s
 }
 
-func (r *RunResult) AddSucceededCallstackResult(id string, err error) {
-	r.AddCallstackResult(id, Succeeded, err)
+func (r *RunResult) AddSucceededCallstackResult(id string, err error) error {
+	return r.AddCallstackResult(id, Succeeded, err)
 }
 
 func (r *RunResult) PrintIds() {

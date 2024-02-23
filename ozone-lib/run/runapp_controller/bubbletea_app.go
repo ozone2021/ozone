@@ -15,6 +15,8 @@ type RunCmdBubbleteaApp struct {
 	runResult        *runspec2.RunResult // items on the to-do list
 	spinner          spinner.Model
 	program          *tea.Program
+	shutdownChan     chan struct{}
+	reRunChan        chan struct{}
 }
 
 type RunResultUpdate struct {
@@ -23,12 +25,14 @@ type RunResultUpdate struct {
 
 type FinishedAddingCallstacks struct{}
 
-func NewRunCmdBubbleteaApp(runList string, result *runspec2.RunResult) *RunCmdBubbleteaApp {
+func NewRunCmdBubbleteaApp(runList string, result *runspec2.RunResult, shutdownChan chan struct{}, reRunChan chan struct{}) *RunCmdBubbleteaApp {
 	app := RunCmdBubbleteaApp{
 		runList:          runList,
 		callStacksLoaded: false,
 		spinner:          spinner.New(spinner.WithSpinner(spinner.Dot)),
 		runResult:        result,
+		shutdownChan:     shutdownChan,
+		reRunChan:        reRunChan,
 	}
 	app.program = tea.NewProgram(&app)
 
@@ -49,7 +53,11 @@ func (m *RunCmdBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		msg := msg.(tea.KeyMsg).String()
 		switch msg {
 		case "ctrl+c", "q":
+			m.shutdownChan <- struct{}{}
 			return m, tea.Quit
+		case "r":
+			m.reRunChan <- struct{}{}
+			return m, nil
 		}
 	case RunResultUpdate:
 		newData := msg.(RunResultUpdate).RunResult
@@ -83,7 +91,8 @@ func (m *RunCmdBubbleteaApp) View() string {
 	}
 
 	// The footer
-	s += "\nPress q to quit.\n"
+	s += "\n -------------------------------------------------- \n"
+	s += "       q: quit      r: rerun\n"
 
 	// Send the UI for rendering
 	return s
@@ -91,7 +100,6 @@ func (m *RunCmdBubbleteaApp) View() string {
 
 func (m *RunCmdBubbleteaApp) Run(wg *sync.WaitGroup) {
 	defer wg.Done()
-
 	if _, err := m.program.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
