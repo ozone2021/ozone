@@ -8,7 +8,9 @@ import (
 	"github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server_pb"
 	. "github.com/ozone2021/ozone/ozone-lib/run/brpc_log_registration/log_registration_server"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"log"
+	"time"
 )
 
 type LogappUpdateController struct {
@@ -34,6 +36,8 @@ func NewLogappUpdateController(ozoneWorkingDir string, incomingLogAppDetails cha
 }
 
 func (c *LogappUpdateController) Start() {
+	go c.SendHeartbeats()
+
 	for {
 		select {
 		case logAppDetails := <-c.incomingLogApps:
@@ -45,6 +49,18 @@ func (c *LogappUpdateController) Start() {
 		case <-c.channelHandlerShutdown:
 			return
 		}
+	}
+}
+
+func (c *LogappUpdateController) SendHeartbeats() {
+	for {
+		for _, connectedApp := range c.registeredLogApps {
+			_, err := connectedApp.ReceiveMainAppHeartbeat(context.Background(), &emptypb.Empty{})
+			if err != nil {
+				// TODO remove log app
+			}
+		}
+		time.Sleep(1 * time.Second)
 	}
 }
 

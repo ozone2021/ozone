@@ -20,7 +20,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	LogUpdateService_UpdateRunResult_FullMethodName = "/brpc_log_server.LogUpdateService/UpdateRunResult"
+	LogUpdateService_UpdateRunResult_FullMethodName         = "/brpc_log_server.LogUpdateService/UpdateRunResult"
+	LogUpdateService_ReceiveMainAppHeartbeat_FullMethodName = "/brpc_log_server.LogUpdateService/ReceiveMainAppHeartbeat"
 )
 
 // LogUpdateServiceClient is the client API for LogUpdateService service.
@@ -28,6 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LogUpdateServiceClient interface {
 	UpdateRunResult(ctx context.Context, in *RunResult, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ReceiveMainAppHeartbeat(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type logUpdateServiceClient struct {
@@ -47,11 +49,21 @@ func (c *logUpdateServiceClient) UpdateRunResult(ctx context.Context, in *RunRes
 	return out, nil
 }
 
+func (c *logUpdateServiceClient) ReceiveMainAppHeartbeat(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, LogUpdateService_ReceiveMainAppHeartbeat_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // LogUpdateServiceServer is the server API for LogUpdateService service.
 // All implementations must embed UnimplementedLogUpdateServiceServer
 // for forward compatibility
 type LogUpdateServiceServer interface {
 	UpdateRunResult(context.Context, *RunResult) (*emptypb.Empty, error)
+	ReceiveMainAppHeartbeat(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	mustEmbedUnimplementedLogUpdateServiceServer()
 }
 
@@ -61,6 +73,9 @@ type UnimplementedLogUpdateServiceServer struct {
 
 func (UnimplementedLogUpdateServiceServer) UpdateRunResult(context.Context, *RunResult) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateRunResult not implemented")
+}
+func (UnimplementedLogUpdateServiceServer) ReceiveMainAppHeartbeat(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReceiveMainAppHeartbeat not implemented")
 }
 func (UnimplementedLogUpdateServiceServer) mustEmbedUnimplementedLogUpdateServiceServer() {}
 
@@ -93,6 +108,24 @@ func _LogUpdateService_UpdateRunResult_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _LogUpdateService_ReceiveMainAppHeartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LogUpdateServiceServer).ReceiveMainAppHeartbeat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: LogUpdateService_ReceiveMainAppHeartbeat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LogUpdateServiceServer).ReceiveMainAppHeartbeat(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // LogUpdateService_ServiceDesc is the grpc.ServiceDesc for LogUpdateService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -103,6 +136,10 @@ var LogUpdateService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateRunResult",
 			Handler:    _LogUpdateService_UpdateRunResult_Handler,
+		},
+		{
+			MethodName: "ReceiveMainAppHeartbeat",
+			Handler:    _LogUpdateService_ReceiveMainAppHeartbeat_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

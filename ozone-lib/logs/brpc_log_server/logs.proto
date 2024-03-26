@@ -34,4 +34,5 @@ message RunResult {
 
 service LogUpdateService {
   rpc UpdateRunResult (RunResult) returns (google.protobuf.Empty) {}
+  rpc ReceiveMainAppHeartbeat (google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }

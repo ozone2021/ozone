@@ -2,6 +2,7 @@ package log_server
 
 import (
 	"context"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/elliotchance/orderedmap/v2"
 	"github.com/jinzhu/copier"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
@@ -12,24 +13,30 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 )
+
+type UiChan chan tea.Msg
 
 type LogServer struct {
 	UnimplementedLogUpdateServiceServer
-	pipePath         string
-	grpcServer       *grpc.Server
-	outputUpdateChan chan *runspec.RunResult
+	pipePath            string
+	grpcServer          *grpc.Server
+	uiChan              chan tea.Msg
+	mostRecentHeartbeat int64
+	reconnectChan       chan int64
 }
 
 type LogAppDetails struct {
 	Id string
 }
 
-func NewLogServer(pipePath string, output chan *runspec.RunResult) *LogServer {
+func NewLogServer(pipePath string, uiChan UiChan, reconnectChan chan int64) *LogServer {
 	return &LogServer{
-		pipePath:         pipePath,
-		grpcServer:       grpc.NewServer(),
-		outputUpdateChan: output,
+		pipePath:      pipePath,
+		grpcServer:    grpc.NewServer(),
+		uiChan:        uiChan,
+		reconnectChan: reconnectChan,
 	}
 }
 
@@ -84,9 +91,20 @@ func (s *LogServer) UpdateRunResult(ctx context.Context, in *RunResult) (*emptyp
 		runspecRunresult.Index.Set(node.Id, node)
 	}
 
-	s.outputUpdateChan <- runspecRunresult
+	s.uiChan <- runspecRunresult
 
 	return &emptypb.Empty{}, nil
 }
 
 // TODO heartbeat from logApp to server to make sure the logApp is still alive
+func (s *LogServer) ReceiveMainAppHeartbeat(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+	s.mostRecentHeartbeat = time.Now().Unix()
+
+	//if currentHeartbeatTime-s.lastHeartbeat > 5 {
+	//	// TODO reconnect to main app
+	//	s.reconnectChan <- struct{}{}
+	//}
+	s.reconnectChan <- s.mostRecentHeartbeat
+
+	return &emptypb.Empty{}, nil
+}

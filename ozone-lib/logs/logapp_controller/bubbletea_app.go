@@ -9,7 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/fatih/color"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
+	. "github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server"
 	"io"
 	"log"
 	"os"
@@ -44,7 +46,7 @@ const (
 type LogBubbleteaApp struct {
 	appId                       string
 	spinner                     spinner.Model
-	runResultUpdate             chan *runspec.RunResult
+	input                       UiChan
 	runResult                   *runspec.RunResult
 	program                     *tea.Program
 	selectedCallstackResultNode *runspec.CallstackResultNode
@@ -55,9 +57,14 @@ type LogBubbleteaApp struct {
 	viewport                    viewport.Model
 	keyMap                      KeyMap
 	ready                       bool
+	connected                   bool
 }
 
-type RunResultUpdate struct {
+type UiMsg interface{}
+
+type RunResultUpdate struct{}
+type ConnectedMessage struct {
+	Connected bool
 }
 
 type LogLineUpdate struct {
@@ -65,14 +72,14 @@ type LogLineUpdate struct {
 	Line        string
 }
 
-func NewLogBubbleteaApp(appId string, runResultUpdate chan *runspec.RunResult) *LogBubbleteaApp {
+func NewLogBubbleteaApp(appId string, uiChan UiChan) *LogBubbleteaApp {
 	app := &LogBubbleteaApp{
-		appId:           appId,
-		spinner:         spinner.New(spinner.WithSpinner(spinner.Dot)),
-		runResultUpdate: runResultUpdate,
-		followMode:      FOLLOW_ALL,
-		logStopChan:     make(chan struct{}),
-		keyMap:          LogKeyMap(),
+		appId:       appId,
+		spinner:     spinner.New(spinner.WithSpinner(spinner.Dot)),
+		input:       uiChan,
+		followMode:  FOLLOW_ALL,
+		logStopChan: make(chan struct{}),
+		keyMap:      LogKeyMap(),
 	}
 	app.program = tea.NewProgram(app, tea.WithMouseCellMotion())
 
@@ -139,9 +146,30 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// This is needed for high-performance rendering only.
 			cmds = append(cmds, viewport.Sync(m.viewport))
 		}
-	case RunResultUpdate:
+	case *runspec.RunResult:
+		runResult := msg.(*runspec.RunResult)
+		diffNode, ok := diff(m.runResult, runResult)
+		if !ok {
+			return m, nil
+		}
+		m.runResult = runResult
+
+		if m.selectedCallstackResultNode == nil {
+			m.NextSelection(m.nextLogPredicate)
+		}
+
+		if diffNode.Status != runspec.Running {
+			return m, nil
+		}
+
+		if m.selectedCallstackResultNode == nil || diffNode.LogFile != m.selectedCallstackResultNode.LogFile {
+			m.selectedCallstackResultNode = diffNode
+		}
 		go m.ShowLogs()
 		return m, nil
+	case ConnectedMessage:
+		m.connected = msg.(ConnectedMessage).Connected
+		m.NextSelection(m.nextLogPredicate)
 	case LogLineUpdate:
 		updateMsg := msg.(LogLineUpdate)
 		logLine := updateMsg.Line
@@ -167,7 +195,16 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *LogBubbleteaApp) headerView() string {
-	title := titleStyle.Render("Mr. Pager")
+	titleString := "Ozone logs: "
+	if m.connected {
+		statusColor := color.New(color.FgGreen).SprintFunc()
+		titleString += statusColor("Connected")
+	} else {
+		statusColor := color.New(color.FgRed).SprintFunc()
+		titleString += statusColor("Disconnected")
+	}
+	title := titleStyle.Render(titleString)
+
 	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title)))
 	return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
 }
@@ -375,35 +412,17 @@ func diff(root1 *runspec.RunResult, root2 *runspec.RunResult) (*runspec.Callstac
 func (m *LogBubbleteaApp) ChannelHandler() {
 	for {
 		select {
-		case runResult := <-m.runResultUpdate:
-			// Find the difference between new run result and old. If new run result is a new running, follow if follow enabled.
-
-			diffNode, ok := diff(m.runResult, runResult)
-			if !ok {
-				continue
+		case message := <-m.input:
+			switch message.(type) {
+			case *runspec.RunResult, ConnectedMessage:
+				m.program.Send(message)
 			}
-			m.runResult = runResult
-
-			if m.selectedCallstackResultNode == nil {
-				m.NextSelection(m.nextLogPredicate)
-			}
-
-			if diffNode.Status != runspec.Running {
-				continue
-			}
-
-			if m.selectedCallstackResultNode == nil || diffNode.LogFile != m.selectedCallstackResultNode.LogFile {
-				m.selectedCallstackResultNode = diffNode
-			}
-
-			m.program.Send(RunResultUpdate{ // TODO don't send this, update in the case statement above, then send empty update.
-			})
-			// TODO shutdown handle
 		}
 	}
 }
 
-func (m *LogBubbleteaApp) Run() {
+func (m *LogBubbleteaApp) Run(connected bool) {
+	m.connected = connected
 	go m.ChannelHandler()
 
 	if _, err := m.program.Run(); err != nil {
