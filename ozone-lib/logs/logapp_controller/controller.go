@@ -10,11 +10,12 @@ import (
 )
 
 type LogAppController struct {
+	connected           bool
 	ozoneWorkingDir     string
 	appIdUUID           uuid.UUID
 	updatePipePath      string
 	server              *LogServer
-	reconnectChan       chan int64
+	heartbeatChan       chan int64
 	mostRecentHeartbeat int64
 	ui                  *LogBubbleteaApp
 	uiChan              UiChan
@@ -33,55 +34,73 @@ func NewLogAppController(ozoneWorkingDir string) *LogAppController {
 	reconnectChan := make(chan int64)
 
 	return &LogAppController{
+		connected:       false,
 		server:          NewLogServer(updatePipePath, uiChan, reconnectChan),
 		updatePipePath:  updatePipePath,
 		appIdUUID:       appIdUUID,
 		ozoneWorkingDir: ozoneWorkingDir,
-		reconnectChan:   reconnectChan,
+		heartbeatChan:   reconnectChan,
 		ui:              NewLogBubbleteaApp(appIdUUID.String(), uiChan),
 		uiChan:          uiChan,
 	}
 }
 
-func (c *LogAppController) RegisterLogApp() bool {
+func (c *LogAppController) RegisterLogApp() {
 	client := log_registration_client_service.NewLogClient()
 
 	client.Connect(c.ozoneWorkingDir)
 
 	_, err := client.RegisterLogApp(c.appIdUUID.String())
 
-	connected := true
-	if err != nil {
-		connected = false
+	if err == nil {
+		c.SetConnected(true)
 	}
-
-	return connected
 }
 
 func (c *LogAppController) Start() {
 	go c.server.Start()
 	time.Sleep(2 * time.Second)
-	connected := c.RegisterLogApp()
+	c.RegisterLogApp()
 	go c.CheckHeartbeat()
-	c.ui.Run(connected)
+	if c.connected == false {
+		go c.KeepConnecting()
+	}
+	c.ui.Run()
+}
+
+func (c *LogAppController) KeepConnecting() {
+	for c.connected == false {
+		c.RegisterLogApp()
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func (c *LogAppController) SetConnected(connected bool) {
+	c.connected = connected
+
+	if c.ui.IsRunning() {
+		c.uiChan <- ConnectedMessage{
+			Connected: c.connected,
+		}
+	}
 }
 
 func (c *LogAppController) CheckHeartbeat() {
 	for {
 		select {
-		case mostRecentHeartbeat := <-c.reconnectChan:
+		case mostRecentHeartbeat := <-c.heartbeatChan:
 			c.mostRecentHeartbeat = mostRecentHeartbeat
+			c.SetConnected(true)
 		default:
 			if c.mostRecentHeartbeat == 0 {
 				continue
 			}
 			currentTime := time.Now().Unix()
-			if currentTime-c.mostRecentHeartbeat > 5 {
-				connected := c.RegisterLogApp()
-				c.uiChan <- ConnectedMessage{
-					Connected: connected,
-				}
+			if currentTime-c.mostRecentHeartbeat > 2 {
+				c.SetConnected(false)
+				c.RegisterLogApp()
 			}
+			time.Sleep(1 * time.Second)
 		}
 	}
 }

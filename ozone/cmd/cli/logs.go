@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 )
 
 func init() {
@@ -33,12 +35,12 @@ var logsCmd = &cobra.Command{
 	Use:  "logs",
 	Long: `Logs for given services`,
 	Run: func(cmd *cobra.Command, args []string) {
-
 		controller := logapp_controller.NewLogAppController(ozoneWorkingDir)
 
-		controller.Start()
+		go controller.Start()
 
-		//_go.Build("microA", "micro-a", "main.go")
-		//executable.Build("microA")
+		sig := make(chan os.Signal, 2)
+		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+		<-sig
 	},
 }

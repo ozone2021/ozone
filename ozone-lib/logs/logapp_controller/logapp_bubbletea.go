@@ -44,25 +44,31 @@ const (
 )
 
 type LogBubbleteaApp struct {
-	appId                       string
-	spinner                     spinner.Model
-	input                       UiChan
-	runResult                   *runspec.RunResult
-	program                     *tea.Program
-	selectedCallstackResultNode *runspec.CallstackResultNode
-	followMode                  FollowMode
+	appId                  string
+	isRunning, logsShowing bool
+	ready                  bool
+	connected              bool
+
+	spinner    spinner.Model
+	program    *tea.Program
+	followMode FollowMode
+	viewport   viewport.Model
+	keyMap     KeyMap
+
+	input UiChan
+
+	logsShownAtLeastOnce        bool
+	runId                       string
 	logOutput                   string
 	logStopChan                 chan struct{}
 	logMutex                    sync.Mutex
-	viewport                    viewport.Model
-	keyMap                      KeyMap
-	ready                       bool
-	connected                   bool
+	runResult                   *runspec.RunResult
+	runResultMutex              sync.Mutex
+	selectedCallstackResultNode *runspec.CallstackResultNode
 }
 
 type UiMsg interface{}
 
-type RunResultUpdate struct{}
 type ConnectedMessage struct {
 	Connected bool
 }
@@ -74,16 +80,21 @@ type LogLineUpdate struct {
 
 func NewLogBubbleteaApp(appId string, uiChan UiChan) *LogBubbleteaApp {
 	app := &LogBubbleteaApp{
+		connected:   false,
 		appId:       appId,
 		spinner:     spinner.New(spinner.WithSpinner(spinner.Dot)),
 		input:       uiChan,
 		followMode:  FOLLOW_ALL,
-		logStopChan: make(chan struct{}),
+		logStopChan: make(chan struct{}, 1),
 		keyMap:      LogKeyMap(),
 	}
 	app.program = tea.NewProgram(app, tea.WithMouseCellMotion())
 
 	return app
+}
+
+func (m *LogBubbleteaApp) ResetLogBubbleteaApp() {
+	m.selectedCallstackResultNode = nil
 }
 
 func (m *LogBubbleteaApp) Init() tea.Cmd {
@@ -103,11 +114,10 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg.(tea.KeyMsg), viewport.DefaultKeyMap().Up):
 			m.followMode = OFF
 		case key.Matches(msg.(tea.KeyMsg), m.keyMap.NextLog):
-			next, err := m.NextSelection(m.nextLogPredicate)
-			if err != nil {
+			ok := m.moveToNextSelection()
+			if !ok {
 				return m, nil
 			}
-			m.selectedCallstackResultNode = next
 			go m.ShowLogs()
 		case key.Matches(msg.(tea.KeyMsg), m.keyMap.PageDown):
 			m.viewport.GotoBottom()
@@ -146,30 +156,45 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// This is needed for high-performance rendering only.
 			cmds = append(cmds, viewport.Sync(m.viewport))
 		}
-	case *runspec.RunResult:
-		runResult := msg.(*runspec.RunResult)
-		diffNode, ok := diff(m.runResult, runResult)
-		if !ok {
-			return m, nil
-		}
-		m.runResult = runResult
+	case *RunResultUpdate:
+		m.runResultMutex.Lock()
+		defer m.runResultMutex.Unlock()
 
-		if m.selectedCallstackResultNode == nil {
-			m.NextSelection(m.nextLogPredicate)
+		runResultUpdate := msg.(*RunResultUpdate)
+		runResult := runResultUpdate.RunResult
+		if m.runResult == nil || runResultUpdate.RunId != m.runId {
+			m.runResult = runResult
+			m.selectedCallstackResultNode = nil
+			ok := m.moveToNextSelection()
+			if !ok {
+				return m, nil
+			}
+		} else {
+			if runResultUpdate.ShouldReset == true {
+				m.ResetLogBubbleteaApp()
+			} else {
+				diffNode, ok := diff(m.runResult, runResult)
+				if ok == false {
+					return m, nil
+				}
+
+				if diffNode.Status == runspec.NotStarted {
+					return m, nil
+				}
+
+				if m.selectedCallstackResultNode == nil || diffNode.LogFile != m.selectedCallstackResultNode.LogFile {
+					m.selectedCallstackResultNode = diffNode
+				}
+			}
 		}
 
-		if diffNode.Status != runspec.Running {
-			return m, nil
-		}
-
-		if m.selectedCallstackResultNode == nil || diffNode.LogFile != m.selectedCallstackResultNode.LogFile {
-			m.selectedCallstackResultNode = diffNode
-		}
 		go m.ShowLogs()
 		return m, nil
 	case ConnectedMessage:
 		m.connected = msg.(ConnectedMessage).Connected
-		m.NextSelection(m.nextLogPredicate)
+		if m.connected {
+			m.NextSelection(m.nextLogPredicate)
+		}
 	case LogLineUpdate:
 		updateMsg := msg.(LogLineUpdate)
 		logLine := updateMsg.Line
@@ -178,6 +203,7 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.logOutput = m.logOutput + logLine
 		m.viewport.SetContent(m.logOutput)
+		m.logsShownAtLeastOnce = true
 		if m.followMode != OFF {
 			m.viewport.GotoBottom()
 		}
@@ -192,6 +218,15 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *LogBubbleteaApp) moveToNextSelection() bool {
+	next, err := m.NextSelection(m.nextLogPredicate)
+	if err != nil {
+		return false
+	}
+	m.selectedCallstackResultNode = next
+	return true
 }
 
 func (m *LogBubbleteaApp) headerView() string {
@@ -216,6 +251,7 @@ func (m *LogBubbleteaApp) footerView() string {
 
 	if m.selectedCallstackResultNode != nil {
 		line += "\n" + m.selectedCallstackResultNode.Name
+		line += "\n logFile: " + m.selectedCallstackResultNode.LogFile
 	}
 	return line
 }
@@ -230,6 +266,9 @@ func max(a, b int) int {
 type PredicateFunc func(*runspec.CallstackResultNode) bool
 
 func (m *LogBubbleteaApp) Next(startId *string) (*runspec.CallstackResultNode, error) {
+	if m.runResult == nil {
+		return nil, errors.New("No run result")
+	}
 	if m.runResult.Index.Len() == 0 {
 		return nil, errors.New("No nodes")
 	}
@@ -325,15 +364,16 @@ func (m *LogBubbleteaApp) GetSelectedCallstackResultNode() *runspec.CallstackRes
 //	}
 //}
 
+func (m *LogBubbleteaApp) closeLogs() {
+	if m.logsShowing {
+		m.logStopChan <- struct{}{}
+	}
+}
+
 func (m *LogBubbleteaApp) ShowLogs() error {
 	if m.selectedCallstackResultNode == nil {
 		return nil
 	}
-	close(m.logStopChan)
-	m.logStopChan = make(chan struct{})
-
-	//defer m.logMutex.Unlock()
-	//m.logMutex.Lock()
 
 	file, err := os.Open(m.selectedCallstackResultNode.LogFile)
 	if err != nil {
@@ -341,9 +381,16 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 	}
 	defer file.Close()
 
+	if m.logsShownAtLeastOnce {
+		m.closeLogs()
+		m.logMutex.Lock()
+		defer m.logMutex.Unlock()
+	}
+
 	reader := bufio.NewReader(file)
 
 	clearOutput := true
+	m.logsShowing = true
 	for {
 		select {
 		case <-m.logStopChan:
@@ -352,10 +399,9 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 			line, err := reader.ReadString('\n')
 			if err == io.EOF {
 				// Handle end of file
-				break
+				continue
 			} else if err != nil {
-				// Handle error
-				log.Fatalf("ShowLogs err: %s \n", err)
+				return nil
 			}
 			m.program.Send(LogLineUpdate{
 				ClearOutput: clearOutput,
@@ -364,7 +410,6 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 			clearOutput = false
 		}
 	}
-
 	return nil
 }
 
@@ -414,17 +459,23 @@ func (m *LogBubbleteaApp) ChannelHandler() {
 		select {
 		case message := <-m.input:
 			switch message.(type) {
-			case *runspec.RunResult, ConnectedMessage:
+			case *RunResultUpdate, ConnectedMessage:
 				m.program.Send(message)
+			default:
+				log.Fatalf("Unknown message type: %T", message)
 			}
 		}
 	}
 }
 
-func (m *LogBubbleteaApp) Run(connected bool) {
-	m.connected = connected
+func (m *LogBubbleteaApp) IsRunning() bool {
+	return m.isRunning
+}
+
+func (m *LogBubbleteaApp) Run() {
 	go m.ChannelHandler()
 
+	m.isRunning = true
 	if _, err := m.program.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)

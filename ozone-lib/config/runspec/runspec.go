@@ -1,7 +1,6 @@
 package runspec
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"github.com/bmatcuk/doublestar/v4"
@@ -214,15 +213,13 @@ func getBuildHash(node *RunspecRunnable, ozoneWorkingDir string) (string, error)
 }
 
 type Runspec struct {
+	runId        string
 	config       *config.OzoneConfig
 	ProjectName  string                                     `yaml:"project"`
 	Context      string                                     `yaml:"context"`
 	OzoneWorkDir string                                     `yaml:"work_dir"` // move into config
 	BuildVars    *VariableMap                               `yaml:"build_vars"`
 	CallStacks   map[config.RunnableType][]*RunspecRunnable `yaml:"call_stack"`
-
-	cancelled      bool
-	cancelledMutex sync.Mutex
 }
 
 func NewRunspec(context, ozoneWorkingDir string, ozoneConfig *config.OzoneConfig) *Runspec {
@@ -232,14 +229,19 @@ func NewRunspec(context, ozoneWorkingDir string, ozoneConfig *config.OzoneConfig
 	renderedBuildVars.RenderNoMerge(systemEnvVars)
 	renderedBuildVars.SelfRender()
 
+	runUUID, err := uuid.NewUUID()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	runspec := &Runspec{
+		runId:        runUUID.String(),
 		config:       ozoneConfig,
 		ProjectName:  ozoneConfig.ProjectName,
 		Context:      context,
 		OzoneWorkDir: ozoneWorkingDir,
 		BuildVars:    renderedBuildVars,
 		CallStacks:   make(map[config.RunnableType][]*RunspecRunnable),
-		cancelled:    false,
 	}
 
 	return runspec
@@ -447,19 +449,7 @@ func addCallstackScopeVars(runnable *config.Runnable, buildScope *VariableMap, o
 	return service, dir
 }
 
-func (wt *Runspec) ExecuteCallstacks(ctx context.Context, runResult *RunResult) {
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				wt.cancelledMutex.Lock()
-				wt.cancelled = true
-				wt.cancelledMutex.Unlock()
-				return
-			}
-		}
-	}()
+func (wt *Runspec) ExecuteCallstacks(runResult *RunResult) {
 
 	runOrder := []config.RunnableType{
 		config.PreUtilityType,
@@ -473,30 +463,22 @@ func (wt *Runspec) ExecuteCallstacks(ctx context.Context, runResult *RunResult) 
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
 			// TODO shouldn't be "running" at this stage
-			runResult.RunSpecRootNodeToRunResult(callstack, wt.OzoneWorkDir, wt.config)
+			runResult.RunSpecRootNodeToRunResult(wt.runId, callstack, wt.OzoneWorkDir, wt.config)
 		}
 	}
 
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
-			if wt.cancelled {
-				return
-			}
-			wt.CheckCacheAndExecute(ctx, callstack, runResult)
+			wt.CheckCacheAndExecute(callstack, runResult)
 		}
 	}
 }
 
 func (wt *Runspec) AddCallstackResult(runResult *RunResult, id string, status CallstackStatus, callStackErr error) {
-	wt.cancelledMutex.Lock()
-	if wt.cancelled {
-		return
-	}
 	runResult.AddCallstackResult(id, status, callStackErr)
-	wt.cancelledMutex.Unlock()
 }
 
-func (wt *Runspec) CheckCacheAndExecute(ctx context.Context, rootCallstack *RunspecRunnable, runResult *RunResult) error {
+func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResult *RunResult) error {
 	nodeInputStack := lane.NewStack[*RunspecRunnable]()
 	nodeInputStack.Push(rootCallstack)
 
@@ -529,6 +511,7 @@ func (wt *Runspec) CheckCacheAndExecute(ctx context.Context, rootCallstack *Runs
 				//fmt.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
 				//fmt.Println("--------------------")
 				wt.AddCallstackResult(runResult, node.GetRunnable().GetId(), Cached, nil)
+				logger.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
 				return nil
 			}
 
@@ -542,7 +525,7 @@ func (wt *Runspec) CheckCacheAndExecute(ctx context.Context, rootCallstack *Runs
 			workQueue.Prepend(node)
 		}
 		if node.Parallel == true {
-			wt.executeParallel(ctx, node.Children, runResult)
+			wt.executeParallel(node.Children, runResult)
 		} else {
 			for i := 0; i < len(node.Children); i++ {
 				childRunnable := node.Children[i].GetRunnable()
@@ -569,9 +552,6 @@ func (wt *Runspec) CheckCacheAndExecute(ctx context.Context, rootCallstack *Runs
 
 func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.Deque[*RunspecRunnable], runResult *RunResult) error {
 	for workQueue.Size() != 0 {
-		if wt.cancelled {
-			return nil
-		}
 		runspecRunnable, ok := workQueue.Shift()
 		if !ok {
 			logger.Fatalf("Error: runnable work queue is empty. \n")
@@ -604,7 +584,7 @@ func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.D
 	return nil
 }
 
-func (wt *Runspec) executeParallel(ctx context.Context, nodes []*RunspecRunnable, runResult *RunResult) {
+func (wt *Runspec) executeParallel(nodes []*RunspecRunnable, runResult *RunResult) {
 	var wg sync.WaitGroup
 	for _, node := range nodes {
 		wg.Add(1)
@@ -612,8 +592,7 @@ func (wt *Runspec) executeParallel(ctx context.Context, nodes []*RunspecRunnable
 		go func() {
 			defer wg.Done()
 			wt.AddCallstackResult(runResult, node.GetRunnable().GetId(), Running, nil)
-			ctx, _ := context.WithCancel(ctx)
-			wt.CheckCacheAndExecute(ctx, node, runResult)
+			wt.CheckCacheAndExecute(node, runResult)
 		}()
 	}
 	wg.Wait()
@@ -625,6 +604,10 @@ func (wtr *RunspecRunnable) HasCaching() bool {
 
 func (wtr *RunspecRunnable) GetId() string {
 	return wtr.id
+}
+
+func (wt *Runspec) GetRunID() string {
+	return wt.runId
 }
 
 func (wtr *RunspecRunnable) RunSteps(logger *logger_lib.Logger) error {
@@ -808,7 +791,7 @@ func (wt *Runspec) addRunspecRunnable(rootConfigRunnable *config.Runnable, ordin
 	var runspecRunnables []*RunspecRunnable
 	var rootRunable *RunspecRunnable
 
-	logger, err := logger_lib.New(wt.OzoneWorkDir, rootConfigRunnable.Name, wt.config.Headless)
+	logger, err := logger_lib.New(wt.runId, wt.OzoneWorkDir, rootConfigRunnable.Name, wt.config.Headless)
 	if err != nil {
 		log.Fatalln(err)
 	}

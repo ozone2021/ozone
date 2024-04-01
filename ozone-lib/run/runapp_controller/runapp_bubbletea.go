@@ -6,7 +6,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	runspec2 "github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	"os"
-	"sync"
 )
 
 type RunCmdBubbleteaApp struct {
@@ -57,12 +56,10 @@ func (m *RunCmdBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "r":
 			m.reRunChan <- struct{}{}
-			return m, nil
 		}
 	case RunResultUpdate:
 		newData := msg.(RunResultUpdate).RunResult
 		m.runResult = newData
-		return m, nil
 	case FinishedAddingCallstacks:
 		m.callStacksLoaded = true
 	default:
@@ -98,15 +95,14 @@ func (m *RunCmdBubbleteaApp) View() string {
 	return s
 }
 
-func (m *RunCmdBubbleteaApp) Run(wg *sync.WaitGroup) {
-	defer wg.Done()
+func (m *RunCmdBubbleteaApp) Run() {
 	if _, err := m.program.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
 	}
 }
 
-func (m *RunCmdBubbleteaApp) UpdateRunResult(runResult *runspec2.RunResult) {
+func (m *RunCmdBubbleteaApp) UpdateRunResult(runResult *runspec2.RunResult, _ bool) {
 	go m.program.Send(RunResultUpdate{
 		RunResult: runResult,
 	})

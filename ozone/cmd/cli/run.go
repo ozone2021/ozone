@@ -6,7 +6,9 @@ import (
 	"github.com/ozone2021/ozone/ozone-lib/run/runapp_controller"
 	"github.com/spf13/cobra"
 	"log"
-	"sync"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 var runCmd = &cobra.Command{
@@ -27,24 +29,15 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		//runResult := spec.RunSpecRootNodeToRunResult(spec.CallStacks[ozoneConfig.BuildType][0])
-
 		controller := runapp_controller.NewRunController(ozoneContext, ozoneWorkingDir, combinedArgs, config)
 
-		var wg sync.WaitGroup
-		controller.Start(&wg)
-
-		//runResult.PrintErrorLog() TODO if headless, print error log
-		//
-		//fmt.Println("=================================================")
-		//fmt.Println("====================  Run result  ===============")
-		//fmt.Println("=================================================")
+		go controller.Start()
 
 		controller.Run(runnables)
 
-		wg.Wait()
-
-		//runResult.PrintRunResult(true)
+		sig := make(chan os.Signal, 2)
+		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+		<-sig
 	},
 }
 

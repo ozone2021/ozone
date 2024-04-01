@@ -145,3 +145,23 @@ Find way to update runResult as soon as log app connects.
 Delete log files on start of new run.
 
 Page down as new logs come in.
+
+
+# builtin error
+
+```
+  - name: test-ozone
+    dir: "{{API_DIR}}"
+    steps:
+      - type: builtin
+        name: runScript
+        with_vars:
+          SCRIPT: script/test_ozone.sh
+```
+runScript doesn't exist, but exits with success.
+
+# Log fix
+
+Reusing the same file causes mad issues.
+
+Create a folder for each run, and delete the folder when the run is finished.

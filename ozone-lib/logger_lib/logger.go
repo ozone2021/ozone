@@ -2,6 +2,8 @@ package logger_lib
 
 import (
 	"bufio"
+	"errors"
+	"fmt"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
 	"log"
 	"os"
@@ -16,7 +18,7 @@ type Logger struct {
 	closer     func() error
 }
 
-func New(ozoneWorkingDirectory, rootRunnable string, headless bool) (*Logger, error) {
+func New(runId, ozoneWorkingDirectory, rootRunnable string, headless bool) (*Logger, error) {
 	if headless {
 		return &Logger{
 			Logger:   log.New(os.Stdout, "", log.Ldate|log.Ltime),
@@ -26,43 +28,73 @@ func New(ozoneWorkingDirectory, rootRunnable string, headless bool) (*Logger, er
 		}, nil
 	}
 
-	filePath, workLogDir := getLogFilePathAndDir(ozoneWorkingDirectory, rootRunnable)
+	filePath, workLogDir := getLogFilePathAndDir(ozoneWorkingDirectory, runId, rootRunnable)
 
-	_, err := os.Stat(workLogDir)
-	if os.IsNotExist(err) {
-		err := os.Mkdir(workLogDir, 0755)
+	_, doesntExistErr := os.Stat(workLogDir)
+	if os.IsNotExist(doesntExistErr) {
+		err := os.MkdirAll(workLogDir, 0755)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
+
+	//os.Remove(filePath)
 
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	return &Logger{
+	logger := &Logger{
 		Logger:   log.New(file, "", 0),
 		FileName: filePath,
 		File:     file,
 		closer: func() error {
 			return file.Close()
 		},
-	}, nil
+	}
+
+	return logger, nil
 }
 
 func (l *Logger) GetLogFilePath() string {
 	return filepath.Join(l.WorkLogDir, l.FileName)
 }
 
-func getLogFilePathAndDir(ozoneWorkingDirectory string, rootRunnable string) (string, string) {
-	workLogDir := filepath.Join(utils.GetTmpDir(ozoneWorkingDirectory), "logs")
+func getLogFilePathAndDir(ozoneWorkingDirectory, runId, rootRunnable string) (string, string) {
+	workLogDir := getWorkLogDir(ozoneWorkingDirectory, runId)
 
 	fileName := rootRunnable + ".log"
 
 	filePath := filepath.Join(workLogDir, fileName)
 
 	return filePath, workLogDir
+}
+
+func getWorkLogDir(ozoneWorkingDirectory, runId string) string {
+	return filepath.Join(utils.GetTmpDir(ozoneWorkingDirectory), runId, "logs")
+}
+
+func ClearLogs(ozoneWorkingDirectory, runId string) error {
+	workLogDir := getWorkLogDir(ozoneWorkingDirectory, runId)
+
+	err := filepath.Walk(workLogDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			err := os.Remove(path)
+			if err != nil {
+				return errors.New(fmt.Sprintf("Error deleting file:", path, err))
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return errors.New(fmt.Sprintf("Error walking through directory:", err))
+	}
+	return nil
 }
 
 func (l *Logger) Close() error {

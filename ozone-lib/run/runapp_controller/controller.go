@@ -1,13 +1,11 @@
 package runapp_controller
 
 import (
-	"context"
 	"github.com/ozone2021/ozone/ozone-lib/config"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	. "github.com/ozone2021/ozone/ozone-lib/run/brpc_log_registration/log_registration_server"
 	"github.com/ozone2021/ozone/ozone-lib/run/logapp_update_controller"
 	"os"
-	"sync"
 	"time"
 )
 
@@ -23,8 +21,9 @@ type RunController struct {
 	logUpdateController    *logapp_update_controller.LogappUpdateController
 	runResult              *runspec.RunResult
 
+	waitChan chan struct{}
+
 	runnables []*config.Runnable
-	cancel    context.CancelFunc
 }
 
 func NewRunController(ozoneContext, ozoneWorkingDir, combinedArgs string, ozoneConfig *config.OzoneConfig) *RunController {
@@ -48,6 +47,7 @@ func NewRunController(ozoneContext, ozoneWorkingDir, combinedArgs string, ozoneC
 		reRunChan:           reRunChan,
 		shutdownChan:        shutdownChan,
 		runResult:           runResult,
+		waitChan:            make(chan struct{}, 1),
 	}
 }
 
@@ -55,35 +55,39 @@ func (c *RunController) HandleReRunMessages() {
 	for {
 		select {
 		case <-c.reRunChan:
-			c.cancel()
+			c.waitChan <- struct{}{}
 			time.Sleep(2 * time.Second)
 			c.runResult.ResetRunResult()
-			c.Run(c.runnables)
+			go c.Run(c.runnables)
 		case <-c.shutdownChan:
+			c.waitChan <- struct{}{}
 			os.Exit(0)
 		}
 	}
 }
 
-func (c *RunController) Start(wg *sync.WaitGroup) {
+func (c *RunController) Start() {
 	go c.logUpdateController.Start()
 	go c.HandleReRunMessages()
 
-	wg.Add(2)
-	go c.server.Start(wg)
-	go c.ui.Run(wg)
+	go c.server.Start()
+	c.ui.Run()
 }
 
 func (c *RunController) Run(runnables []*config.Runnable) {
+	//logger_lib.ClearLogs(c.ozoneWorkingDir)
+	c.runResult.ResetRunResult()
+
+	// Required for first run
 	c.runnables = runnables
 
-	ctx, cancelContext := context.WithCancel(context.Background())
-	c.cancel = cancelContext
 	spec := runspec.NewRunspec(c.ozoneContext, c.ozoneWorkingDir, c.ozoneConfig)
+	c.runResult.RunId = spec.GetRunID()
 	spec.AddCallstacks(runnables, c.ozoneConfig, c.ozoneContext)
 
 	c.ui.FinishedAddingCallstacks()
 
-	spec.ExecuteCallstacks(ctx, c.runResult)
+	go spec.ExecuteCallstacks(c.runResult)
 
+	<-c.waitChan
 }

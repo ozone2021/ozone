@@ -10,14 +10,17 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"log"
+	"sync"
 	"time"
 )
 
 type LogappUpdateController struct {
 	registrationServer     *LogRegistrationServer
 	registeredLogApps      map[string]*ConnectedLogApp
+	registeredLogAppsMutex sync.Mutex
 	incomingLogApps        <-chan *LogAppDetails // TODO check arrow
 	channelHandlerShutdown chan struct{}
+	resetLogApps           chan struct{}
 	updateAllFunction      runspec.UpdateAllListenersFunc
 }
 
@@ -32,7 +35,12 @@ func NewLogappUpdateController(ozoneWorkingDir string, incomingLogAppDetails cha
 		registeredLogApps:  make(map[string]*ConnectedLogApp),
 		incomingLogApps:    incomingLogAppDetails,
 		updateAllFunction:  updateFunction,
+		resetLogApps:       make(chan struct{}),
 	}
+}
+
+func (c *LogappUpdateController) ResetLogApps() {
+	c.resetLogApps <- struct{}{}
 }
 
 func (c *LogappUpdateController) Start() {
@@ -41,11 +49,13 @@ func (c *LogappUpdateController) Start() {
 	for {
 		select {
 		case logAppDetails := <-c.incomingLogApps:
+			c.registeredLogAppsMutex.Lock()
 			c.registeredLogApps[logAppDetails.Id] = &ConnectedLogApp{
 				LogAppDetails:          logAppDetails,
 				LogUpdateServiceClient: c.connectToLogApp(logAppDetails),
 			}
-			c.updateAllFunction()
+			c.registeredLogAppsMutex.Unlock()
+			c.updateAllFunction(false)
 		case <-c.channelHandlerShutdown:
 			return
 		}
@@ -54,14 +64,28 @@ func (c *LogappUpdateController) Start() {
 
 func (c *LogappUpdateController) SendHeartbeats() {
 	for {
-		for _, connectedApp := range c.registeredLogApps {
-			_, err := connectedApp.ReceiveMainAppHeartbeat(context.Background(), &emptypb.Empty{})
-			if err != nil {
-				// TODO remove log app
+		select {
+		//case <-c.resetLogApps:
+		//	for id, _ := range c.registeredLogApps {
+		//		c.updateAllFunction(true)
+		//		c.deleteRegisteredApp(id)
+		//	}
+		default:
+			for id, connectedApp := range c.registeredLogApps {
+				_, err := connectedApp.ReceiveMainAppHeartbeat(context.Background(), &emptypb.Empty{})
+				if err != nil {
+					c.deleteRegisteredApp(id)
+				}
 			}
+			time.Sleep(1 * time.Second)
 		}
-		time.Sleep(1 * time.Second)
 	}
+}
+
+func (c *LogappUpdateController) deleteRegisteredApp(id string) {
+	c.registeredLogAppsMutex.Lock()
+	delete(c.registeredLogApps, id)
+	c.registeredLogAppsMutex.Unlock()
 }
 
 func (c *LogappUpdateController) connectToLogApp(details *LogAppDetails) log_server_pb.LogUpdateServiceClient {
@@ -72,8 +96,8 @@ func (c *LogappUpdateController) connectToLogApp(details *LogAppDetails) log_ser
 	return log_server_pb.NewLogUpdateServiceClient(conn)
 }
 
-func (c *LogappUpdateController) UpdateLogApps(runResult *runspec.RunResult) {
-	for _, connectedApp := range c.registeredLogApps {
+func (c *LogappUpdateController) UpdateLogApps(runResult *runspec.RunResult, reset bool) {
+	for id, connectedApp := range c.registeredLogApps {
 		runResultPb := &log_server_pb.RunResult{}
 		err := copier.CopyWithOption(&runResultPb, &runResult, copier.Option{IgnoreEmpty: true, DeepCopy: true})
 		if err != nil {
@@ -88,9 +112,13 @@ func (c *LogappUpdateController) UpdateLogApps(runResult *runspec.RunResult) {
 			}
 			runResultPb.IndexList = append(runResultPb.IndexList, logNode)
 		}
-		_, err = connectedApp.UpdateRunResult(context.Background(), runResultPb)
+		runResultPb.Reset_ = reset
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err = connectedApp.UpdateRunResult(timeoutCtx, runResultPb)
 		if err != nil {
-			log.Println("failed to update log app: ", err)
+			c.deleteRegisteredApp(id)
+			log.Println(err)
 		}
 	}
 }

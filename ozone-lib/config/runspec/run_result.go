@@ -14,6 +14,7 @@ import (
 )
 
 type RunResult struct {
+	RunId     string
 	Status    CallstackStatus
 	Roots     []*CallstackResultNode
 	Index     *OrderedMap[string, *CallstackResultNode]
@@ -47,8 +48,8 @@ type CallstackResultNode struct {
 	IsCallstack bool
 }
 
-type UpdateListenerFunc func(*RunResult)
-type UpdateAllListenersFunc func()
+type UpdateListenerFunc func(*RunResult, bool)
+type UpdateAllListenersFunc func(bool)
 
 func NewRunResult() *RunResult {
 	runResult := &RunResult{
@@ -64,13 +65,13 @@ func (r *RunResult) ResetRunResult() {
 	r.Roots = nil
 	r.Index = NewOrderedMap[string, *CallstackResultNode]()
 
-	r.UpdateListeners()
+	r.UpdateListeners(true)
 }
 
 func (r *RunResult) AddListener(listener UpdateListenerFunc) {
 	r.listeners = append(r.listeners, listener)
 
-	r.UpdateListeners()
+	r.UpdateListeners(false)
 }
 
 //func (r *RunResult) HaveDescendantsSucceeded() {
@@ -129,11 +130,11 @@ func getErrorMessage(node *CallstackResultNode) string {
 	return ""
 }
 
-func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneWorkDir string, config *ozoneConfig.OzoneConfig) {
+func (r *RunResult) RunSpecRootNodeToRunResult(runId string, rootNode *RunspecRunnable, ozoneWorkDir string, config *ozoneConfig.OzoneConfig) {
 	stack := lane.NewStack[*CallstackResultNode]()
 	visited := make(map[*RunspecRunnable]*CallstackResultNode)
 
-	rootLogger, err := logger_lib.New(ozoneWorkDir, rootNode.GetRunnable().Name, config.Headless)
+	rootLogger, err := logger_lib.New(runId, ozoneWorkDir, rootNode.GetRunnable().Name, config.Headless)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -165,7 +166,7 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 		// Get the corresponding original Node
 		originalNode := getNodeById(rootNode, current.Id)
 
-		callstackLogger, err := logger_lib.New(ozoneWorkDir, current.Name, config.Headless)
+		callstackLogger, err := logger_lib.New(runId, ozoneWorkDir, current.Name, config.Headless)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -178,7 +179,7 @@ func (r *RunResult) RunSpecRootNodeToRunResult(rootNode *RunspecRunnable, ozoneW
 				isCallstack := false
 				if child.HasCaching() {
 					isCallstack = true
-					callstackLogger, err = logger_lib.New(ozoneWorkDir, child.GetRunnable().Name, config.Headless)
+					callstackLogger, err = logger_lib.New(runId, ozoneWorkDir, child.GetRunnable().Name, config.Headless)
 					if err != nil {
 						log.Fatalln(err)
 					}
@@ -229,12 +230,12 @@ func (r *RunResult) AddRootCallstack(callstack *CallStack, logger *logger_lib.Lo
 		LogFile:     logger.GetLogFilePath(),
 		IsCallstack: true,
 	})
-	r.UpdateListeners()
+	r.UpdateListeners(false)
 }
 
-func (r *RunResult) UpdateListeners() {
+func (r *RunResult) UpdateListeners(reset bool) {
 	for _, listener := range r.listeners {
-		listener(r)
+		listener(r, reset)
 	}
 }
 
@@ -260,7 +261,7 @@ func (r *RunResult) AddCallstackResult(id string, status CallstackStatus, callSt
 		}
 	}
 
-	r.UpdateListeners()
+	r.UpdateListeners(false)
 	return nil
 	// TODO if at this point, the runnable is caching, then we should update the cache if all children have succeeded.
 }

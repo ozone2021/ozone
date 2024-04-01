@@ -30,6 +30,8 @@ message RunResult {
   CallstackStatus status = 1;
   repeated CallstackLogNode roots = 2;
   repeated CallstackLogNode IndexList = 3;
+  bool reset = 4;
+  string RunId = 5;
 }
 
 service LogUpdateService {

@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sync"
 )
 
 type LogRegistrationServer struct {
@@ -39,8 +38,7 @@ func mkfifo(path string, mode os.FileMode) error {
 	return os.MkdirAll(dirPath, os.ModePerm)
 }
 
-func (s *LogRegistrationServer) Start(wg *sync.WaitGroup) {
-	defer wg.Done()
+func (s *LogRegistrationServer) Start() {
 	pipePath := fmt.Sprintf("%s/log-registration.sock", s.ozoneSocketDirPath)
 
 	err := os.Remove(pipePath) // Remove the pipe if it already exists

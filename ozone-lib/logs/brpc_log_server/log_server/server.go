@@ -22,9 +22,20 @@ type LogServer struct {
 	UnimplementedLogUpdateServiceServer
 	pipePath            string
 	grpcServer          *grpc.Server
-	uiChan              chan tea.Msg
+	uiChan              UiChan
 	mostRecentHeartbeat int64
 	reconnectChan       chan int64
+}
+
+type Heartbeat struct {
+	HeartbeatTime   int64
+	ShouldReconnect bool
+}
+
+type RunResultUpdate struct {
+	RunResult   *runspec.RunResult
+	ShouldReset bool
+	RunId       string
 }
 
 type LogAppDetails struct {
@@ -91,7 +102,11 @@ func (s *LogServer) UpdateRunResult(ctx context.Context, in *RunResult) (*emptyp
 		runspecRunresult.Index.Set(node.Id, node)
 	}
 
-	s.uiChan <- runspecRunresult
+	s.uiChan <- &RunResultUpdate{
+		RunResult:   runspecRunresult,
+		ShouldReset: in.Reset_,
+		RunId:       in.RunId,
+	}
 
 	return &emptypb.Empty{}, nil
 }
@@ -100,10 +115,6 @@ func (s *LogServer) UpdateRunResult(ctx context.Context, in *RunResult) (*emptyp
 func (s *LogServer) ReceiveMainAppHeartbeat(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	s.mostRecentHeartbeat = time.Now().Unix()
 
-	//if currentHeartbeatTime-s.lastHeartbeat > 5 {
-	//	// TODO reconnect to main app
-	//	s.reconnectChan <- struct{}{}
-	//}
 	s.reconnectChan <- s.mostRecentHeartbeat
 
 	return &emptypb.Empty{}, nil
