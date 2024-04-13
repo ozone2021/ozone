@@ -13,7 +13,6 @@ import (
 	"github.com/muesli/reflow/wordwrap"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	. "github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server"
-	"golang.org/x/term"
 	"io"
 	"log"
 	"os"
@@ -227,8 +226,7 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *LogBubbleteaApp) setContent() {
-	termWidth, _, _ := term.GetSize(0)
-	m.viewport.SetContent(wordwrap.String(m.logOutput, termWidth))
+	m.viewport.SetContent(wordwrap.String(m.logOutput, m.viewport.Width))
 }
 
 func (m *LogBubbleteaApp) moveToNextSelection() bool {
