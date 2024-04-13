@@ -10,8 +10,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
+	"github.com/muesli/reflow/wordwrap"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	. "github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server"
+	"golang.org/x/term"
 	"io"
 	"log"
 	"os"
@@ -88,7 +90,7 @@ func NewLogBubbleteaApp(appId string, uiChan UiChan) *LogBubbleteaApp {
 		logStopChan: make(chan struct{}, 1),
 		keyMap:      LogKeyMap(),
 	}
-	app.program = tea.NewProgram(app, tea.WithMouseCellMotion())
+	app.program = tea.NewProgram(app, tea.WithMouseCellMotion(), tea.WithAltScreen())
 
 	return app
 }
@@ -149,6 +151,8 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.Height = msg.(tea.WindowSizeMsg).Height - verticalMarginHeight
 		}
 
+		m.setContent()
+
 		if useHighPerformanceRenderer {
 			// Render (or re-render) the whole viewport. Necessary both to
 			// initialize the viewport and when the window is resized.
@@ -201,8 +205,10 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if updateMsg.ClearOutput == true {
 			m.logOutput = ""
 		}
+
 		m.logOutput = m.logOutput + logLine
-		m.viewport.SetContent(m.logOutput)
+		m.setContent()
+
 		m.logsShownAtLeastOnce = true
 		if m.followMode != OFF {
 			m.viewport.GotoBottom()
@@ -218,6 +224,11 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *LogBubbleteaApp) setContent() {
+	termWidth, _, _ := term.GetSize(0)
+	m.viewport.SetContent(wordwrap.String(m.logOutput, termWidth))
 }
 
 func (m *LogBubbleteaApp) moveToNextSelection() bool {
