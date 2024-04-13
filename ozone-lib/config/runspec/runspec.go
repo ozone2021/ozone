@@ -469,7 +469,10 @@ func (wt *Runspec) ExecuteCallstacks(runResult *RunResult) {
 
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
-			wt.CheckCacheAndExecute(callstack, runResult)
+			err := wt.CheckCacheAndExecute(callstack, runResult)
+			if err != nil {
+				return
+			}
 		}
 	}
 }
@@ -527,8 +530,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 		if node.Parallel == true {
 			wt.executeParallel(node.Children, runResult)
 		} else {
-			// Push in reverse order
-			for i := len(node.Children) - 1; i >= 0; i-- {
+			for i := 0; i < len(node.Children); i++ {
 				childRunnable := node.Children[i].GetRunnable()
 				nodeInputStack.Push(childRunnable)
 			}
