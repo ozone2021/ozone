@@ -512,7 +512,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 				//fmt.Println("--------------------")
 				wt.AddCallstackResult(runResult, node.GetRunnable().GetId(), Cached, nil)
 				logger.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
-				return nil
+				continue
 			}
 
 			err := runResult.SetRunnableHash(node.GetRunnable().GetId(), node.hash)
@@ -527,7 +527,8 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 		if node.Parallel == true {
 			wt.executeParallel(node.Children, runResult)
 		} else {
-			for i := 0; i < len(node.Children); i++ {
+			// Push in reverse order
+			for i := len(node.Children) - 1; i >= 0; i-- {
 				childRunnable := node.Children[i].GetRunnable()
 				nodeInputStack.Push(childRunnable)
 			}
