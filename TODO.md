@@ -165,3 +165,13 @@ runScript doesn't exist, but exits with success.
 Reusing the same file causes mad issues.
 
 Create a folder for each run, and delete the folder when the run is finished.
+
+# Directory bug
+
+The /tmp/ozone/<dir> uses the base64 encoding of the ozone working directory. If this is too long, the unix pipe fails 
+to open with:
+
+```
+2024/05/13 11:29:42 failed to listen: listen unix /tmp/ozone/L1VzZXJzdZVyLXBvYw==/socks/log-b61cbd.sock: bind: invalid argument
+```
+

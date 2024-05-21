@@ -782,6 +782,9 @@ func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *conf
 		} else {
 			var runspecRunnable *RunspecRunnable
 			runspecRunnable, err = wt.addRunspecRunnable(r, ordinal, CopyOrCreateNew(topLevelScope), asOutput)
+			if err != nil {
+				log.Fatalf("Error %s in runnable %s", err, r.Name)
+			}
 			wt.CallStacks[runspecRunnable.Type] = append(wt.CallStacks[runspecRunnable.Type], runspecRunnable)
 		}
 		if err != nil {
