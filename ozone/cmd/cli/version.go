@@ -1,8 +1,8 @@
 package cli
 
 import (
+	"fmt"
 	"github.com/spf13/cobra"
-	"log"
 )
 
 func init() {
@@ -13,6 +13,6 @@ var versionCmd = &cobra.Command{
 	Use:  "version",
 	Long: `Status of all services in current directory`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Println("1.2-pre")
+		fmt.Sprintf("1.4.13")
 	},
 }
