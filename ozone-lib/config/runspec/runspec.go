@@ -200,7 +200,7 @@ func getBuildHash(node *RunspecRunnable, ozoneWorkingDir string) (string, error)
 			editTime, err := cache.FileLastEdit(match)
 
 			if err != nil {
-				return "", errors.New(fmt.Sprintf("Source file %s for runnable %s is missing.", filePath, node.GetRunnable().Name))
+				return "", errors.New(fmt.Sprintf("Source file %s for filePath: %s for runnable %s is missing.", match, filePath, node.GetRunnable().Name))
 			}
 
 			filesDirsLastEditTimes = append(filesDirsLastEditTimes, editTime)
@@ -674,7 +674,7 @@ func (step *RunspecStep) runTestable(logger *logger_lib.Logger) error {
 		}
 		_, err := utilities.RunBashScript(script.String(), step.Scope.scope, logger)
 		if err != nil {
-			logger.Fatalln(err)
+			return err
 		}
 	default:
 		return errors.New(fmt.Sprintf("Testable value not found: %s \n", step.Name))
