@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -64,6 +65,31 @@ func (vm *VariableMap) Print(indent int) {
 	for _, variable := range vm.variables {
 		cli_utils.PrintWithIndent(fmt.Sprintf("%s=%s", variable.name, variable.value), indent)
 	}
+}
+
+func (vm *VariableMap) Sprint() string {
+	var out string
+
+	keys := make([]string, 0, len(vm.variables))
+	for key := range vm.variables {
+		keys = append(keys, key)
+	}
+
+	// Sort the keys
+	sort.Strings(keys)
+
+	// Print the sorted map
+	for _, key := range keys {
+		variable := vm.variables[key]
+
+		ordinality, err := vm.GetOrdinal(variable.name)
+		if err != nil {
+			log.Fatalf("Error getting ordinal for variable %s: %s\n", variable.name, err)
+		}
+		out += fmt.Sprintf("%s=%s, %d", variable.name, variable.value, ordinality)
+	}
+
+	return out
 }
 
 func (vm *VariableMap) AddVariableWithoutOrdinality(variable *Variable) {

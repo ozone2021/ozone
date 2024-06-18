@@ -1,6 +1,8 @@
 package runspec
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/bmatcuk/doublestar/v4"
@@ -21,7 +23,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"sync"
 )
@@ -61,6 +62,11 @@ func (ds *DifferentialScope) MarshalYAML() (interface{}, error) {
 	b, err := yaml.Marshal(diff)
 
 	return string(b), err
+}
+
+func (ds *DifferentialScope) Hash() string {
+	hash := md5.Sum([]byte(ds.scope.Sprint()))
+	return hex.EncodeToString(hash[:])
 }
 
 //		ContextConditionals []*ContextConditional `yaml:"context_conditionals"` # TODO save whether satisified
@@ -172,15 +178,32 @@ func (r RunspecRunnable) ConditionalsSatisfied() bool {
 }
 
 func getBuildHash(node *RunspecRunnable, ozoneWorkingDir string) (string, error) {
-	ozonefilePath := path.Join(ozoneWorkingDir, "Ozonefile")
+	//ozonefilePath := path.Join(ozoneWorkingDir, "Ozonefile")
 
-	ozonefileEditTime, err := cache.FileLastEdit(ozonefilePath)
+	//ozonefileEditTime, err := cache.FileLastEdit(ozonefilePath) todo
 
-	if err != nil {
-		return "", err
+	//if err != nil {
+	//	return "", err
+	//}
+
+	scopeHash := node.BuildScope.Hash()
+	filesDirsLastEditTimes := []int64{}
+
+	childHashes := make([]string, 0)
+	for _, root := range node.Children {
+		stack := lane.NewStack[*RunspecRunnable]()
+		stack.Push(root)
+
+		for stack.Size() != 0 {
+			current, _ := stack.Pop()
+			childHashes = append(childHashes, current.BuildScope.Hash())
+
+			// Push the children of the current node onto the stack in reverse order
+			for i := len(current.Children) - 1; i >= 0; i-- {
+				stack.Push(current.Children[i])
+			}
+		}
 	}
-
-	filesDirsLastEditTimes := []int64{ozonefileEditTime}
 
 	fs := os.DirFS(ozoneWorkingDir)
 
@@ -208,8 +231,10 @@ func getBuildHash(node *RunspecRunnable, ozoneWorkingDir string) (string, error)
 
 	}
 
-	hash := cache.Hash(filesDirsLastEditTimes...)
-	return hash, nil
+	fileTimesHash := cache.HashInt64s(filesDirsLastEditTimes...)
+	childHash := cache.HashStrings(childHashes...)
+	cacheHashAny := cache.Hash(scopeHash, fileTimesHash, childHash)
+	return cacheHashAny, nil
 }
 
 type Runspec struct {

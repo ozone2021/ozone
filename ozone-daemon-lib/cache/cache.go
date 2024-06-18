@@ -73,9 +73,27 @@ func FileLastEdit(stringPath string) (int64, error) {
 	return file.ModTime().Unix(), nil
 }
 
-func Hash(lastUpdateTimes ...int64) string {
+func HashInt64s(lastUpdateTimes ...int64) string {
 	digester := crypto.MD5.New()
 	for _, ob := range lastUpdateTimes {
+		fmt.Fprint(digester, reflect.TypeOf(ob))
+		fmt.Fprint(digester, ob)
+	}
+	return fmt.Sprintf("%x", digester.Sum(nil))
+}
+
+func HashStrings(items ...string) string {
+	digester := crypto.MD5.New()
+	for _, ob := range items {
+		fmt.Fprint(digester, reflect.TypeOf(ob))
+		fmt.Fprint(digester, ob)
+	}
+	return fmt.Sprintf("%x", digester.Sum(nil))
+}
+
+func Hash(items ...any) string {
+	digester := crypto.MD5.New()
+	for _, ob := range items {
 		fmt.Fprint(digester, reflect.TypeOf(ob))
 		fmt.Fprint(digester, ob)
 	}
