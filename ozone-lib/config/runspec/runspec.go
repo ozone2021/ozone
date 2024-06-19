@@ -231,8 +231,8 @@ func getBuildHash(node *RunspecRunnable, ozoneWorkingDir string) (string, error)
 
 	}
 
-	fileTimesHash := cache.HashInt64s(filesDirsLastEditTimes...)
-	childHash := cache.HashStrings(childHashes...)
+	fileTimesHash := cache.Hash(filesDirsLastEditTimes...)
+	childHash := cache.Hash(childHashes...)
 	cacheHashAny := cache.Hash(scopeHash, fileTimesHash, childHash)
 	return cacheHashAny, nil
 }
