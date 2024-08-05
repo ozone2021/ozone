@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/TwiN/go-color"
+	"github.com/kballard/go-shellquote"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
@@ -106,8 +107,8 @@ func (pm *ProcessManager) Halt(haltQuery *process_manager_queries.HaltQuery, rep
 			cmdString := fmt.Sprintf("docker rm -f %s",
 				process.Name,
 			)
-			cmdFields, argFields := CommandFromFields(cmdString)
-			cmd := exec.Command(cmdFields[0], argFields...)
+			fields, err := shellquote.Split(cmdString)
+			cmd := exec.Command(fields[0], fields[1:]...)
 			logFile, _, err := pm.setUpLogging(haltQuery.OzoneWorkingDir, process.Name)
 			if err != nil {
 				reply = &err
@@ -230,16 +231,6 @@ func (pm *ProcessManager) createTempDirIfNotExists(ozoneWorkingDir string) strin
 	return dirName
 }
 
-//func CommandFromFields(cmdString string) ([]string, []string) {
-//	cmdFields := strings.Fields(cmdString)
-//	var argFields []string
-//	if len(cmdFields) > 1 {
-//		argFields = cmdFields[1:]
-//	}
-//	argFields = deleteEmpty(argFields)
-//	return cmdFields, argFields
-//}
-
 func CommandFromFields(cmdString string) ([]string, []string) {
 	// Regular expression to match quoted strings or unquoted words
 	re := regexp.MustCompile(`(?:(\S*\".*\"\S*)|(\S*\'.*\'\S*)|(\S+))`)
@@ -279,8 +270,9 @@ func (pm *ProcessManager) AddProcess(processQuery *process_manager_queries.Proce
 	log.Println("cmd is:")
 	log.Println(cmdString)
 
-	cmdFields, argFields := CommandFromFields(cmdString)
-	cmd := exec.Command(cmdFields[0], argFields...)
+	fields, err := shellquote.Split(cmdString)
+	//cmdFields, argFields := CommandFromFields(cmdString)
+	cmd := exec.Command(fields[0], fields[1:]...)
 
 	if processQuery.Synchronous {
 		fmt.Println("sync")

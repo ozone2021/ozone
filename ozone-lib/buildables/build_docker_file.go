@@ -3,7 +3,7 @@ package buildables
 import (
 	"errors"
 	"fmt"
-	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	"github.com/kballard/go-shellquote"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
@@ -59,16 +59,16 @@ func BuildDockerContainer(varsMap *VariableMap, logger *logger_lib.Logger) error
 
 	logger.Printf("Build cmd is: %s \n", cmdString)
 
-	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
-	cmd := exec.Command(cmdFields[0], argFields...)
+	fields, err := shellquote.Split(cmdString)
+	cmd := exec.Command(fields[0], fields[1:]...)
 	cmd.Dir = cmdCallDir.String()
 
 	cmd.Stdout = logger.File
 	cmd.Stderr = logger.File
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		errorMessage := fmt.Sprintf("build docker err for image %s ", tag)
-		logger.Printf(errorMessage)
+		logger.Println(errorMessage)
 		return errors.New(errorMessage)
 	}
 	cmd.Wait()

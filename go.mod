@@ -15,6 +15,7 @@ require (
 	github.com/google/uuid v1.4.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.4.0
+	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/muesli/reflow v0.3.0
 	github.com/oleiade/lane/v2 v2.0.0

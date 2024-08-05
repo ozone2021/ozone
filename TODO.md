@@ -175,3 +175,7 @@ to open with:
 2024/05/13 11:29:42 failed to listen: listen unix /tmp/ozone/L1VzZXJzdZVyLXBvYw==/socks/log-b61cbd.sock: bind: invalid argument
 ```
 
+# Docker build with arg fails when VENDOR_CMD="go mod vendor" <- quote issue or something
+
+
+https://github.com/kballard/go-shellquote
