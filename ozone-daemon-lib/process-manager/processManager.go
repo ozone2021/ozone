@@ -17,6 +17,7 @@ import (
 	"net/rpc"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -229,13 +230,37 @@ func (pm *ProcessManager) createTempDirIfNotExists(ozoneWorkingDir string) strin
 	return dirName
 }
 
+//func CommandFromFields(cmdString string) ([]string, []string) {
+//	cmdFields := strings.Fields(cmdString)
+//	var argFields []string
+//	if len(cmdFields) > 1 {
+//		argFields = cmdFields[1:]
+//	}
+//	argFields = deleteEmpty(argFields)
+//	return cmdFields, argFields
+//}
+
 func CommandFromFields(cmdString string) ([]string, []string) {
-	cmdFields := strings.Fields(cmdString)
+	// Regular expression to match quoted strings or unquoted words
+	re := regexp.MustCompile(`(?:(\S*\".*\"\S*)|(\S*\'.*\'\S*)|(\S+))`)
+	matches := re.FindAllStringSubmatch(cmdString, -1)
+
+	var cmdFields []string
+	for _, match := range matches {
+		if match[1] != "" {
+			cmdFields = append(cmdFields, match[1]) // Add double-quoted arguments
+		} else if match[2] != "" {
+			cmdFields = append(cmdFields, match[2]) // Add single-quoted arguments
+		} else {
+			cmdFields = append(cmdFields, match[3]) // Add unquoted arguments
+		}
+	}
+
 	var argFields []string
 	if len(cmdFields) > 1 {
 		argFields = cmdFields[1:]
 	}
-	argFields = deleteEmpty(argFields)
+
 	return cmdFields, argFields
 }
 
