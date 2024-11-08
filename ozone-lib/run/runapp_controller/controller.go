@@ -14,7 +14,7 @@ type RunController struct {
 	ozoneWorkingDir        string
 	ozoneConfig            *config.OzoneConfig
 	ui                     *RunCmdBubbleteaApp
-	server                 *LogRegistrationServer
+	logRegistrationServer  *LogRegistrationServer
 	inputLogAppDetailsChan chan *LogAppDetails
 	reRunChan              chan struct{}
 	shutdownChan           chan struct{}
@@ -30,24 +30,30 @@ func NewRunController(ozoneContext, ozoneWorkingDir, combinedArgs string, ozoneC
 	inputLogAppDetailsChan := make(chan *LogAppDetails)
 
 	runResult := runspec.NewRunResult()
-	logUpdateController := logapp_update_controller.NewLogappUpdateController(ozoneWorkingDir, inputLogAppDetailsChan, runResult.UpdateListeners)
-
-	runResult.AddListener(logUpdateController.UpdateLogApps)
-
+	var logUpdateController *logapp_update_controller.LogappUpdateController
+	var ui *RunCmdBubbleteaApp
+	var logRegistrationServer *LogRegistrationServer
 	shutdownChan := make(chan struct{})
 	reRunChan := make(chan struct{})
 
+	if ozoneConfig.Headless == false {
+		logUpdateController = logapp_update_controller.NewLogappUpdateController(ozoneWorkingDir, inputLogAppDetailsChan, runResult.UpdateListeners)
+		ui = NewRunCmdBubbleteaApp(combinedArgs, runResult, shutdownChan, reRunChan)
+		logRegistrationServer = NewLogRegistrationServer(ozoneWorkingDir, inputLogAppDetailsChan)
+		runResult.AddListener(logUpdateController.UpdateLogApps)
+	}
+
 	return &RunController{
-		ozoneContext:        ozoneContext,
-		ozoneWorkingDir:     ozoneWorkingDir,
-		ozoneConfig:         ozoneConfig,
-		ui:                  NewRunCmdBubbleteaApp(combinedArgs, runResult, shutdownChan, reRunChan),
-		server:              NewLogRegistrationServer(ozoneWorkingDir, inputLogAppDetailsChan),
-		logUpdateController: logUpdateController,
-		reRunChan:           reRunChan,
-		shutdownChan:        shutdownChan,
-		runResult:           runResult,
-		waitChan:            make(chan struct{}, 1),
+		ozoneContext:          ozoneContext,
+		ozoneWorkingDir:       ozoneWorkingDir,
+		ozoneConfig:           ozoneConfig,
+		ui:                    ui,
+		logRegistrationServer: logRegistrationServer,
+		logUpdateController:   logUpdateController,
+		reRunChan:             reRunChan,
+		shutdownChan:          shutdownChan,
+		runResult:             runResult,
+		waitChan:              make(chan struct{}, 1),
 	}
 }
 
@@ -70,7 +76,7 @@ func (c *RunController) Start() {
 	go c.logUpdateController.Start()
 	go c.HandleReRunMessages()
 
-	go c.server.Start()
+	go c.logRegistrationServer.Start()
 	c.ui.Run()
 }
 
@@ -85,9 +91,12 @@ func (c *RunController) Run(runnables []*config.Runnable) {
 	c.runResult.RunId = spec.GetRunID()
 	spec.AddCallstacks(runnables, c.ozoneConfig, c.ozoneContext)
 
-	c.ui.FinishedAddingCallstacks()
-
-	go spec.ExecuteCallstacks(c.runResult)
-
-	<-c.waitChan
+	if c.ozoneConfig.Headless == false {
+		c.ui.FinishedAddingCallstacks()
+		go spec.ExecuteCallstacks(c.runResult)
+		<-c.waitChan
+	} else {
+		spec.ExecuteCallstacks(c.runResult)
+		c.runResult.PrintRunResult(true)
+	}
 }

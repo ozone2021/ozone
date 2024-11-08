@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/common-nighthawk/go-figure"
 	"github.com/google/uuid"
 	"github.com/oleiade/lane/v2"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
@@ -560,8 +561,12 @@ func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.D
 			logger.Fatalf("Error: runnable work queue is empty. \n")
 		}
 
+		if wt.config.Headless == true {
+			figure.NewFigure(runspecRunnable.Name, "doom", true).Print()
+		}
+
 		if runspecRunnable.ConditionalsSatisfied() == false {
-			log.Printf("Skipping runnable %s because conditionals not satisfied \n", runspecRunnable.Name)
+			logger.Printf("Skipping runnable %s because conditionals not satisfied \n", runspecRunnable.Name)
 			// TODO status for skipped cus conditionals
 			continue
 		}

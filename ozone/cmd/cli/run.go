@@ -31,10 +31,15 @@ var runCmd = &cobra.Command{
 
 		controller := runapp_controller.NewRunController(ozoneContext, ozoneWorkingDir, combinedArgs, config)
 
-		go controller.Start()
+		if config.Headless == false {
+			go controller.Start()
+		}
 
 		controller.Run(runnables)
 
+		if config.Headless {
+			return
+		}
 		sig := make(chan os.Signal, 2)
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
