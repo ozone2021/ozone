@@ -41,7 +41,7 @@ and how.
 
 Headless mode is a mode where the ozone daemon is not started. The docker daemon is only meant for local development.
 
-The daemon keeps track of the caching hashes. See more in [caching](./docs/caching.md).
+The daemon keeps track of the caching hashes. See more in [Cache](#cache).
 
 ### Contexts
 
@@ -239,9 +239,10 @@ DropContextEnv will drop the context environment if set to true.
 This is for local only, you need to make use of conditionals to check for images in a remote docker registry
 for CI/CD.
 
-Uses a hash of the last update times of the source files to determine if the cache is valid.
+Uses a hash of the last update times of the source files to determine whether to rebuild or not.
 
-If any of the last update times change, the cache is invalidated and the runnable will run again.
+If any of the last update times have changed since the last successful build, the cache is invalidated and the runnable
+will run again.
 
 The scope (variables etc from ozone at the point it is called) is also hashed as well, so if any
 relevant variables change, the cache is invalidated.

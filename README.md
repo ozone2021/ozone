@@ -5,16 +5,17 @@ Environment variable management and build system framework.
 ## Installation
 
 ```
+git clone git@github.com:ozone2021/ozone.git
+./script/build_run_daemon.sh
 go install  github.com/ozone2021/ozone/ozone@latest
 ```
 
 ## What does ozone do?
 
-What does GNU Make do? What does a bash script do?
+Most developers are familiar with GNU Make. How would you describe what GNU Make does?
 
-These are very vague questions with equally vague answers. People generally use Makefiles to build C or C++ projects,
-but it can be used for any compiled language. Some people use Makefiles as a wrapper around terraform/infrastructure. Why? Because 
-there is inherent value in having a familiar interface to interact with your codebase. Having a folder full of scripts 
+People generally use Makefiles to build C or C++ projects, but it can be used for any compiled language. Some people use 
+Makefiles as a wrapper around terraform/infrastructure. Why? Because there is inherent value in having a familiar interface to interact with your codebase. Having a folder full of scripts 
 isn't very useful, because sometimes scripts aren't supposed to be called by themselves, they are supposed to be called 
 by other scripts and it is assumed at the point in time that the script is called, that certain environment variables have 
 already been set by the calling script.
@@ -25,7 +26,7 @@ Ozone provides a common interface to interact with your codebase. It can be used
 provides a way of providing one click installations that take care of your infrastructure dependencies for when you're
 building locally, for example on kubernetes.
 
-It comes with a built-in caching mechanism that has almost instanteously cache hits. Many other frameworks such as skaffold 
+It comes with a built-in caching mechanism that has almost instanteous cache hits. Many other frameworks such as skaffold 
 rely on the caching mechanism of whichever container builder you're using, which is often slow, because for eg docker 
 relies on the entire build context being copied to the docker daemon. If your root project folder is large, you're multiplying 
 that by the number of services and then having to hold that in memory, just to go through the docker build cache and be told 

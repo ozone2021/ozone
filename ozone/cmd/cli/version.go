@@ -13,6 +13,6 @@ var versionCmd = &cobra.Command{
 	Use:  "version",
 	Long: `Status of all services in current directory`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("1.4.14")
+		fmt.Printf("1.9")
 	},
 }

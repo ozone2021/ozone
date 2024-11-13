@@ -15,12 +15,6 @@ The run command in non-headless mode interacts with the daemon, which stores the
 It is an interactive bubbletea(interactive CLI framework) app. The runResult is displayed and updated in realtime as the 
 build is running.
 
-### Headless mode
-
-No local caching. This is meant for use with CI/CD.
-
-# TODO example image
-
 The controller ozone-lib/run/runapp_controller/controller.go that looks after the run_app wraps
 the bubbletea app.
 
@@ -29,6 +23,13 @@ via unix pipe that is created in /tmp/ozone/<hash_of_working_dir>/socks/log-regi
 
 After connecting, the runResult is updated in the new log_app in realtime.
 
+Each runnable result is colour coded.
+
+![Run_app image](running.png "Run app")
+
+### Headless mode
+
+No local caching. This is meant for use with CI/CD.
 
 ## logs
 
