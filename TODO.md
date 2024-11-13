@@ -179,3 +179,33 @@ to open with:
 
 
 https://github.com/kballard/go-shellquote
+
+# Automated version bumping for version command
+
+## ozone-daemon docker
+`docker run --user root --rm -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon`
+
+`docker exec -it (docker run -v /var/run/docker.sock:/var/run/docker.sock --network host -d ozone-daemon) /bin/sh`
+
+`docker ps | grep ozone | awk '{print $1}' | xargs -I {} docker kill {}`
+
+
+`ping host.docker.internal` to find host ip   
+// TODO command to add registry.local to host ip
+
+curl https://registry.local/v2/_catalog -k
+
+
+`Build debug ozone container`
+
+docker build . -t ozone-daemon-base --progress plain -f Dockerfile.base;
+
+docker rm -f ozone-daemon; docker build . -t ozone-daemon --progress plain && docker exec -it (docker run --user root --restart=always -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon) /bin/sh
+
+
+### Documentation
+
+Config file explanation
+Caching (local and PR - mention the variable scope)/Docker daemon/headless explanation
+Templating engine
+Comparison with skaffold
