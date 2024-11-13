@@ -62,7 +62,7 @@ CONTAINERISED_DB: "true"
 The above environment variables are common between local/sandbox/dev.
 How can we share environment variables without massive repetition?
 
-Yaml anchors can be used but sometimes break IDE yaml linting. They also don't support templating.
+Yaml anchors can be used depending on the framework but often break IDE yaml linting or golang parsing. They also don't support templating.
 
 ```yaml
   build_vars:
