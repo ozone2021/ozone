@@ -70,8 +70,6 @@ Yaml anchors can be used depending on the framework but often break IDE yaml lin
     
   environments:
     - name: non-live-contexts
-      include:
-        - name: default-helm-values
       with_vars:
         TEST_ENDPOINTS_ENABLED: "true"
         CONFIGMAP_FILENAMES: "dev-configmap.yaml"
