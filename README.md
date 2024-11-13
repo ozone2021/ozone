@@ -26,7 +26,7 @@ Ozone provides a common interface to interact with your codebase. It can be used
 provides a way of providing one click installations that take care of your infrastructure dependencies for when you're
 building locally, for example on kubernetes.
 
-It comes with a built-in caching mechanism that has almost instanteous cache hits. Many other frameworks such as skaffold 
+It comes with a built-in caching mechanism that has almost instantaneous cache hits. Many other frameworks such as skaffold 
 rely on the caching mechanism of whichever container builder you're using, which is often slow, because for eg docker 
 relies on the entire build context being copied to the docker daemon. If your root project folder is large, you're multiplying 
 that by the number of services and then having to hold that in memory, just to go through the docker build cache and be told 
