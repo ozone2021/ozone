@@ -88,6 +88,6 @@ context_envs to include the common variables.
 
 ## Documentation Index
 
-- [Config](./docs/built_in_environments.md)
+- [Config](./docs/config.md)
 - [Built in environments](./docs/built_in_environments.md)
 - [Commands](./docs/commands.md)
