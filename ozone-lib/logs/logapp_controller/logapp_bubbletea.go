@@ -235,6 +235,7 @@ func (m *LogBubbleteaApp) moveToNextSelection() bool {
 		return false
 	}
 	m.selectedCallstackResultNode = next
+	go m.ShowLogs()
 	return true
 }
 
