@@ -728,7 +728,7 @@ func (step *RunspecStep) runDeployables(logger *logger_lib.Logger) error {
 //func (wtr *RunspecRunnable) runPipeline(pipelines []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
 //	for _, pipeline := range pipelines {
 //		var runnables []*ozoneConfig.Runnable
-//		for _, dependency := range pipeline.Depends {
+//		for _, dependency := range pipeline.DependsOn {
 //			exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
 //			if !exists {
 //
@@ -772,7 +772,7 @@ func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *conf
 
 		// Treat pipelines as a special case, each runnable dependency of the pipeline is an invidiual callstack.
 		if r.Type == config.PipelineType {
-			for _, dependency := range r.Depends {
+			for _, dependency := range r.DependsOn {
 				exists, dependencyRunnable := wt.config.FetchRunnable(dependency.Name)
 				if !exists {
 					log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, r.Name)
@@ -842,8 +842,8 @@ func (wt *Runspec) addRunspecRunnable(rootConfigRunnable *config.Runnable, ordin
 		runspecRunnables = append(runspecRunnables, runspecRunnable)
 
 		// Prepend in reverse order so that the first dependency is top of the stack.
-		for i := len(configRunnable.Depends) - 1; i >= 0; i-- {
-			dependency := configRunnable.Depends[i]
+		for i := len(configRunnable.DependsOn) - 1; i >= 0; i-- {
+			dependency := configRunnable.DependsOn[i]
 			exists, dependencyRunnable := wt.config.FetchRunnable(dependency.Name)
 
 			if !exists {
