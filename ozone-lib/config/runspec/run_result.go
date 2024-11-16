@@ -177,7 +177,7 @@ func (r *RunResult) RunSpecRootNodeToRunResult(runId string, rootNode *RunspecRu
 		for i, child := range children {
 			if visited[child] == nil {
 				isCallstack := false
-				if child.HasCaching() {
+				if child.IsParallel() {
 					isCallstack = true
 					callstackLogger, err = logger_lib.New(runId, ozoneWorkDir, child.GetRunnable().Name, config.Headless)
 					if err != nil {
