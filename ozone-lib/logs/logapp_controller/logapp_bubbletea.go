@@ -309,7 +309,7 @@ func (m *LogBubbleteaApp) nextLogPredicate(node *runspec.CallstackResultNode) bo
 	return node.IsCallstack
 }
 
-func (m *LogBubbleteaApp) NextSelection(predicate PredicateFunc) (*runspec.CallstackResultNode, error) {
+func (m *LogBubbleteaApp) NextSelection() (*runspec.CallstackResultNode, error) {
 	if m.selectedCallstackResultNode == nil {
 		return m.Next(nil)
 	}
@@ -317,12 +317,9 @@ func (m *LogBubbleteaApp) NextSelection(predicate PredicateFunc) (*runspec.Calls
 	if err != nil {
 		return nil, err
 	}
-	if predicate == nil {
-		return next, nil
-	}
 	count := 0
 	for count < m.runResult.Index.Len() {
-		if predicate(next) {
+		if m.selectedCallstackResultNode.LogFile != next.LogFile {
 			return next, nil
 		}
 		next, err = m.Next(&next.Id)
@@ -335,17 +332,14 @@ func (m *LogBubbleteaApp) NextSelection(predicate PredicateFunc) (*runspec.Calls
 	return nil, errors.New("Couldn't find next selection for predicate")
 }
 
-func (m *LogBubbleteaApp) PreviousSelection(predicate PredicateFunc) (*runspec.CallstackResultNode, error) {
+func (m *LogBubbleteaApp) PreviousSelection() (*runspec.CallstackResultNode, error) {
 	previous, err := m.Previous()
 	if err != nil {
 		return nil, err
 	}
-	if predicate == nil {
-		return previous, nil
-	}
 	count := 0
 	for count < m.runResult.Index.Len() {
-		if predicate(previous) {
+		if m.selectedCallstackResultNode.LogFile != previous.LogFile {
 			return previous, nil
 		}
 		previous, err = m.Previous()
