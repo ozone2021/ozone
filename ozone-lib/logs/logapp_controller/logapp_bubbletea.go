@@ -196,7 +196,7 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ConnectedMessage:
 		m.connected = msg.(ConnectedMessage).Connected
 		if m.connected {
-			m.NextSelection(m.nextLogPredicate)
+			m.NextSelection()
 		}
 	case LogLineUpdate:
 		updateMsg := msg.(LogLineUpdate)
@@ -230,7 +230,7 @@ func (m *LogBubbleteaApp) setContent() {
 }
 
 func (m *LogBubbleteaApp) moveToNextSelection() bool {
-	next, err := m.NextSelection(m.nextLogPredicate)
+	next, err := m.NextSelection()
 	if err != nil {
 		return false
 	}
