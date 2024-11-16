@@ -162,10 +162,13 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case *RunResultUpdate:
 		m.runResultMutex.Lock()
 		defer m.runResultMutex.Unlock()
+		defer func() { go m.ShowLogs() }()
 
 		runResultUpdate := msg.(*RunResultUpdate)
 		runResult := runResultUpdate.RunResult
-		if m.runResult == nil || runResultUpdate.RunId != m.runId {
+		// This is for when the log app is left running and then a new run is started from CLI, not by pressing "r"
+		// in run app.
+		if m.runResult == nil || runResultUpdate.RunId != m.runResult.RunId {
 			m.runResult = runResult
 			m.selectedCallstackResultNode = nil
 			ok := m.moveToNextSelection()
@@ -173,6 +176,7 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		} else {
+			// This handles resets triggered by the run app
 			if runResultUpdate.ShouldReset == true {
 				m.ResetLogBubbleteaApp()
 			} else {
@@ -191,11 +195,9 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		go m.ShowLogs()
-		return m, nil
 	case ConnectedMessage:
 		m.connected = msg.(ConnectedMessage).Connected
-		if m.connected {
+		if m.connected && m.logsShownAtLeastOnce == false {
 			m.NextSelection()
 		}
 	case LogLineUpdate:
@@ -212,7 +214,6 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.followMode != OFF {
 			m.viewport.GotoBottom()
 		}
-		return m, nil
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -392,7 +393,10 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 
 	reader := bufio.NewReader(file)
 
-	clearOutput := true
+	m.program.Send(LogLineUpdate{
+		ClearOutput: true,
+		Line:        "",
+	})
 	m.logsShowing = true
 	for {
 		select {
@@ -407,10 +411,9 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 				return nil
 			}
 			m.program.Send(LogLineUpdate{
-				ClearOutput: clearOutput,
+				ClearOutput: false,
 				Line:        line,
 			})
-			clearOutput = false
 		}
 	}
 	return nil
