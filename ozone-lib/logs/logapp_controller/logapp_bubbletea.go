@@ -63,6 +63,8 @@ type LogBubbleteaApp struct {
 	logOutput                   string
 	logStopChan                 chan struct{}
 	logMutex                    sync.Mutex
+	logOnce                     sync.Once
+	logWg                       sync.WaitGroup
 	runResult                   *runspec.RunResult
 	runResultMutex              sync.Mutex
 	selectedCallstackResultNode *runspec.CallstackResultNode
@@ -375,52 +377,59 @@ func (m *LogBubbleteaApp) GetSelectedCallstackResultNode() *runspec.CallstackRes
 //}
 
 func (m *LogBubbleteaApp) closeLogs() {
-	if m.logsShowing {
-		m.logStopChan <- struct{}{}
+	if m.logStopChan != nil {
+		close(m.logStopChan)
+		m.logWg.Wait()
+		m.logOnce = sync.Once{}
 	}
 }
 
-func (m *LogBubbleteaApp) ShowLogs() error {
-	if m.selectedCallstackResultNode == nil {
-		return nil
-	}
+func (m *LogBubbleteaApp) ShowLogs() {
+	m.closeLogs()
+	m.logStopChan = make(chan struct{})
 
-	file, err := os.Open(m.selectedCallstackResultNode.LogFile)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+	m.logOnce.Do(func() {
+		m.logWg.Add(1)
+		go func() {
+			defer m.logWg.Done()
 
-	if m.logsShownAtLeastOnce {
-		m.closeLogs()
-		m.logMutex.Lock()
-		defer m.logMutex.Unlock()
-	}
-
-	reader := bufio.NewReader(file)
-
-	clearOutput := true
-	m.logsShowing = true
-	for {
-		select {
-		case <-m.logStopChan:
-			return nil
-		default:
-			line, err := reader.ReadString('\n')
-			if err == io.EOF {
-				// Handle end of file
-				continue
-			} else if err != nil {
-				return nil
+			if m.selectedCallstackResultNode == nil {
+				return
 			}
-			m.program.Send(LogLineUpdate{
-				ClearOutput: clearOutput,
-				Line:        line,
-			})
-			clearOutput = false
-		}
-	}
-	return nil
+
+			file, err := os.Open(m.selectedCallstackResultNode.LogFile)
+			if err != nil {
+				// TODO: handle error
+				return
+			}
+			defer file.Close()
+
+			reader := bufio.NewReader(file)
+
+			clearOutput := true
+			m.logsShowing = true
+			for {
+				select {
+				case <-m.logStopChan:
+					return
+				default:
+					line, err := reader.ReadString('\n')
+					if err == io.EOF {
+						// Handle end of file
+						continue
+					} else if err != nil {
+						// TODO handle error
+						return
+					}
+					m.program.Send(LogLineUpdate{
+						ClearOutput: clearOutput,
+						Line:        line,
+					})
+					clearOutput = false
+				}
+			}
+		}()
+	})
 }
 
 func (m *LogBubbleteaApp) FollowMode() FollowMode {
