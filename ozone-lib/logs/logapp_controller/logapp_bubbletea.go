@@ -62,7 +62,7 @@ type LogBubbleteaApp struct {
 	runId                       string
 	logOutput                   string
 	logStopChan                 chan struct{}
-	logMutex                    sync.Mutex
+	logStopMutex                sync.Mutex
 	logOnce                     sync.Once
 	logWg                       sync.WaitGroup
 	runResult                   *runspec.RunResult
@@ -377,10 +377,14 @@ func (m *LogBubbleteaApp) GetSelectedCallstackResultNode() *runspec.CallstackRes
 //}
 
 func (m *LogBubbleteaApp) closeLogs() {
+	m.logStopMutex.Lock()
+	defer m.logStopMutex.Unlock()
+
 	if m.logStopChan != nil {
 		close(m.logStopChan)
 		m.logWg.Wait()
 		m.logOnce = sync.Once{}
+		m.logStopChan = nil
 	}
 }
 
