@@ -177,6 +177,7 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// This handles resets triggered by the run app
 			if runResultUpdate.ShouldReset == true {
 				m.ResetLogBubbleteaApp()
+				go m.ShowLogs()
 			} else {
 				diffNode, ok := diff(m.runResult, runResult)
 				if ok == false {
@@ -193,11 +194,13 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+		return m, nil
 	case ConnectedMessage:
 		m.connected = msg.(ConnectedMessage).Connected
-		if m.connected && m.logsShownAtLeastOnce == false {
+		if m.connected {
 			m.NextSelection()
 		}
+		return m, nil
 	case LogLineUpdate:
 		updateMsg := msg.(LogLineUpdate)
 		logLine := updateMsg.Line
@@ -212,6 +215,7 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.followMode != OFF {
 			m.viewport.GotoBottom()
 		}
+		return m, nil
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
