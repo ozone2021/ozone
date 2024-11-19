@@ -190,7 +190,6 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.selectedCallstackResultNode == nil {
 					m.selectedCallstackResultNode = diffNode
 					go m.ShowLogs()
-					break
 				}
 			}
 		}
