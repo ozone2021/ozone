@@ -164,10 +164,10 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		runResultUpdate := msg.(*RunResultUpdate)
 		runResult := runResultUpdate.RunResult
+		m.runResult = runResult
 		// This is for when the log app is left running and then a new run is started from CLI, not by pressing "r"
 		// in run app.
 		if m.runResult == nil || runResultUpdate.RunId != m.runResult.RunId {
-			m.runResult = runResult
 			m.selectedCallstackResultNode = nil
 			ok := m.moveToNextSelection()
 			if !ok {
@@ -197,7 +197,7 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case ConnectedMessage:
 		m.connected = msg.(ConnectedMessage).Connected
-		if m.connected {
+		if m.connected && m.logsShownAtLeastOnce == false {
 			m.moveToNextSelection()
 		}
 		return m, nil
