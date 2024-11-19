@@ -119,7 +119,6 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !ok {
 				return m, nil
 			}
-			go m.ShowLogs()
 		case key.Matches(msg.(tea.KeyMsg), m.keyMap.PageDown):
 			m.viewport.GotoBottom()
 		}
@@ -162,7 +161,6 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case *RunResultUpdate:
 		m.runResultMutex.Lock()
 		defer m.runResultMutex.Unlock()
-		defer func() { go m.ShowLogs() }()
 
 		runResultUpdate := msg.(*RunResultUpdate)
 		runResult := runResultUpdate.RunResult
@@ -194,7 +192,6 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-
 	case ConnectedMessage:
 		m.connected = msg.(ConnectedMessage).Connected
 		if m.connected && m.logsShownAtLeastOnce == false {
@@ -236,6 +233,7 @@ func (m *LogBubbleteaApp) moveToNextSelection() bool {
 		return false
 	}
 	m.selectedCallstackResultNode = next
+	go m.ShowLogs()
 	return true
 }
 

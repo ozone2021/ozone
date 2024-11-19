@@ -13,6 +13,6 @@ var versionCmd = &cobra.Command{
 	Use:  "version",
 	Long: `Version of the CLI`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("1.4.21")
+		fmt.Printf("1.4.23")
 	},
 }
