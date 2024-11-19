@@ -96,6 +96,7 @@ func NewLogBubbleteaApp(appId string, uiChan UiChan) *LogBubbleteaApp {
 
 func (m *LogBubbleteaApp) ResetLogBubbleteaApp() {
 	m.selectedCallstackResultNode = nil
+	m.logsShownAtLeastOnce = false
 }
 
 func (m *LogBubbleteaApp) Init() tea.Cmd {
@@ -167,7 +168,7 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.runResult = runResult
 		// This is for when the log app is left running and then a new run is started from CLI, not by pressing "r"
 		// in run app.
-		if m.runResult == nil || runResultUpdate.RunId != m.runResult.RunId {
+		if runResultUpdate.RunId != m.runResult.RunId {
 			m.selectedCallstackResultNode = nil
 			ok := m.moveToNextSelection()
 			if !ok {
