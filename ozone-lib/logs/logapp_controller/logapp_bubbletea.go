@@ -180,15 +180,17 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				diffNode, ok := diff(m.runResult, runResult)
 				if ok == false {
-					return m, nil
+					break
 				}
 
 				if diffNode.Status == runspec.NotStarted {
-					return m, nil
+					break
 				}
 
-				if m.selectedCallstackResultNode == nil {
+				if m.selectedCallstackResultNode == nil || diffNode.LogFile != m.selectedCallstackResultNode.LogFile {
 					m.selectedCallstackResultNode = diffNode
+					go m.ShowLogs()
+					break
 				}
 			}
 		}
@@ -231,7 +233,6 @@ func (m *LogBubbleteaApp) moveToNextSelection() bool {
 	defer func() { go m.ShowLogs() }()
 	next, err := m.NextSelection()
 	if err != nil {
-
 		return false
 	}
 	m.selectedCallstackResultNode = next
