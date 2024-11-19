@@ -228,12 +228,14 @@ func (m *LogBubbleteaApp) setContent() {
 }
 
 func (m *LogBubbleteaApp) moveToNextSelection() bool {
+	defer func() { go m.ShowLogs() }()
 	next, err := m.NextSelection()
 	if err != nil {
+
 		return false
 	}
 	m.selectedCallstackResultNode = next
-	go m.ShowLogs()
+
 	return true
 }
 
