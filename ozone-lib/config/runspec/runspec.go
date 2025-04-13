@@ -658,6 +658,8 @@ func (step *RunspecStep) runBuildable(logger *logger_lib.Logger) error {
 	case "tagDockerImageAs":
 		logger.Println("Tagging docker image.")
 		return buildables.TagDockerImageAs(step.Scope.scope, logger)
+	default:
+		return errors.New(fmt.Sprintf("Err for step %s: not a builtin type \n", step.Name))
 	}
 	return nil
 }

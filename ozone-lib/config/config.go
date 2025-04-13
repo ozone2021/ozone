@@ -373,6 +373,8 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 		err = env.DynamicFromGitBranchTicketNumber(ordinal, varsMap, fromIncludeMap)
 	case "env/git_branch_release_version":
 		err = env.DynamicFromGitReleaseBranch(ordinal, varsMap, fromIncludeMap)
+	case "env/git_branch_suffix":
+		err = env.DynamicFromGitBranchSuffix(ordinal, varsMap, fromIncludeMap)
 	case "env/git_directory_branch_static":
 		err = env.StaticFromGitDirBranchNameHash(ordinal, varsMap, fromIncludeMap)
 	case "env/git_submodule_commit_hash":
