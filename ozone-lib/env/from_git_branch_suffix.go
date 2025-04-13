@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
+	"github.com/ozone2021/ozone/ozone-lib/env/utils"
 	"gopkg.in/src-d/go-git.v4"
 	"log"
 	"strings"
@@ -41,7 +42,7 @@ func DynamicFromGitReleaseBranch(ordinal int, varsMap, fromIncludeMap *VariableM
 	branchName = strings.TrimPrefix(branchName, "refs/heads/")
 
 	branchNameParts := strings.Split(branchName, "/")
-	if len(branchNameParts) != 2 || (branchName != "main" || branchName != "master" || branchName != "dev" || branchName != "develop") {
+	if len(branchNameParts) != 2 || utils.ValidateName(branchName) {
 		return errors.New(fmt.Sprintf("Branch name %s doesn't contain single forward slash or is called master|dev|develop|master.", branchName))
 	}
 
