@@ -30,17 +30,17 @@ type ContextInfo struct {
 	List    []string `yaml:"list"`
 }
 
-type Include struct {
-	Name      string       `yaml:"name"`
-	InputVars *VariableMap `yaml:"input_vars"`
-	Type      string       `yaml:"type"`
-}
-
 type Environment struct {
 	Name     string       `yaml:"name"`
 	For      *For         `yaml:"for,omitempty"`
 	WithVars *VariableMap `yaml:"with_vars"`
 	Includes []*Include   `yaml:"include"`
+}
+
+type Include struct {
+	Name      string       `yaml:"name"`
+	InputVars *VariableMap `yaml:"input_vars"`
+	Type      string       `yaml:"type"`
 }
 
 type For struct {
@@ -86,7 +86,7 @@ type Runnable struct {
 	WithVars            *VariableMap          `yaml:"with_vars"`
 	ContextEnv          []*ContextEnv         `yaml:"context_envs"`
 	ContextConditionals []*ContextConditional `yaml:"context_conditionals"`
-	Depends             []*Step               `yaml:"depends_on"`
+	DependsOn           []*Step               `yaml:"depends_on"`
 	ContextSteps        []*ContextStep        `yaml:"context_steps"`
 	Steps               []*Step               `yaml:"steps"`
 	Type                RunnableType
@@ -363,8 +363,6 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 		err = env.FromSecret64(ordinal, varsMap, fromIncludeMap)
 	case "env/from_env_file":
 		err = env.FromEnvFile(ordinal, varsMap, fromIncludeMap)
-	case "env/from_version_file":
-		err = env.FromVersionFile(ordinal, varsMap, fromIncludeMap)
 	case "env/git_log_hash":
 		err = git_env.GitLogHash(ordinal, varsMap, fromIncludeMap)
 	case "env/git_directory_branch_hash":
@@ -416,7 +414,7 @@ func (config *OzoneConfig) fetchBuiltinEnvFromInclude(ordinal int, envName strin
 //		if err := json.Unmarshal(dependencyBytes, &steps); err != nil {
 //			return err
 //		}
-//		r.Depends = steps
+//		r.DependsOn = steps
 //	}
 //
 //	contextEnvBytes, ok := yamlObj["context_envs"].([]byte)

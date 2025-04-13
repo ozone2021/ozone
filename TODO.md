@@ -165,3 +165,47 @@ runScript doesn't exist, but exits with success.
 Reusing the same file causes mad issues.
 
 Create a folder for each run, and delete the folder when the run is finished.
+
+# Directory bug
+
+The /tmp/ozone/<dir> uses the base64 encoding of the ozone working directory. If this is too long, the unix pipe fails 
+to open with:
+
+```
+2024/05/13 11:29:42 failed to listen: listen unix /tmp/ozone/L1VzZXJzdZVyLXBvYw==/socks/log-b61cbd.sock: bind: invalid argument
+```
+
+# Docker build with arg fails when VENDOR_CMD="go mod vendor" <- quote issue or something
+
+
+https://github.com/kballard/go-shellquote
+
+# Automated version bumping for version command
+
+## ozone-daemon docker
+`docker run --user root --rm -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon`
+
+`docker exec -it (docker run -v /var/run/docker.sock:/var/run/docker.sock --network host -d ozone-daemon) /bin/sh`
+
+`docker ps | grep ozone | awk '{print $1}' | xargs -I {} docker kill {}`
+
+
+`ping host.docker.internal` to find host ip   
+// TODO command to add registry.local to host ip
+
+curl https://registry.local/v2/_catalog -k
+
+
+`Build debug ozone container`
+
+docker build . -t ozone-daemon-base --progress plain -f Dockerfile.base;
+
+docker rm -f ozone-daemon; docker build . -t ozone-daemon --progress plain && docker exec -it (docker run --user root --restart=always -v /var/run/docker.sock:/var/run/docker.sock -d -t -v /tmp/ozone:/tmp/ozone -p 8000:8000 --name ozone-daemon -listen=:8000 ozone-daemon) /bin/sh
+
+### logs issue
+
+It doesn't create new log files unless runnable has `cache: true`, this shouldn't be the case.
+
+### Documentation
+
+Caching (local and PR - mention the variable scope)/Docker daemon/headless explanation

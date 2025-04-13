@@ -608,7 +608,8 @@ func PongoRender(input string, context pongo2.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if out == "" {
+	containsDefaultIfNoneFilter := strings.Contains(input, "default_if_none")
+	if out == "" && containsDefaultIfNoneFilter == false {
 		return input, nil
 	}
 	return html.UnescapeString(out), nil

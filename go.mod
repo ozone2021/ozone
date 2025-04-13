@@ -1,6 +1,6 @@
 module github.com/ozone2021/ozone
 
-go 1.18
+go 1.22
 
 require (
 	github.com/TwiN/go-color v1.1.0
@@ -15,9 +15,11 @@ require (
 	github.com/google/uuid v1.4.0
 	github.com/jinzhu/copier v0.4.0
 	github.com/joho/godotenv v1.4.0
+	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/muesli/reflow v0.3.0
 	github.com/oleiade/lane/v2 v2.0.0
-	github.com/spf13/cobra v1.4.0
+	github.com/spf13/cobra v1.6.1
 	google.golang.org/grpc v1.60.1
 	google.golang.org/protobuf v1.32.0
 	gopkg.in/src-d/go-git.v4 v4.13.1
@@ -27,11 +29,13 @@ require (
 
 require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
+	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be // indirect
 	github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
@@ -41,9 +45,8 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/muesli/ansi v0.0.0-20211018074035-2e021307bc4b // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
-	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/src-d/gcfg v1.4.0 // indirect

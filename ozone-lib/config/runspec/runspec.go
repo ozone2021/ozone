@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/common-nighthawk/go-figure"
 	"github.com/google/uuid"
 	"github.com/oleiade/lane/v2"
 	"github.com/ozone2021/ozone/ozone-daemon-lib/cache"
@@ -200,7 +201,7 @@ func getBuildHash(node *RunspecRunnable, ozoneWorkingDir string) (string, error)
 			editTime, err := cache.FileLastEdit(match)
 
 			if err != nil {
-				return "", errors.New(fmt.Sprintf("Source file %s for runnable %s is missing.", filePath, node.GetRunnable().Name))
+				return "", errors.New(fmt.Sprintf("Source file %s for filePath: %s for runnable %s is missing.", match, filePath, node.GetRunnable().Name))
 			}
 
 			filesDirsLastEditTimes = append(filesDirsLastEditTimes, editTime)
@@ -469,7 +470,10 @@ func (wt *Runspec) ExecuteCallstacks(runResult *RunResult) {
 
 	for _, runnableType := range runOrder {
 		for _, callstack := range wt.CallStacks[runnableType] {
-			wt.CheckCacheAndExecute(callstack, runResult)
+			err := wt.CheckCacheAndExecute(callstack, runResult)
+			if err != nil {
+				return
+			}
 		}
 	}
 }
@@ -512,7 +516,7 @@ func (wt *Runspec) CheckCacheAndExecute(rootCallstack *RunspecRunnable, runResul
 				//fmt.Println("--------------------")
 				wt.AddCallstackResult(runResult, node.GetRunnable().GetId(), Cached, nil)
 				logger.Printf("Cache Info: build files for %s %s unchanged from cache. \n", node.GetType(), node.GetRunnable().Name)
-				return nil
+				continue
 			}
 
 			err := runResult.SetRunnableHash(node.GetRunnable().GetId(), node.hash)
@@ -557,8 +561,12 @@ func (wt *Runspec) executeWorkQueue(logger *logger_lib.Logger, workQueue *lane.D
 			logger.Fatalf("Error: runnable work queue is empty. \n")
 		}
 
+		if wt.config.Headless == true {
+			figure.NewFigure(runspecRunnable.Name, "doom", true).Print()
+		}
+
 		if runspecRunnable.ConditionalsSatisfied() == false {
-			log.Printf("Skipping runnable %s because conditionals not satisfied \n", runspecRunnable.Name)
+			logger.Printf("Skipping runnable %s because conditionals not satisfied \n", runspecRunnable.Name)
 			// TODO status for skipped cus conditionals
 			continue
 		}
@@ -673,7 +681,7 @@ func (step *RunspecStep) runTestable(logger *logger_lib.Logger) error {
 		}
 		_, err := utilities.RunBashScript(script.String(), step.Scope.scope, logger)
 		if err != nil {
-			logger.Fatalln(err)
+			return err
 		}
 	default:
 		return errors.New(fmt.Sprintf("Testable value not found: %s \n", step.Name))
@@ -722,7 +730,7 @@ func (step *RunspecStep) runDeployables(logger *logger_lib.Logger) error {
 //func (wtr *RunspecRunnable) runPipeline(pipelines []*ozoneConfig.Runnable, config *ozoneConfig.OzoneConfig, context string) {
 //	for _, pipeline := range pipelines {
 //		var runnables []*ozoneConfig.Runnable
-//		for _, dependency := range pipeline.Depends {
+//		for _, dependency := range pipeline.DependsOn {
 //			exists, dependencyRunnable := config.FetchRunnable(dependency.Name)
 //			if !exists {
 //
@@ -766,18 +774,24 @@ func (wt *Runspec) AddCallstacks(runnables []*config.Runnable, ozoneConfig *conf
 
 		// Treat pipelines as a special case, each runnable dependency of the pipeline is an invidiual callstack.
 		if r.Type == config.PipelineType {
-			for _, dependency := range r.Depends {
+			for _, dependency := range r.DependsOn {
 				exists, dependencyRunnable := wt.config.FetchRunnable(dependency.Name)
 				if !exists {
 					log.Fatalf("Dependency %s on build %s doesn't exist", dependency.Name, r.Name)
 				}
 				var runspecRunnable *RunspecRunnable
 				runspecRunnable, err = wt.addRunspecRunnable(dependencyRunnable, ordinal, CopyOrCreateNew(topLevelScope), asOutput)
+				if err != nil {
+					log.Fatalf("Error %s in runnable %s", err, r.Name)
+				}
 				wt.CallStacks[runspecRunnable.Type] = append(wt.CallStacks[runspecRunnable.Type], runspecRunnable)
 			}
 		} else {
 			var runspecRunnable *RunspecRunnable
 			runspecRunnable, err = wt.addRunspecRunnable(r, ordinal, CopyOrCreateNew(topLevelScope), asOutput)
+			if err != nil {
+				log.Fatalf("Error %s in runnable %s", err, r.Name)
+			}
 			wt.CallStacks[runspecRunnable.Type] = append(wt.CallStacks[runspecRunnable.Type], runspecRunnable)
 		}
 		if err != nil {
@@ -830,8 +844,8 @@ func (wt *Runspec) addRunspecRunnable(rootConfigRunnable *config.Runnable, ordin
 		runspecRunnables = append(runspecRunnables, runspecRunnable)
 
 		// Prepend in reverse order so that the first dependency is top of the stack.
-		for i := len(configRunnable.Depends) - 1; i >= 0; i-- {
-			dependency := configRunnable.Depends[i]
+		for i := len(configRunnable.DependsOn) - 1; i >= 0; i-- {
+			dependency := configRunnable.DependsOn[i]
 			exists, dependencyRunnable := wt.config.FetchRunnable(dependency.Name)
 
 			if !exists {

@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
+	"github.com/muesli/reflow/wordwrap"
 	"github.com/ozone2021/ozone/ozone-lib/config/runspec"
 	. "github.com/ozone2021/ozone/ozone-lib/logs/brpc_log_server/log_server"
 	"io"
@@ -88,13 +89,14 @@ func NewLogBubbleteaApp(appId string, uiChan UiChan) *LogBubbleteaApp {
 		logStopChan: make(chan struct{}, 1),
 		keyMap:      LogKeyMap(),
 	}
-	app.program = tea.NewProgram(app, tea.WithMouseCellMotion())
+	app.program = tea.NewProgram(app, tea.WithMouseCellMotion(), tea.WithAltScreen())
 
 	return app
 }
 
 func (m *LogBubbleteaApp) ResetLogBubbleteaApp() {
 	m.selectedCallstackResultNode = nil
+	m.logsShownAtLeastOnce = false
 }
 
 func (m *LogBubbleteaApp) Init() tea.Cmd {
@@ -118,7 +120,6 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !ok {
 				return m, nil
 			}
-			go m.ShowLogs()
 		case key.Matches(msg.(tea.KeyMsg), m.keyMap.PageDown):
 			m.viewport.GotoBottom()
 		}
@@ -149,6 +150,8 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.Height = msg.(tea.WindowSizeMsg).Height - verticalMarginHeight
 		}
 
+		m.setContent()
+
 		if useHighPerformanceRenderer {
 			// Render (or re-render) the whole viewport. Necessary both to
 			// initialize the viewport and when the window is resized.
@@ -162,47 +165,53 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		runResultUpdate := msg.(*RunResultUpdate)
 		runResult := runResultUpdate.RunResult
-		if m.runResult == nil || runResultUpdate.RunId != m.runId {
-			m.runResult = runResult
+		m.runResult = runResult
+		// This is for when the log app is left running and then a new run is started from CLI, not by pressing "r"
+		// in run app.
+		if runResultUpdate.RunId != m.runResult.RunId {
 			m.selectedCallstackResultNode = nil
 			ok := m.moveToNextSelection()
 			if !ok {
 				return m, nil
 			}
 		} else {
+			// This handles resets triggered by the run app
 			if runResultUpdate.ShouldReset == true {
 				m.ResetLogBubbleteaApp()
+				go m.ShowLogs()
 			} else {
 				diffNode, ok := diff(m.runResult, runResult)
 				if ok == false {
-					return m, nil
+					break
 				}
 
 				if diffNode.Status == runspec.NotStarted {
-					return m, nil
+					break
 				}
 
-				if m.selectedCallstackResultNode == nil || diffNode.LogFile != m.selectedCallstackResultNode.LogFile {
+				if m.selectedCallstackResultNode == nil || m.logsShownAtLeastOnce == false {
 					m.selectedCallstackResultNode = diffNode
+					go m.ShowLogs()
 				}
 			}
 		}
-
-		go m.ShowLogs()
 		return m, nil
 	case ConnectedMessage:
 		m.connected = msg.(ConnectedMessage).Connected
-		if m.connected {
-			m.NextSelection(m.nextLogPredicate)
+		if m.connected && m.logsShownAtLeastOnce == false {
+			m.moveToNextSelection()
 		}
+		return m, nil
 	case LogLineUpdate:
 		updateMsg := msg.(LogLineUpdate)
 		logLine := updateMsg.Line
 		if updateMsg.ClearOutput == true {
 			m.logOutput = ""
 		}
+
 		m.logOutput = m.logOutput + logLine
-		m.viewport.SetContent(m.logOutput)
+		m.setContent()
+
 		m.logsShownAtLeastOnce = true
 		if m.followMode != OFF {
 			m.viewport.GotoBottom()
@@ -220,12 +229,18 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m *LogBubbleteaApp) setContent() {
+	m.viewport.SetContent(wordwrap.String(m.logOutput, m.viewport.Width))
+}
+
 func (m *LogBubbleteaApp) moveToNextSelection() bool {
-	next, err := m.NextSelection(m.nextLogPredicate)
+	defer func() { go m.ShowLogs() }()
+	next, err := m.NextSelection()
 	if err != nil {
 		return false
 	}
 	m.selectedCallstackResultNode = next
+
 	return true
 }
 
@@ -300,7 +315,7 @@ func (m *LogBubbleteaApp) nextLogPredicate(node *runspec.CallstackResultNode) bo
 	return node.IsCallstack
 }
 
-func (m *LogBubbleteaApp) NextSelection(predicate PredicateFunc) (*runspec.CallstackResultNode, error) {
+func (m *LogBubbleteaApp) NextSelection() (*runspec.CallstackResultNode, error) {
 	if m.selectedCallstackResultNode == nil {
 		return m.Next(nil)
 	}
@@ -308,12 +323,9 @@ func (m *LogBubbleteaApp) NextSelection(predicate PredicateFunc) (*runspec.Calls
 	if err != nil {
 		return nil, err
 	}
-	if predicate == nil {
-		return next, nil
-	}
 	count := 0
 	for count < m.runResult.Index.Len() {
-		if predicate(next) {
+		if m.selectedCallstackResultNode.LogFile != next.LogFile {
 			return next, nil
 		}
 		next, err = m.Next(&next.Id)
@@ -326,17 +338,14 @@ func (m *LogBubbleteaApp) NextSelection(predicate PredicateFunc) (*runspec.Calls
 	return nil, errors.New("Couldn't find next selection for predicate")
 }
 
-func (m *LogBubbleteaApp) PreviousSelection(predicate PredicateFunc) (*runspec.CallstackResultNode, error) {
+func (m *LogBubbleteaApp) PreviousSelection() (*runspec.CallstackResultNode, error) {
 	previous, err := m.Previous()
 	if err != nil {
 		return nil, err
 	}
-	if predicate == nil {
-		return previous, nil
-	}
 	count := 0
 	for count < m.runResult.Index.Len() {
-		if predicate(previous) {
+		if m.selectedCallstackResultNode.LogFile != previous.LogFile {
 			return previous, nil
 		}
 		previous, err = m.Previous()
@@ -389,7 +398,10 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 
 	reader := bufio.NewReader(file)
 
-	clearOutput := true
+	m.program.Send(LogLineUpdate{
+		ClearOutput: true,
+		Line:        "",
+	})
 	m.logsShowing = true
 	for {
 		select {
@@ -404,10 +416,9 @@ func (m *LogBubbleteaApp) ShowLogs() error {
 				return nil
 			}
 			m.program.Send(LogLineUpdate{
-				ClearOutput: clearOutput,
+				ClearOutput: false,
 				Line:        line,
 			})
-			clearOutput = false
 		}
 	}
 	return nil

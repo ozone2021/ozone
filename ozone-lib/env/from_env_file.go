@@ -3,6 +3,7 @@ package env
 import (
 	"errors"
 	"github.com/joho/godotenv"
+	"github.com/mitchellh/go-homedir"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 )
 
@@ -13,7 +14,13 @@ func FromEnvFile(ordinal int, varsMap, fromIncludeMap *VariableMap) error {
 		return errors.New("ENV_FILE needed.")
 	}
 
-	varsMapStringString, err := godotenv.Read(envFile.String())
+	expanded, err := homedir.Expand(envFile.String())
+
+	if err != nil {
+		return err
+	}
+
+	varsMapStringString, err := godotenv.Read(expanded)
 
 	if err != nil {
 		return err

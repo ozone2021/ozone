@@ -2,7 +2,7 @@ package buildables
 
 import (
 	"fmt"
-	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	"github.com/kballard/go-shellquote"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
@@ -25,13 +25,16 @@ func PushDockerImage(varsMap *VariableMap, logger *logger_lib.Logger) error {
 
 	tag, _ := varsMap.GetVariable("DOCKER_FULL_TAG")
 	cmdString := fmt.Sprintf("docker push %s", tag)
-	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
-	cmd := exec.Command(cmdFields[0], argFields...)
+	fields, err := shellquote.Split(cmdString)
+	if err != nil {
+		return fmt.Errorf("Error parsing command push_docker_image.go: %s", err.Error())
+	}
+	cmd := exec.Command(fields[0], fields[1:]...)
 	cmd.Stdout = logger.File
 	cmd.Stderr = logger.File
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
-		fmt.Println("build docker err")
+		logger.Fatalln(fmt.Sprintf("Error in push_docker_image.go: %s", err.Error()))
 		return err
 	}
 	cmd.Wait()

@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager"
+	"github.com/kballard/go-shellquote"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"log"
 	"os"
@@ -46,8 +46,11 @@ func gitLogHashOfFile(filePath string, dirPath string) ([]byte, error) {
 		filePath,
 	)
 
-	cmdFields, argFields := process_manager.CommandFromFields(cmdString)
-	cmd := exec.Command(cmdFields[0], argFields...)
+	fields, err := shellquote.Split(cmdString)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing command git_log_hash.go: %s", err.Error())
+	}
+	cmd := exec.Command(fields[0], fields[1:]...)
 	cmd.Dir = dirPath
 	cmd.Stderr = os.Stderr
 	byteData, err := cmd.Output()
