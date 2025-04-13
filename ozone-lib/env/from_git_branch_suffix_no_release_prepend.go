@@ -42,7 +42,7 @@ func DynamicFromGitBranchSuffix(ordinal int, varsMap, fromIncludeMap *VariableMa
 	branchName = strings.TrimPrefix(branchName, "refs/heads/")
 
 	branchNameParts := strings.Split(branchName, "/")
-	if len(branchNameParts) != 2 || utils.ValidateName(branchName) {
+	if len(branchNameParts) != 2 || utils.ValidateName(branchName) == false {
 		return errors.New(fmt.Sprintf("Branch name %s doesn't contain single forward slash or is called master|dev|develop|master.", branchName))
 	}
 
