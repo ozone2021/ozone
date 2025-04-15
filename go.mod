@@ -1,6 +1,6 @@
 module github.com/ozone2021/ozone
 
-go 1.23
+go 1.21
 
 require (
 	github.com/TwiN/go-color v1.1.0
