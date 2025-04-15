@@ -162,6 +162,7 @@ func (m *LogBubbleteaApp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case *RunResultUpdate:
 		m.runResultMutex.Lock()
 		defer m.runResultMutex.Unlock()
+		defer func() { go m.ShowLogs() }()
 
 		runResultUpdate := msg.(*RunResultUpdate)
 		runResult := runResultUpdate.RunResult
