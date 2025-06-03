@@ -474,7 +474,7 @@ func (wt *Runspec) ExecuteCallstacks(runResult *RunResult) {
 			if err != nil {
 				logger, _ := runResult.GetLoggerForRunnableId(callstack.GetRunnable().GetId())
 				logger.Printf("Error executing callstack %s: %s \n", callstack.GetRunnable().GetId(), err)
-				return
+				continue
 			}
 		}
 	}

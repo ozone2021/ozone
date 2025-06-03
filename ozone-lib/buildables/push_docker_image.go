@@ -37,7 +37,6 @@ func PushDockerImage(varsMap *VariableMap, logger *logger_lib.Logger) error {
 		logger.Fatalln(fmt.Sprintf("Error in push_docker_image.go: %s", err.Error()))
 		return err
 	}
-	cmd.Wait()
 
 	return nil
 }
