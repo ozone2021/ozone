@@ -472,6 +472,8 @@ func (wt *Runspec) ExecuteCallstacks(runResult *RunResult) {
 		for _, callstack := range wt.CallStacks[runnableType] {
 			err := wt.CheckCacheAndExecute(callstack, runResult)
 			if err != nil {
+				logger, _ := runResult.GetLoggerForRunnableId(callstack.GetRunnable().GetId())
+				logger.Printf("Error executing callstack %s: %s \n", callstack.GetRunnable().GetId(), err)
 				return
 			}
 		}

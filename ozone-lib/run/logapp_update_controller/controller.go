@@ -65,11 +65,11 @@ func (c *LogappUpdateController) Start() {
 func (c *LogappUpdateController) SendHeartbeats() {
 	for {
 		select {
-		//case <-c.resetLogApps:
-		//	for id, _ := range c.registeredLogApps {
-		//		c.updateAllFunction(true)
-		//		c.deleteRegisteredApp(id)
-		//	}
+		case <-c.resetLogApps:
+			for id, _ := range c.registeredLogApps {
+				c.updateAllFunction(true)
+				c.deleteRegisteredApp(id)
+			}
 		default:
 			for id, connectedApp := range c.registeredLogApps {
 				_, err := connectedApp.ReceiveMainAppHeartbeat(context.Background(), &emptypb.Empty{})
