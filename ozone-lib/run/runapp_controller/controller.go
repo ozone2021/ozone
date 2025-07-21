@@ -37,7 +37,7 @@ func NewRunController(ozoneContext, ozoneWorkingDir, combinedArgs string, ozoneC
 	reRunChan := make(chan struct{})
 
 	if ozoneConfig.Headless == false {
-		logUpdateController = logapp_update_controller.NewLogappUpdateController(ozoneWorkingDir, inputLogAppDetailsChan, runResult.UpdateListeners)
+		logUpdateController = logapp_update_controller.NewLogappUpdateController(ozoneWorkingDir, inputLogAppDetailsChan, runResult.UpdateAllListeners)
 		ui = NewRunCmdBubbleteaApp(combinedArgs, runResult, shutdownChan, reRunChan)
 		logRegistrationServer = NewLogRegistrationServer(ozoneWorkingDir, inputLogAppDetailsChan)
 		runResult.AddListener(logUpdateController.UpdateLogApps)

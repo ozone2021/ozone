@@ -50,6 +50,7 @@ type CallstackResultNode struct {
 
 type UpdateListenerFunc func(*RunResult, bool)
 type UpdateAllListenersFunc func(bool)
+type UpdateSingleListenerFunc func(string, bool)
 
 func NewRunResult() *RunResult {
 	runResult := &RunResult{
@@ -65,13 +66,13 @@ func (r *RunResult) ResetRunResult() {
 	r.Roots = nil
 	r.Index = NewOrderedMap[string, *CallstackResultNode]()
 
-	r.UpdateListeners(true)
+	r.UpdateAllListeners(true)
 }
 
 func (r *RunResult) AddListener(listener UpdateListenerFunc) {
 	r.listeners = append(r.listeners, listener)
 
-	r.UpdateListeners(false)
+	r.UpdateAllListeners(false)
 }
 
 //func (r *RunResult) HaveDescendantsSucceeded() {
@@ -230,13 +231,22 @@ func (r *RunResult) AddRootCallstack(callstack *CallStack, logger *logger_lib.Lo
 		LogFile:     logger.GetLogFilePath(),
 		IsCallstack: true,
 	})
-	r.UpdateListeners(false)
+	r.UpdateAllListeners(false)
 }
 
-func (r *RunResult) UpdateListeners(reset bool) {
+func (r *RunResult) UpdateAllListeners(reset bool) {
 	for _, listener := range r.listeners {
 		listener(r, reset)
 	}
+}
+
+func (r *RunResult) UpdateSingleListener(id string, reset bool) {
+	//for currentId, listener := range r.listeners {
+	//	if currentId == id {
+	//		listener(r, reset)
+	//		return
+	//	}
+	//}
 }
 
 func (s CallstackStatus) String() string {
@@ -261,7 +271,7 @@ func (r *RunResult) AddCallstackResult(id string, status CallstackStatus, callSt
 		}
 	}
 
-	r.UpdateListeners(false)
+	r.UpdateAllListeners(false)
 	return nil
 	// TODO if at this point, the runnable is caching, then we should update the cache if all children have succeeded.
 }

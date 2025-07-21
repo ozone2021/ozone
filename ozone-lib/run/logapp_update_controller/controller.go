@@ -22,6 +22,7 @@ type LogappUpdateController struct {
 	channelHandlerShutdown chan struct{}
 	resetLogApps           chan struct{}
 	updateAllFunction      runspec.UpdateAllListenersFunc
+	//updateSingleFunction   runspec.UpdateSingleListenerFunc
 }
 
 type ConnectedLogApp struct {
@@ -29,13 +30,14 @@ type ConnectedLogApp struct {
 	log_server_pb.LogUpdateServiceClient
 }
 
-func NewLogappUpdateController(ozoneWorkingDir string, incomingLogAppDetails chan *LogAppDetails, updateFunction runspec.UpdateAllListenersFunc) *LogappUpdateController {
+func NewLogappUpdateController(ozoneWorkingDir string, incomingLogAppDetails chan *LogAppDetails, updateAllFunction runspec.UpdateAllListenersFunc) *LogappUpdateController {
 	return &LogappUpdateController{
 		registrationServer: NewLogRegistrationServer(ozoneWorkingDir, incomingLogAppDetails),
 		registeredLogApps:  make(map[string]*ConnectedLogApp),
 		incomingLogApps:    incomingLogAppDetails,
-		updateAllFunction:  updateFunction,
-		resetLogApps:       make(chan struct{}),
+		updateAllFunction:  updateAllFunction,
+		//updateSingleFunction: updateSingleFunction,
+		resetLogApps: make(chan struct{}),
 	}
 }
 
@@ -55,7 +57,7 @@ func (c *LogappUpdateController) Start() {
 				LogUpdateServiceClient: c.connectToLogApp(logAppDetails),
 			}
 			c.registeredLogAppsMutex.Unlock()
-			c.updateAllFunction(false)
+			c.updateAllFunction(true)
 		case <-c.channelHandlerShutdown:
 			return
 		}

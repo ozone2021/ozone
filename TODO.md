@@ -209,3 +209,19 @@ It doesn't create new log files unless runnable has `cache: true`, this shouldn'
 ### Documentation
 
 Caching (local and PR - mention the variable scope)/Docker daemon/headless explanation
+
+### Log app
+
+Doesn't restart properly when the main run is cancelled with ctrl+c and then restarted.
+
+```
+func (c *LogAppController) RegisterLogApp() {
+	client := log_registration_client_service.NewLogClient()
+
+	client.Connect(c.ozoneWorkingDir)
+
+	_, err := client.RegisterLogApp(c.appIdUUID.String())
+```
+
+The RegisterLogApp function should return the ID of the main app, and then if it's different from the one 
+that is held by the log app, it should reset the log app.
