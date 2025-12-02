@@ -434,10 +434,31 @@ func (pm *ProcessManager) Debug(processQuery *process_manager_queries.ProcessCre
 	return nil
 }
 
+func (pm *ProcessManager) HealthCheck(_ *struct{}, reply *process_manager_queries.StringReply) error {
+	uptime := time.Since(time.Unix(0, 0)).String() // Placeholder, could track actual start time
+	processCount := 0
+	for _, pMap := range pm.processes {
+		processCount += len(pMap)
+	}
+	reply.Body = fmt.Sprintf("ok | uptime: %s | process count: %d", uptime, processCount)
+	return nil
+}
+
+func (pm *ProcessManager) ServeHealthHTTP() {
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		reply := &process_manager_queries.StringReply{}
+		_ = pm.HealthCheck(nil, reply)
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(reply.Body))
+	})
+}
+
 func Run() {
 	processManager := New()
 	rpc.Register(processManager)
 	rpc.HandleHTTP()
+	processManager.ServeHealthHTTP()
 	l, e := net.Listen("tcp", ":8000")
 	if e != nil {
 		log.Fatal("listen error:", e)

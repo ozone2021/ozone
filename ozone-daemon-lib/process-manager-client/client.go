@@ -1,12 +1,18 @@
 package process_manager_client
 
 import (
+	"bufio"
 	"encoding/gob"
 	"fmt"
-	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
+	"io"
 	"log"
+	"net"
+	"net/http"
 	"net/rpc"
 	"os"
+	"time"
+
+	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 )
 
 func Halt(service string) error {
@@ -151,17 +157,54 @@ func call(name string, query interface{}, reply interface{}) error {
 	gob.Register(&process_manager.DirQuery{})
 	gob.Register(&process_manager.StringReply{})
 	gob.Register(&process_manager.BoolReply{})
-	client, err := rpc.DialHTTP("tcp", ":8000")
+
+	conn, err := net.DialTimeout("tcp", ":8000", 5*time.Second)
 	if err != nil {
-		log.Fatal("dialing:", err)
+		return fmt.Errorf("failed to connect to daemon: %w", err)
+	}
+	defer conn.Close()
+
+	// Set deadline for all read/write operations
+	deadline := time.Now().Add(5 * time.Second)
+	conn.SetDeadline(deadline)
+
+	// Perform HTTP handshake for RPC
+	_, err = io.WriteString(conn, "CONNECT "+rpc.DefaultRPCPath+" HTTP/1.0\n\n")
+	if err != nil {
+		return fmt.Errorf("failed to write HTTP request: %w", err)
 	}
 
-	rpcName := fmt.Sprintf("ProcessManager.%s", name)
+	// Create buffered reader and read response
+	bufReader := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(bufReader, &http.Request{Method: "CONNECT"})
+	if err != nil {
+		return fmt.Errorf("failed HTTP handshake: %w", err)
+	}
+	if resp.Status != "200 Connected to Go RPC" {
+		return fmt.Errorf("unexpected HTTP response: %s", resp.Status)
+	}
+
+	// Create RPC client using a ReadWriteCloser that combines the buffered reader with the connection
+	codec := &readWriteCloser{
+		Reader: bufReader,
+		Writer: conn,
+		Closer: conn,
+	}
+	client := rpc.NewClient(codec)
 	defer client.Close()
+
+	rpcName := fmt.Sprintf("ProcessManager.%s", name)
 	err = client.Call(rpcName, query, reply)
 	if err != nil {
 		log.Fatal("transport error:", err) // TODO daemon not running error?
 		return err
 	}
 	return nil
+}
+
+// readWriteCloser combines a Reader, Writer, and Closer into a ReadWriteCloser
+type readWriteCloser struct {
+	io.Reader
+	io.Writer
+	io.Closer
 }
