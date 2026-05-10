@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -13,6 +14,6 @@ var versionCmd = &cobra.Command{
 	Use:  "version",
 	Long: `Version of the CLI`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("1.4.33")
+		fmt.Printf("1.4.34")
 	},
 }
