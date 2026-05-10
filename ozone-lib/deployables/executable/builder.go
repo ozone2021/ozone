@@ -1,12 +1,14 @@
 package executable
 
 import (
+	"errors"
 	"fmt"
+	"net/rpc"
+	"os"
+
 	process_manager "github.com/ozone2021/ozone/ozone-daemon-lib/process-manager-queries"
 	"github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
-	"net/rpc"
-	"os"
 )
 
 func Build(env *config_variable.VariableMap, logger *logger_lib.Logger) error {
@@ -28,13 +30,15 @@ func Build(env *config_variable.VariableMap, logger *logger_lib.Logger) error {
 
 	client, err := rpc.DialHTTP("tcp", ":8000")
 	if err != nil {
-		logger.Fatal("dialing:", err)
-		return err
+		errorMessage := fmt.Sprintf("Error dialing process manager: %s", err.Error())
+		logger.Println(errorMessage)
+		return errors.New(errorMessage)
 	}
 	err = client.Call("ProcessManager.AddProcess", query, nil)
 	if err != nil {
-		logger.Fatal("arith error:", err)
-		return err
+		errorMessage := fmt.Sprintf("Error dialing process manager: %s", err.Error())
+		logger.Println(errorMessage)
+		return errors.New(errorMessage)
 	}
 	return nil
 }
