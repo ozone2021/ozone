@@ -1,12 +1,14 @@
 package buildables
 
 import (
+	"errors"
 	"fmt"
+	"os/exec"
+
 	"github.com/kballard/go-shellquote"
 	. "github.com/ozone2021/ozone/ozone-lib/config/config_variable"
 	"github.com/ozone2021/ozone/ozone-lib/logger_lib"
 	"github.com/ozone2021/ozone/ozone-lib/utils"
-	"os/exec"
 )
 
 func getPushDockerImageParams() []string {
@@ -34,8 +36,9 @@ func PushDockerImage(varsMap *VariableMap, logger *logger_lib.Logger) error {
 	cmd.Stderr = logger.File
 	err = cmd.Run()
 	if err != nil {
-		logger.Fatalln(fmt.Sprintf("Error in push_docker_image.go: %s", err.Error()))
-		return err
+		errorMessage := fmt.Sprintf("Error in push_docker_image.go: %s", err.Error())
+		logger.Println(errorMessage)
+		return errors.New(errorMessage)
 	}
 
 	return nil
